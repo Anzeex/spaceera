@@ -2,15 +2,12 @@ import { createCamera, screenToWorld } from '../camera/camera.js';
 import { attachCameraControls } from '../camera/controls.js';
 import { generateGalaxy } from '../galaxy/galaxyGenerator.js';
 import { createRenderer } from '../render/renderer.js';
-import { createInfoPanel } from '../ui/infoPanel.js';
 import { createSelection } from '../interaction/selection.js';
 import { createLoop } from './loop.js';
 
 export function createGame(container, galaxyOptions = {}) {
   const canvas = document.createElement('canvas');
   container.appendChild(canvas);
-
-  const infoPanel = createInfoPanel(container);
 
   // Create UI container
   const uiContainer = document.createElement('div');
@@ -68,6 +65,19 @@ export function createGame(container, galaxyOptions = {}) {
   colorPicker.style.display = 'none';
   colorPicker.style.border = '1px solid white';
   uiContainer.appendChild(colorPicker);
+
+  // Territory name input
+  const territoryNameInput = document.createElement('input');
+  territoryNameInput.type = 'text';
+  territoryNameInput.placeholder = 'Territory Name';
+  territoryNameInput.style.padding = '6px';
+  territoryNameInput.style.background = 'rgba(0,0,0,0.8)';
+  territoryNameInput.style.color = 'white';
+  territoryNameInput.style.border = '1px solid white';
+  territoryNameInput.style.borderRadius = '4px';
+  territoryNameInput.style.marginBottom = '8px';
+  territoryNameInput.style.display = 'none';
+  uiContainer.appendChild(territoryNameInput);
 
   const colors = ['#ff6b6b', '#4ecdc4', '#45b7d1', '#f9ca24', '#6c5ce7', '#a29bfe'];
   let nextColorIndex = 0;
@@ -168,18 +178,22 @@ export function createGame(container, galaxyOptions = {}) {
     territorySelector.style.display = state.territoryMode ? 'block' : 'none';
     addTerritoryButton.style.display = state.territoryMode ? 'block' : 'none';
     colorPicker.style.display = state.territoryMode ? 'block' : 'none';
+    territoryNameInput.style.display = state.territoryMode ? 'block' : 'none';
   });
 
   addTerritoryButton.addEventListener('click', () => {
     const color = colorPicker.value || colors[nextColorIndex % colors.length];
     nextColorIndex++;
+    const name = territoryNameInput.value.trim() || `Territory ${state.territories.size + 1}`;
     const territoryId = `territory-${Date.now()}`;
     state.territories.set(territoryId, {
       id: territoryId,
-      name: `Territory ${state.territories.size + 1}`,
+      name,
       color,
+      faction: name,
       stars: new Set(),
     });
+    territoryNameInput.value = '';
     updateTerritorySelector();
   });
 
@@ -187,12 +201,17 @@ export function createGame(container, galaxyOptions = {}) {
     state.currentTerritoryId = e.target.value;
   });
 
-  const renderer = createRenderer(state, infoPanel);
+  const renderer = createRenderer(state);
 
   canvas.addEventListener('click', (event) => {
     const rect = canvas.getBoundingClientRect();
     const screenX = event.clientX - rect.left;
     const screenY = event.clientY - rect.top;
+
+    if (renderer.handleCanvasClick(screenX, screenY)) {
+      return;
+    }
+
     const worldPoint = screenToWorld(state.camera, { width: rect.width, height: rect.height }, screenX, screenY);
 
     let closest = null;
@@ -222,7 +241,15 @@ export function createGame(container, galaxyOptions = {}) {
         if (state.territoryMode && state.currentTerritoryId) {
           const territory = state.territories.get(state.currentTerritoryId);
           if (territory) {
-            territory.stars.add(closest.id);
+            if (territory.stars.has(closest.id)) {
+              territory.stars.delete(closest.id);
+              closest.faction = 'Unclaimed';
+              closest.owner = 'Unclaimed';
+            } else {
+              territory.stars.add(closest.id);
+              closest.faction = territory.faction;
+              closest.owner = territory.faction;
+            }
           }
         } else {
           state.selection.selectedStarId = closest.id;

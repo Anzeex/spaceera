@@ -470,13 +470,18 @@ function drawInfoBox(ctx, x, y, width, height, radius = 8) {
   ctx.closePath();
 }
 
-export function createRenderer(state, infoPanel) {
+export function createRenderer(state) {
   let cachedStarSignature = '';
   let cachedVoronoi = {
     bounds: null,
     cellsByStarId: new Map(),
     adjacentPairs: [],
   };
+
+  let lastSelectedStarId = null;
+  let isPlanetListOpen = false;
+  let planetsLineBounds = null;
+  let planetListBoxBounds = null;
 
   function resize() {
     const dpr = window.devicePixelRatio || 1;
@@ -526,6 +531,12 @@ export function createRenderer(state, infoPanel) {
 
     const selected =
       galaxy.stars.find((star) => star.id === selection.selectedStarId) || null;
+
+    if (lastSelectedStarId !== selection.selectedStarId) {
+      isPlanetListOpen = false;
+      planetListBoxBounds = null;
+      lastSelectedStarId = selection.selectedStarId;
+    }
 
     // One unified territory mass from all owned systems
     drawOwnedTerritoryMass(ctx, camera, viewport, cellsByStarId, state);
@@ -579,15 +590,18 @@ export function createRenderer(state, infoPanel) {
 
       const text = [
         selected.name,
-        `Faction: ${selected.faction}`,
-        `Type: ${selected.spectralType}`,
+        `Owner: ${selected.owner}`,
+        `Star Type: ${selected.starType}`,
+        `Energy: ${selected.energyOutput}`,
+        `Population: ${selected.population.toLocaleString()}`,
+        `GDP: ${selected.gdp.toFixed(0)}`,
+        `Defense: ${selected.systemDefense}`,
         `Planets: ${selected.planets.length}`,
-        `Richness: ${selected.richness}`,
       ];
 
       const padding = 8;
       const lineHeight = 16;
-      const boxWidth = 150;
+      const boxWidth = 220;
       const boxHeight = text.length * lineHeight + padding * 2;
       const x = Math.min(width - boxWidth - 12, Math.max(12, sp.x + 20));
       const y = Math.min(height - boxHeight - 12, Math.max(12, sp.y - boxHeight - 20));
@@ -606,17 +620,102 @@ export function createRenderer(state, infoPanel) {
       ctx.textBaseline = 'top';
 
       for (let i = 0; i < text.length; i++) {
-        ctx.fillText(text[i], x + padding, y + padding + i * lineHeight);
+        const textY = y + padding + i * lineHeight;
+        if (i === text.length - 1) {
+          ctx.fillStyle = '#ffd166';
+          const planetsText = isPlanetListOpen ? `${text[i]} ▾` : `${text[i]} ▸`;
+          ctx.fillText(planetsText, x + padding, textY);
+          planetsLineBounds = {
+            x: x + padding,
+            y: textY,
+            width: boxWidth - padding * 2,
+            height: lineHeight,
+          };
+          ctx.beginPath();
+          ctx.moveTo(x + padding, textY + lineHeight - 2);
+          ctx.lineTo(x + boxWidth - padding, textY + lineHeight - 2);
+          ctx.strokeStyle = 'rgba(255, 209, 102, 0.8)';
+          ctx.lineWidth = 1;
+          ctx.stroke();
+          ctx.fillStyle = '#ffffff';
+        } else {
+          ctx.fillText(text[i], x + padding, textY);
+        }
       }
 
       ctx.restore();
+
+      if (isPlanetListOpen && selected.planets.length > 0) {
+        const listLines = selected.planets.map((planet) => `${planet.name} (${planet.type})`);
+        const listPadding = 8;
+        const listLineHeight = 18;
+        const listWidth = boxWidth;
+        const listHeight = listLines.length * listLineHeight + listPadding * 2;
+        const listX = x;
+        const listY = y + boxHeight + 8;
+
+        ctx.save();
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.82)';
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+        ctx.lineWidth = 1;
+        drawInfoBox(ctx, listX, listY, listWidth, listHeight, 8);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.fillStyle = '#ffffff';
+        ctx.font = '12px Arial';
+        ctx.textBaseline = 'top';
+        for (let i = 0; i < listLines.length; i++) {
+          ctx.fillText(listLines[i], listX + listPadding, listY + listPadding + i * listLineHeight);
+        }
+        ctx.restore();
+        planetListBoxBounds = {
+          x: listX,
+          y: listY,
+          width: listWidth,
+          height: listHeight,
+        };
+      }
+    } else {
+      planetsLineBounds = null;
+      planetListBoxBounds = null;
+    }
+  }
+
+  function handleCanvasClick(screenX, screenY) {
+    if (planetsLineBounds) {
+      const inPlanetsLine =
+        screenX >= planetsLineBounds.x &&
+        screenX <= planetsLineBounds.x + planetsLineBounds.width &&
+        screenY >= planetsLineBounds.y &&
+        screenY <= planetsLineBounds.y + planetsLineBounds.height;
+
+      if (inPlanetsLine) {
+        isPlanetListOpen = !isPlanetListOpen;
+        return true;
+      }
     }
 
-    infoPanel.render(selected);
+    if (isPlanetListOpen && planetListBoxBounds) {
+      const inListBox =
+        screenX >= planetListBoxBounds.x &&
+        screenX <= planetListBoxBounds.x + planetListBoxBounds.width &&
+        screenY >= planetListBoxBounds.y &&
+        screenY <= planetListBoxBounds.y + planetListBoxBounds.height;
+
+      if (inListBox) {
+        return true;
+      }
+
+      isPlanetListOpen = false;
+    }
+
+    return false;
   }
 
   return {
     render,
     resize,
+    handleCanvasClick,
   };
 }

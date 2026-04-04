@@ -1,3 +1,5 @@
+﻿import { createRNG } from './random.js';
+
 export function generateSpiralPositions({
   starCount,
   arms = 2,
@@ -5,7 +7,9 @@ export function generateSpiralPositions({
   spinTightness = 0.00045, // lower = looser spiral, higher = tighter spin
   armDensity = 0.8, // 0-1: controls how concentrated density is at arm centers
   minStarDistance = 50, // minimum distance between stars (world units)
+  seed = 'default',
 }) {
+  const random = createRNG(seed);
   const positions = [];
 
   const chaos = Math.max(0, Math.min(1, wildness));
@@ -22,7 +26,7 @@ export function generateSpiralPositions({
 
     const radius =
       centerBias * 18000 +
-      Math.random() * (30 + chaos * 20);
+      random.random() * (30 + chaos * 20);
 
     // Control how tightly the galaxy spins
     const baseAngle = radius * spinTightness;
@@ -35,7 +39,7 @@ export function generateSpiralPositions({
 
     // Wildness still affects how messy it gets
     const spread =
-      (Math.random() - 0.5) *
+      (random.random() - 0.5) *
       armThickness *
       (0.8 + chaos * 2.8);
 
@@ -50,7 +54,7 @@ export function generateSpiralPositions({
 
     // Rejection sampling: skip stars at edges based on density
     // This actually prevents stars from being placed, not just reducing jitter
-    if (Math.random() > densityFalloff) {
+    if (random.random() > densityFalloff) {
       i--; // Retry this star
       continue;
     }
@@ -61,8 +65,8 @@ export function generateSpiralPositions({
       ((1 - centerBias) * 60 + 10) *
       (0.4 + chaos);
 
-    const x = Math.cos(angle) * radius + (Math.random() - 0.5) * jitter;
-    const y = Math.sin(angle) * radius * 0.7 + (Math.random() - 0.5) * jitter;
+    const x = Math.cos(angle) * radius + (random.random() - 0.5) * jitter;
+    const y = Math.sin(angle) * radius * 0.7 + (random.random() - 0.5) * jitter;
 
     let tooClose = false;
     for (let j = 0; j < positions.length; j++) {
