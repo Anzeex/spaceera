@@ -314,45 +314,64 @@ function buildBoundaryLoops(segments) {
   return loops;
 }
 
+function hexToRgb(hex) {
+  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  return result ? {
+    r: parseInt(result[1], 16),
+    g: parseInt(result[2], 16),
+    b: parseInt(result[3], 16)
+  } : { r: 100, g: 255, b: 140 };
+}
+
 function drawOwnedTerritoryMass(ctx, camera, viewport, cellsByStarId, state) {
-  if (state.ownedStars.size === 0) return;
-
-  const segments = buildOwnedBoundarySegments(cellsByStarId, state.ownedStars);
-  const loops = buildBoundaryLoops(segments);
-
-  if (!loops.length) return;
+  if (state.territories.size === 0) return;
 
   ctx.save();
 
-  for (const loop of loops) {
-    const screenLoop = polygonToScreen(camera, viewport, loop);
-    const smoothLoop = smoothClosedPolygon(screenLoop, 3);
+  for (const [, territory] of state.territories.entries()) {
+    if (territory.stars.size === 0) continue;
 
-    // soft fill
-    ctx.shadowColor = 'rgba(100, 255, 140, 0.14)';
-    ctx.shadowBlur = 22;
+    const segments = buildOwnedBoundarySegments(cellsByStarId, territory.stars);
+    const loops = buildBoundaryLoops(segments);
 
-    drawPolygonPath(ctx, smoothLoop);
-    ctx.fillStyle = 'rgba(100, 255, 140, 0.12)';
-    ctx.fill();
+    if (!loops.length) continue;
 
-    ctx.shadowBlur = 0;
+    const rgb = hexToRgb(territory.color);
+    const fillColor = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.12)`;
+    const shadowColor = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.14)`;
+    const outerBorderColor = `rgba(${rgb.r}, ${Math.min(255, rgb.g + 40)}, ${Math.min(255, rgb.b + 45)}, 0.14)`;
+    const topBorderColor = `rgba(${rgb.r}, ${Math.min(255, rgb.g + 30)}, ${Math.min(255, rgb.b + 35)}, 0.5)`;
 
-    // soft outer border
-    drawPolygonPath(ctx, smoothLoop);
-    ctx.strokeStyle = 'rgba(160, 255, 185, 0.14)';
-    ctx.lineWidth = 10;
-    ctx.lineJoin = 'round';
-    ctx.lineCap = 'round';
-    ctx.stroke();
+    for (const loop of loops) {
+      const screenLoop = polygonToScreen(camera, viewport, loop);
+      const smoothLoop = smoothClosedPolygon(screenLoop, 3);
 
-    // sharper top border
-    drawPolygonPath(ctx, smoothLoop);
-    ctx.strokeStyle = 'rgba(150, 255, 180, 0.5)';
-    ctx.lineWidth = 2.5;
-    ctx.lineJoin = 'round';
-    ctx.lineCap = 'round';
-    ctx.stroke();
+      // soft fill
+      ctx.shadowColor = shadowColor;
+      ctx.shadowBlur = 22;
+
+      drawPolygonPath(ctx, smoothLoop);
+      ctx.fillStyle = fillColor;
+      ctx.fill();
+
+      ctx.shadowBlur = 0;
+
+      // soft outer border
+      drawPolygonPath(ctx, smoothLoop);
+      ctx.strokeStyle = outerBorderColor;
+      ctx.lineWidth = 10;
+      ctx.lineJoin = 'round';
+      ctx.lineCap = 'round';
+      ctx.stroke();
+
+      // sharper top border
+      drawPolygonPath(ctx, smoothLoop);
+      ctx.strokeStyle = topBorderColor;
+      ctx.lineWidth = 2.5;
+      ctx.lineJoin = 'round';
+      ctx.lineCap = 'round';
+      ctx.stroke();
+    }
   }
 
   ctx.restore();
@@ -400,15 +419,30 @@ function getAdjacentStarPairs(stars, cellsByStarId) {
   return pairs;
 }
 
-function drawStarConnections(ctx, camera, viewport, adjacentPairs, starIdsToShow) {
-  if (!starIdsToShow.size) return;
-
+function drawStarConnections(ctx, camera, viewport, adjacentPairs, hoveredStarId, state) {
   ctx.save();
   ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
   ctx.lineWidth = 1;
 
   for (const [star1, star2] of adjacentPairs) {
-    if (starIdsToShow.has(star1.id) || starIdsToShow.has(star2.id)) {
+    let shouldDraw = false;
+    
+    // Draw if hovering over either star
+    if (star1.id === hoveredStarId || star2.id === hoveredStarId) {
+      shouldDraw = true;
+    }
+    
+    // Draw if either star belongs to a territory
+    if (!shouldDraw && state.territories.size > 0) {
+      for (const [, territory] of state.territories.entries()) {
+        if (territory.stars.has(star1.id) || territory.stars.has(star2.id)) {
+          shouldDraw = true;
+          break;
+        }
+      }
+    }
+
+    if (shouldDraw) {
       const p1 = worldToScreen(camera, viewport, star1.x, star1.y);
       const p2 = worldToScreen(camera, viewport, star2.x, star2.y);
 
@@ -486,11 +520,9 @@ export function createRenderer(state, infoPanel) {
     ctx.fillRect(0, 0, width, height);
 
     // Draw star connections
-    const starIdsToShow = new Set(state.ownedStars);
-    if (selection.hoveredStarId) {
-      starIdsToShow.add(selection.hoveredStarId);
+    if (state.showLines) {
+      drawStarConnections(ctx, camera, viewport, adjacentPairs, selection.hoveredStarId, state);
     }
-    drawStarConnections(ctx, camera, viewport, adjacentPairs, starIdsToShow);
 
     const selected =
       galaxy.stars.find((star) => star.id === selection.selectedStarId) || null;
@@ -511,20 +543,32 @@ export function createRenderer(state, infoPanel) {
 
       const r = Math.max(0.8, star.radius * camera.zoom);
 
-      if (state.ownedStars.has(star.id)) {
+      // Find which territory this star belongs to
+      let starTerritory = null;
+      for (const [, territory] of state.territories.entries()) {
+        if (territory.stars.has(star.id)) {
+          starTerritory = territory;
+          break;
+        }
+      }
+
+      // Draw territory aura if star belongs to a territory
+      if (starTerritory) {
         ctx.beginPath();
         ctx.arc(p.x, p.y, r + 4, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(120, 255, 150, 0.12)';
+        const rgb = hexToRgb(starTerritory.color);
+        ctx.fillStyle = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.12)`;
         ctx.fill();
       }
 
       ctx.beginPath();
-      ctx.fillStyle =
-        selection.selectedStarId === star.id
-          ? '#ffd166'
-          : state.ownedStars.has(star.id)
-          ? '#66ff66'
-          : '#ffffff';
+      if (selection.selectedStarId === star.id) {
+        ctx.fillStyle = '#ffd166';
+      } else if (starTerritory) {
+        ctx.fillStyle = starTerritory.color;
+      } else {
+        ctx.fillStyle = '#ffffff';
+      }
 
       ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
       ctx.fill();
