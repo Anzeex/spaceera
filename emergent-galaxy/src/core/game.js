@@ -88,6 +88,45 @@ export function createGame(container, galaxyOptions = {}) {
     }
   });
 
+  canvas.addEventListener('mousemove', (event) => {
+    const rect = canvas.getBoundingClientRect();
+    const screenX = event.clientX - rect.left;
+    const screenY = event.clientY - rect.top;
+    const worldPoint = screenToWorld(state.camera, { width: rect.width, height: rect.height }, screenX, screenY);
+
+    let closest = null;
+    let closestDistSq = Infinity;
+
+    for (const star of state.galaxy.stars) {
+      const dx = star.x - worldPoint.x;
+      const dy = star.y - worldPoint.y;
+      const distSq = dx * dx + dy * dy;
+      if (distSq < closestDistSq) {
+        closest = star;
+        closestDistSq = distSq;
+      }
+    }
+
+    if (closest) {
+      const maybeScreen = {
+        x: (closest.x - state.camera.x) * state.camera.zoom + rect.width / 2,
+        y: (closest.y - state.camera.y) * state.camera.zoom + rect.height / 2,
+      };
+      const pxDx = maybeScreen.x - screenX;
+      const pxDy = maybeScreen.y - screenY;
+      const pxDistSq = pxDx * pxDx + pxDy * pxDy;
+      const hoverRadius = 50; // Larger radius for hover detection
+
+      if (pxDistSq <= hoverRadius * hoverRadius) {
+        state.selection.hoveredStarId = closest.id;
+      } else {
+        state.selection.hoveredStarId = null;
+      }
+    } else {
+      state.selection.hoveredStarId = null;
+    }
+  });
+
   attachCameraControls(state);
   const loop = createLoop(() => renderer.render());
 

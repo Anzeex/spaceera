@@ -383,6 +383,45 @@ function drawSelectedCell(ctx, camera, viewport, selectedStar, cellsByStarId) {
   ctx.restore();
 }
 
+function getAdjacentStarPairs(stars, cellsByStarId) {
+  const edgeMap = buildSharedEdgeMap(cellsByStarId);
+  const pairs = [];
+
+  for (const [, edges] of edgeMap.entries()) {
+    if (edges.length === 2) {
+      const star1 = stars.find(s => s.id === edges[0].starId);
+      const star2 = stars.find(s => s.id === edges[1].starId);
+      if (star1 && star2) {
+        pairs.push([star1, star2]);
+      }
+    }
+  }
+
+  return pairs;
+}
+
+function drawStarConnections(ctx, camera, viewport, adjacentPairs, starIdsToShow) {
+  if (!starIdsToShow.size) return;
+
+  ctx.save();
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+  ctx.lineWidth = 1;
+
+  for (const [star1, star2] of adjacentPairs) {
+    if (starIdsToShow.has(star1.id) || starIdsToShow.has(star2.id)) {
+      const p1 = worldToScreen(camera, viewport, star1.x, star1.y);
+      const p2 = worldToScreen(camera, viewport, star2.x, star2.y);
+
+      ctx.beginPath();
+      ctx.moveTo(p1.x, p1.y);
+      ctx.lineTo(p2.x, p2.y);
+      ctx.stroke();
+    }
+  }
+
+  ctx.restore();
+}
+
 function drawInfoBox(ctx, x, y, width, height, radius = 8) {
   ctx.beginPath();
   ctx.moveTo(x + radius, y);
@@ -402,6 +441,7 @@ export function createRenderer(state, infoPanel) {
   let cachedVoronoi = {
     bounds: null,
     cellsByStarId: new Map(),
+    adjacentPairs: [],
   };
 
   function resize() {
@@ -425,6 +465,7 @@ export function createRenderer(state, infoPanel) {
 
     if (signature !== cachedStarSignature) {
       cachedVoronoi = buildVoronoiCells(stars);
+      cachedVoronoi.adjacentPairs = getAdjacentStarPairs(stars, cachedVoronoi.cellsByStarId);
       cachedStarSignature = signature;
     }
   }
@@ -437,12 +478,19 @@ export function createRenderer(state, infoPanel) {
 
     ensureVoronoiCache(galaxy.stars);
 
-    const { cellsByStarId } = cachedVoronoi;
+    const { cellsByStarId, adjacentPairs } = cachedVoronoi;
 
     ctx.clearRect(0, 0, width, height);
 
     ctx.fillStyle = '#030712';
     ctx.fillRect(0, 0, width, height);
+
+    // Draw star connections
+    const starIdsToShow = new Set(state.ownedStars);
+    if (selection.hoveredStarId) {
+      starIdsToShow.add(selection.hoveredStarId);
+    }
+    drawStarConnections(ctx, camera, viewport, adjacentPairs, starIdsToShow);
 
     const selected =
       galaxy.stars.find((star) => star.id === selection.selectedStarId) || null;
