@@ -31,3 +31,20 @@ export function createStarName(index, rng) {
   const last = rng.randomChoice(lastNames);
   return `${first} ${last}`;
 }
+
+function getSystemLastName(starName) {
+  const parts = String(starName || '').trim().split(/\s+/);
+  return parts.length > 1 ? parts[parts.length - 1] : (parts[0] || 'Nova');
+}
+
+function getPlanetLetter(index) {
+  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  return alphabet[index] || alphabet[alphabet.length - 1];
+}
+
+export function createPlanetName(starName, planetIndex, rng) {
+  const systemLastName = getSystemLastName(starName);
+  const first = firstNames[rng.randomInt(0, firstNames.length - 1)];
+  const letter = getPlanetLetter(planetIndex);
+  return `${systemLastName} ${first} ${letter}`;
+}

@@ -480,8 +480,17 @@ export function createRenderer(state) {
 
   let lastSelectedStarId = null;
   let isPlanetListOpen = false;
+  let selectedPlanetId = null;
   let planetsLineBounds = null;
   let planetListBoxBounds = null;
+  let planetItemBounds = [];
+
+  function formatNumber(value, digits = 0) {
+    return Number(value || 0).toLocaleString(undefined, {
+      minimumFractionDigits: digits,
+      maximumFractionDigits: digits,
+    });
+  }
 
   function resize() {
     const dpr = window.devicePixelRatio || 1;
@@ -534,7 +543,9 @@ export function createRenderer(state) {
 
     if (lastSelectedStarId !== selection.selectedStarId) {
       isPlanetListOpen = false;
+      selectedPlanetId = null;
       planetListBoxBounds = null;
+      planetItemBounds = [];
       lastSelectedStarId = selection.selectedStarId;
     }
 
@@ -645,6 +656,8 @@ export function createRenderer(state) {
 
       ctx.restore();
 
+      planetItemBounds = [];
+
       if (isPlanetListOpen && selected.planets.length > 0) {
         const listLines = selected.planets.map((planet) => `${planet.name} (${planet.type})`);
         const listPadding = 8;
@@ -666,7 +679,35 @@ export function createRenderer(state) {
         ctx.font = '12px Arial';
         ctx.textBaseline = 'top';
         for (let i = 0; i < listLines.length; i++) {
-          ctx.fillText(listLines[i], listX + listPadding, listY + listPadding + i * listLineHeight);
+          const itemY = listY + listPadding + i * listLineHeight;
+          const planet = selected.planets[i];
+          const isSelectedPlanet = planet.id === selectedPlanetId;
+          const itemX = listX + 4;
+          const itemWidth = listWidth - 8;
+
+          ctx.fillStyle = isSelectedPlanet ? 'rgba(255, 209, 102, 0.2)' : 'rgba(255, 255, 255, 0.06)';
+          drawInfoBox(ctx, itemX, itemY - 2, itemWidth, listLineHeight, 6);
+          ctx.fill();
+
+          ctx.strokeStyle = isSelectedPlanet ? 'rgba(255, 209, 102, 0.95)' : 'rgba(255, 255, 255, 0.18)';
+          ctx.lineWidth = 1;
+          drawInfoBox(ctx, itemX, itemY - 2, itemWidth, listLineHeight, 6);
+          ctx.stroke();
+
+          if (isSelectedPlanet) {
+            ctx.fillStyle = '#ffd166';
+          } else {
+            ctx.fillStyle = '#ffffff';
+          }
+
+          ctx.fillText(`> ${listLines[i]}`, listX + listPadding + 2, itemY);
+          planetItemBounds.push({
+            planetId: planet.id,
+            x: itemX,
+            y: itemY - 2,
+            width: itemWidth,
+            height: listLineHeight,
+          });
         }
         ctx.restore();
         planetListBoxBounds = {
@@ -676,9 +717,74 @@ export function createRenderer(state) {
           height: listHeight,
         };
       }
+
+      const selectedPlanet =
+        selected.planets.find((planet) => planet.id === selectedPlanetId) || null;
+
+      if (selectedPlanet) {
+        const resourceText = selectedPlanet.prominentResources.length
+          ? selectedPlanet.prominentResources
+              .map((resource) => `${resource.name} (${resource.abundance})`)
+              .join(', ')
+          : 'None';
+        const infrastructureLines = Object.entries(selectedPlanet.infrastructure).map(
+          ([key, value]) => {
+            const label = key
+              .replace(/([A-Z])/g, ' $1')
+              .replace(/^./, (char) => char.toUpperCase());
+            return `  ${label}: ${value}`;
+          }
+        );
+
+        const detailLines = [
+          selectedPlanet.name,
+          `Type: ${selectedPlanet.type}`,
+          `Habitability: ${selectedPlanet.habitability}`,
+          `Population: ${formatNumber(selectedPlanet.population)}`,
+          `GDP: ${formatNumber(selectedPlanet.gdp, 0)}`,
+          `Resources: ${resourceText}`,
+          `Infrastructure`,
+          ...infrastructureLines,
+        ];
+
+        const detailPadding = 8;
+        const detailLineHeight = 16;
+        const detailWidth = 280;
+        const detailHeight = detailLines.length * detailLineHeight + detailPadding * 2;
+        const detailX = Math.min(width - detailWidth - 12, x + boxWidth + 12);
+        const detailY = Math.min(height - detailHeight - 12, y);
+
+        ctx.save();
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.82)';
+        ctx.strokeStyle = 'rgba(255, 209, 102, 0.9)';
+        ctx.lineWidth = 1;
+        drawInfoBox(ctx, detailX, detailY, detailWidth, detailHeight, 8);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.fillStyle = '#ffffff';
+        ctx.font = '12px Arial';
+        ctx.textBaseline = 'top';
+
+        for (let i = 0; i < detailLines.length; i++) {
+          if (i === 0) {
+            ctx.fillStyle = '#ffd166';
+          } else if (i === 7) {
+            ctx.fillStyle = '#9ad1ff';
+          } else {
+            ctx.fillStyle = '#ffffff';
+          }
+
+          ctx.fillText(detailLines[i], detailX + detailPadding, detailY + detailPadding + i * detailLineHeight);
+        }
+
+        ctx.restore();
+      }
     } else {
       planetsLineBounds = null;
       planetListBoxBounds = null;
+      planetItemBounds = [];
+      selectedPlanetId = null;
     }
   }
 
@@ -704,6 +810,17 @@ export function createRenderer(state) {
         screenY <= planetListBoxBounds.y + planetListBoxBounds.height;
 
       if (inListBox) {
+        const clickedPlanet = planetItemBounds.find((item) =>
+          screenX >= item.x &&
+          screenX <= item.x + item.width &&
+          screenY >= item.y &&
+          screenY <= item.y + item.height
+        );
+
+        if (clickedPlanet) {
+          selectedPlanetId = clickedPlanet.planetId;
+        }
+
         return true;
       }
 

@@ -1,8 +1,9 @@
-﻿import { createPlanets } from './planetFactory.js';
+import { createPlanets } from './planetFactory.js';
 import { createStarName } from './nameGenerator.js';
 
 export function createStar(index, position, rng) {
-  const planets = createPlanets(rng);
+  const name = createStarName(index, rng);
+  const planets = createPlanets(rng, name);
   const population = planets.reduce((sum, p) => sum + p.population, 0);
   const gdp = planets.reduce((sum, p) => sum + p.gdp, 0);
 
@@ -11,7 +12,7 @@ export function createStar(index, position, rng) {
 
   return {
     id: rng.randomUUID(),
-    name: createStarName(index, rng),
+    name,
     x: position.x,
     y: position.y,
     owner: 'Unclaimed', // or faction

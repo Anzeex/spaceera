@@ -5,7 +5,40 @@ import { createRenderer } from '../render/renderer.js';
 import { createSelection } from '../interaction/selection.js';
 import { createLoop } from './loop.js';
 
+const GALAXY_SEED_STORAGE_KEY = 'emergent-galaxy.seed';
+
+function generateGalaxySeed() {
+  if (globalThis.crypto?.randomUUID) {
+    return globalThis.crypto.randomUUID();
+  }
+
+  return `seed-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function getPersistentGalaxySeed() {
+  const existingSeed = globalThis.localStorage?.getItem(GALAXY_SEED_STORAGE_KEY);
+  if (existingSeed) {
+    return existingSeed;
+  }
+
+  const newSeed = generateGalaxySeed();
+  globalThis.localStorage?.setItem(GALAXY_SEED_STORAGE_KEY, newSeed);
+  return newSeed;
+}
+
+function resetPersistentGalaxySeed() {
+  const newSeed = generateGalaxySeed();
+  globalThis.localStorage?.setItem(GALAXY_SEED_STORAGE_KEY, newSeed);
+  return newSeed;
+}
+
 export function createGame(container, galaxyOptions = {}) {
+  const persistentSeed = galaxyOptions.seed ?? getPersistentGalaxySeed();
+  const resolvedGalaxyOptions = {
+    ...galaxyOptions,
+    seed: persistentSeed,
+  };
+
   const canvas = document.createElement('canvas');
   container.appendChild(canvas);
 
@@ -130,6 +163,23 @@ export function createGame(container, galaxyOptions = {}) {
   linesLabel.appendChild(document.createTextNode('Show Lines'));
   settingsPanel.appendChild(linesLabel);
 
+  const seedLabel = document.createElement('div');
+  seedLabel.style.color = 'rgba(255,255,255,0.75)';
+  seedLabel.style.fontSize = '12px';
+  seedLabel.style.marginBottom = '8px';
+  settingsPanel.appendChild(seedLabel);
+
+  const resetGalaxyButton = document.createElement('button');
+  resetGalaxyButton.textContent = 'Reset Galaxy';
+  resetGalaxyButton.style.padding = '8px 12px';
+  resetGalaxyButton.style.background = 'rgba(120,20,20,0.9)';
+  resetGalaxyButton.style.color = 'white';
+  resetGalaxyButton.style.border = '1px solid rgba(255,255,255,0.35)';
+  resetGalaxyButton.style.borderRadius = '4px';
+  resetGalaxyButton.style.cursor = 'pointer';
+  resetGalaxyButton.style.width = '100%';
+  settingsPanel.appendChild(resetGalaxyButton);
+
   settingsButton.addEventListener('click', () => {
     settingsPanel.style.display = settingsPanel.style.display === 'none' ? 'block' : 'none';
   });
@@ -138,7 +188,8 @@ export function createGame(container, galaxyOptions = {}) {
     canvas,
     ctx: canvas.getContext('2d'),
     camera: createCamera(),
-    galaxy: generateGalaxy(galaxyOptions),
+    galaxySeed: persistentSeed,
+    galaxy: generateGalaxy(resolvedGalaxyOptions),
     selection: createSelection(),
     territoryMode: false,
     territories: new Map(),
@@ -146,8 +197,15 @@ export function createGame(container, galaxyOptions = {}) {
     showLines: true,
   };
 
+  seedLabel.textContent = `Galaxy Seed: ${state.galaxySeed}`;
+
   linesCheckbox.addEventListener('change', () => {
     state.showLines = linesCheckbox.checked;
+  });
+
+  resetGalaxyButton.addEventListener('click', () => {
+    resetPersistentGalaxySeed();
+    window.location.reload();
   });
 
   function updateTerritorySelector() {
