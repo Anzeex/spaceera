@@ -1,0 +1,91 @@
+{
+  "state": {
+    "territories": [
+      {
+        "id": "territory-1775400180501",
+        "name": "Territory 1",
+        "color": "#ff0000",
+        "faction": "Territory 1",
+        "stars": [
+          "dedb5ede-fee6-4742-88b1-8f007922c01d",
+          "327150fc-3548-449d-b9f9-1bee67815f9d",
+          "0721bfc3-0fcd-422f-a5c3-440f1c1c1814",
+          "d5c06003-91ac-4b91-80a0-ca34bf374de3",
+          "ee0e3114-7a2f-4606-9f81-185378bc8010"
+        ]
+      },
+      {
+        "id": "territory-1775400204325",
+        "name": "Territory 2",
+        "color": "#0038e0",
+        "faction": "Territory 2",
+        "stars": [
+          "7cb35858-a8ba-43d6-a289-39fcaa7a63af",
+          "31d18347-0156-43e9-a4c7-c165e4179c41",
+          "8c1f7a12-7e57-475c-8100-0f011e21614c",
+          "73d99daa-d453-4577-8360-5336075e7c38",
+          "d51c1024-d546-4570-83b1-a782f88c33b9",
+          "e5684ed3-6d9c-4ccb-8478-81410e873314",
+          "9abc0d47-f191-44ae-998e-fcafa0626234",
+          "02a2d808-c521-479e-a89f-6e3789126121"
+        ]
+      }
+    ],
+    "currentTerritoryId": "territory-1775400204325",
+    "starOverrides": {
+      "02a2d808-c521-479e-a89f-6e3789126121": {
+        "owner": "Territory 2",
+        "faction": "Territory 2"
+      },
+      "d51c1024-d546-4570-83b1-a782f88c33b9": {
+        "owner": "Territory 2",
+        "faction": "Territory 2"
+      },
+      "8c1f7a12-7e57-475c-8100-0f011e21614c": {
+        "owner": "Territory 2",
+        "faction": "Territory 2"
+      },
+      "73d99daa-d453-4577-8360-5336075e7c38": {
+        "owner": "Territory 2",
+        "faction": "Territory 2"
+      },
+      "e5684ed3-6d9c-4ccb-8478-81410e873314": {
+        "owner": "Territory 2",
+        "faction": "Territory 2"
+      },
+      "7cb35858-a8ba-43d6-a289-39fcaa7a63af": {
+        "owner": "Territory 2",
+        "faction": "Territory 2"
+      },
+      "31d18347-0156-43e9-a4c7-c165e4179c41": {
+        "owner": "Territory 2",
+        "faction": "Territory 2"
+      },
+      "9abc0d47-f191-44ae-998e-fcafa0626234": {
+        "owner": "Territory 2",
+        "faction": "Territory 2"
+      },
+      "ee0e3114-7a2f-4606-9f81-185378bc8010": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
+      },
+      "d5c06003-91ac-4b91-80a0-ca34bf374de3": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
+      },
+      "dedb5ede-fee6-4742-88b1-8f007922c01d": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
+      },
+      "327150fc-3548-449d-b9f9-1bee67815f9d": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
+      },
+      "0721bfc3-0fcd-422f-a5c3-440f1c1c1814": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
+      }
+    }
+  },
+  "updatedAt": "2026-04-05T14:43:51.708Z"
+}
