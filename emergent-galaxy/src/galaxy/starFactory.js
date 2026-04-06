@@ -40,11 +40,25 @@ function createStarProfile(rng) {
   };
 }
 
+function calculateSystemDefense(planets) {
+  if (!planets.length) {
+    return 0;
+  }
+
+  const totalDefense = planets.reduce(
+    (sum, planet) => sum + (planet.infrastructure?.defense ?? 0),
+    0
+  );
+
+  return Math.round(totalDefense / planets.length);
+}
+
 export function createStar(index, position, rng) {
   const name = createStarName(index, rng);
   const planets = createPlanets(rng, name);
   const population = planets.reduce((sum, p) => sum + p.population, 0);
   const gdp = planets.reduce((sum, p) => sum + p.gdp, 0);
+  const systemDefense = calculateSystemDefense(planets);
   const profile = createStarProfile(rng);
 
   return {
@@ -58,7 +72,7 @@ export function createStar(index, position, rng) {
     energyOutput: profile.energyOutput,
     population,
     gdp,
-    systemDefense: rng.randomInt(0, 100),
+    systemDefense,
     planets,
     // old fields
     radius: 1 + rng.random() * 0.5,

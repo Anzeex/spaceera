@@ -14,24 +14,46 @@ function pickWeighted(rng, weightedItems) {
   return weightedItems[weightedItems.length - 1].value;
 }
 
-function createStandardInfrastructure() {
-  return {
-    mining: 0,
-    farming: 0,
+const MINED_RESOURCE_NAMES = ['Rare Earth Elements', 'Metals', 'Uranium'];
+
+function hasResource(resources, resourceName) {
+  return resources.some(
+    (resource) => resource.name === resourceName && resource.abundance > 0
+  );
+}
+
+function createPlanetInfrastructure(type, resources) {
+  const infrastructure = {
     cities: 0,
     industrial: 0,
     energy: 0,
+    defense: 0,
   };
+
+  if (type === 'Gas Giant') {
+    infrastructure.orbitalPopulation = 0;
+  }
+
+  if (resources.some((resource) => MINED_RESOURCE_NAMES.includes(resource.name))) {
+    infrastructure.mining = 0;
+  }
+
+  if (hasResource(resources, 'Food')) {
+    infrastructure.farming = 0;
+  }
+
+  if (hasResource(resources, 'Water')) {
+    infrastructure.waterExtraction = 0;
+  }
+
+  if (hasResource(resources, 'Gas')) {
+    infrastructure.gasExtraction = 0;
+  }
+
+  return infrastructure;
 }
 
-function createGasGiantInfrastructure() {
-  return {
-    gasExtraction: 0,
-    orbitalPopulation: 0,
-  };
-}
-
-function createProminentResources(type, rng) {
+function createProminentResources(type, habitability, rng) {
   if (type === 'Gas Giant') {
     return [
       {
@@ -50,16 +72,93 @@ function createProminentResources(type, rng) {
     { name: 'Water', chance: type === 'Icy' ? 70 : 35 },
   ];
 
-  return resourceWeights.flatMap((resource) => {
+  const resourceCandidates = resourceWeights.map((resource) => ({
+    name: resource.name,
+    chance: resource.chance,
+    abundance: rng.randomInt(50, 100),
+  }));
+
+  const resources = resourceCandidates.flatMap((resource) => {
     if (rng.randomInt(1, 100) > resource.chance) {
       return [];
     }
 
     return [{
       name: resource.name,
-      abundance: rng.randomInt(50, 100),
+      abundance: resource.abundance,
     }];
   });
+
+  if (habitability < 30) {
+    const foodResource = resources.find((resource) => resource.name === 'Food');
+
+    if (foodResource) {
+      foodResource.abundance = 0;
+    }
+  } else {
+    const foodResource = resources.find((resource) => resource.name === 'Food');
+
+    if (foodResource) {
+      const reduction = 100 - habitability / 2;
+      foodResource.abundance = Math.max(
+        0,
+        Math.round(foodResource.abundance - reduction)
+      );
+    }
+  }
+
+  const viableResources = resources.filter((resource) => resource.abundance > 0);
+
+  if (viableResources.length > 0) {
+    return viableResources;
+  }
+
+  const fallbackResource = resourceCandidates
+    .map((resource) => {
+      if (resource.name !== 'Food') {
+        return resource;
+      }
+
+      if (habitability < 30) {
+        return { ...resource, abundance: 0 };
+      }
+
+      const reduction = 100 - habitability / 2;
+      return {
+        ...resource,
+        abundance: Math.max(0, Math.round(resource.abundance - reduction)),
+      };
+    })
+    .reduce((best, resource) =>
+      resource.abundance > best.abundance ? resource : best
+    );
+
+  return fallbackResource.abundance > 0
+    ? [{
+        name: fallbackResource.name,
+        abundance: fallbackResource.abundance * 2,
+      }]
+    : [];
+}
+
+function keepHighestScoringMinedResource(resources) {
+  const minedResources = resources.filter((resource) =>
+    MINED_RESOURCE_NAMES.includes(resource.name)
+  );
+
+  if (minedResources.length <= 1) {
+    return resources;
+  }
+
+  const strongestMinedResource = minedResources.reduce((best, resource) =>
+    resource.abundance > best.abundance ? resource : best
+  );
+
+  return resources.filter(
+    (resource) =>
+      !MINED_RESOURCE_NAMES.includes(resource.name) ||
+      resource.name === strongestMinedResource.name
+  );
 }
 
 function createPlanetProfile(rng) {
@@ -74,7 +173,6 @@ function createPlanetProfile(rng) {
     return {
       type,
       habitability: 0,
-      infrastructure: createGasGiantInfrastructure(),
     };
   }
 
@@ -85,7 +183,6 @@ function createPlanetProfile(rng) {
   return {
     type,
     habitability,
-    infrastructure: createStandardInfrastructure(),
   };
 }
 
@@ -101,9 +198,16 @@ export function createPlanets(rng, starName) {
 
   for (let i = 0; i < count; i++) {
     const profile = createPlanetProfile(rng);
-    const prominentResources = createProminentResources(profile.type, rng);
+    const prominentResources = keepHighestScoringMinedResource(
+      createProminentResources(
+        profile.type,
+        profile.habitability,
+        rng
+      )
+    );
     const population = 0;
     const gdp = 0;
+    const infrastructure = createPlanetInfrastructure(profile.type, prominentResources);
 
     planets.push({
       id: rng.randomUUID(),
@@ -112,7 +216,7 @@ export function createPlanets(rng, starName) {
       type: profile.type,
       population,
       prominentResources,
-      infrastructure: profile.infrastructure,
+      infrastructure,
       gdp,
     });
   }

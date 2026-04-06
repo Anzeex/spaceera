@@ -141,13 +141,22 @@ function computeVoronoiCell(star, allStars, bounds) {
 function buildVoronoiCells(stars) {
   const bounds = getGalaxyBounds(stars);
   const cellsByStarId = new Map();
+  const starById = new Map();
 
   for (const star of stars) {
+    starById.set(star.id, star);
     const cell = computeVoronoiCell(star, stars, bounds);
     cellsByStarId.set(star.id, cell);
   }
 
-  return { bounds, cellsByStarId };
+  const edgeMap = buildSharedEdgeMap(cellsByStarId);
+
+  return {
+    bounds,
+    cellsByStarId,
+    edgeMap,
+    adjacentPairs: getAdjacentStarPairs(starById, edgeMap),
+  };
 }
 
 function buildSharedEdgeMap(cellsByStarId) {
@@ -212,8 +221,7 @@ function getSmoothedScreenCell(camera, viewport, cell, smoothingIterations = 2) 
 
 // ---------- Territory boundary extraction ----------
 
-function buildOwnedBoundarySegments(cellsByStarId, ownedSet) {
-  const edgeMap = buildSharedEdgeMap(cellsByStarId);
+function buildOwnedBoundarySegments(edgeMap, ownedSet) {
   const segments = [];
 
   for (const [, edges] of edgeMap.entries()) {
@@ -314,6 +322,43 @@ function buildBoundaryLoops(segments) {
   return loops;
 }
 
+function getTerritorySignature(state) {
+  return Array.from(state.territories.values())
+    .map((territory) => {
+      const stars = Array.from(territory.stars).sort().join(',');
+      return `${territory.id}:${territory.color}:${stars}`;
+    })
+    .sort()
+    .join('|');
+}
+
+function buildTerritoryRenderData(edgeMap, state) {
+  const loopsByTerritoryId = new Map();
+  const starTerritoryByStarId = new Map();
+  const ownedStarIds = new Set();
+
+  for (const [territoryId, territory] of state.territories.entries()) {
+    for (const starId of territory.stars) {
+      starTerritoryByStarId.set(starId, territory);
+      ownedStarIds.add(starId);
+    }
+
+    if (territory.stars.size === 0) {
+      loopsByTerritoryId.set(territoryId, []);
+      continue;
+    }
+
+    const segments = buildOwnedBoundarySegments(edgeMap, territory.stars);
+    loopsByTerritoryId.set(territoryId, buildBoundaryLoops(segments));
+  }
+
+  return {
+    loopsByTerritoryId,
+    starTerritoryByStarId,
+    ownedStarIds,
+  };
+}
+
 function hexToRgb(hex) {
   const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
   return result ? {
@@ -323,16 +368,15 @@ function hexToRgb(hex) {
   } : { r: 100, g: 255, b: 140 };
 }
 
-function drawOwnedTerritoryMass(ctx, camera, viewport, cellsByStarId, state) {
+function drawOwnedTerritoryMass(ctx, camera, viewport, loopsByTerritoryId, state) {
   if (state.territories.size === 0) return;
+
+  const quality = getTerritoryRenderQuality(camera.zoom);
 
   ctx.save();
 
-  for (const [, territory] of state.territories.entries()) {
-    if (territory.stars.size === 0) continue;
-
-    const segments = buildOwnedBoundarySegments(cellsByStarId, territory.stars);
-    const loops = buildBoundaryLoops(segments);
+  for (const [territoryId, territory] of state.territories.entries()) {
+    const loops = loopsByTerritoryId.get(territoryId) || [];
 
     if (!loops.length) continue;
 
@@ -344,11 +388,13 @@ function drawOwnedTerritoryMass(ctx, camera, viewport, cellsByStarId, state) {
 
     for (const loop of loops) {
       const screenLoop = polygonToScreen(camera, viewport, loop);
-      const smoothLoop = smoothClosedPolygon(screenLoop, 3);
+      const smoothLoop = quality.smoothingIterations > 0
+        ? smoothClosedPolygon(screenLoop, quality.smoothingIterations)
+        : screenLoop;
 
       // soft fill
       ctx.shadowColor = shadowColor;
-      ctx.shadowBlur = 22;
+      ctx.shadowBlur = quality.shadowBlur;
 
       drawPolygonPath(ctx, smoothLoop);
       ctx.fillStyle = fillColor;
@@ -359,7 +405,7 @@ function drawOwnedTerritoryMass(ctx, camera, viewport, cellsByStarId, state) {
       // soft outer border
       drawPolygonPath(ctx, smoothLoop);
       ctx.strokeStyle = outerBorderColor;
-      ctx.lineWidth = 10;
+      ctx.lineWidth = quality.outerBorderWidth;
       ctx.lineJoin = 'round';
       ctx.lineCap = 'round';
       ctx.stroke();
@@ -367,7 +413,7 @@ function drawOwnedTerritoryMass(ctx, camera, viewport, cellsByStarId, state) {
       // sharper top border
       drawPolygonPath(ctx, smoothLoop);
       ctx.strokeStyle = topBorderColor;
-      ctx.lineWidth = 2.5;
+      ctx.lineWidth = quality.topBorderWidth;
       ctx.lineJoin = 'round';
       ctx.lineCap = 'round';
       ctx.stroke();
@@ -375,6 +421,33 @@ function drawOwnedTerritoryMass(ctx, camera, viewport, cellsByStarId, state) {
   }
 
   ctx.restore();
+}
+
+function getTerritoryRenderQuality(zoom) {
+  if (zoom < 0.12) {
+    return {
+      smoothingIterations: 0,
+      shadowBlur: 0,
+      outerBorderWidth: 3,
+      topBorderWidth: 1,
+    };
+  }
+
+  if (zoom < 0.28) {
+    return {
+      smoothingIterations: 1,
+      shadowBlur: 8,
+      outerBorderWidth: 6,
+      topBorderWidth: 1.5,
+    };
+  }
+
+  return {
+    smoothingIterations: 3,
+    shadowBlur: 22,
+    outerBorderWidth: 10,
+    topBorderWidth: 2.5,
+  };
 }
 
 function drawSelectedCell(ctx, camera, viewport, selectedStar, cellsByStarId) {
@@ -402,14 +475,13 @@ function drawSelectedCell(ctx, camera, viewport, selectedStar, cellsByStarId) {
   ctx.restore();
 }
 
-function getAdjacentStarPairs(stars, cellsByStarId) {
-  const edgeMap = buildSharedEdgeMap(cellsByStarId);
+function getAdjacentStarPairs(starById, edgeMap) {
   const pairs = [];
 
   for (const [, edges] of edgeMap.entries()) {
     if (edges.length === 2) {
-      const star1 = stars.find(s => s.id === edges[0].starId);
-      const star2 = stars.find(s => s.id === edges[1].starId);
+      const star1 = starById.get(edges[0].starId);
+      const star2 = starById.get(edges[1].starId);
       if (star1 && star2) {
         pairs.push([star1, star2]);
       }
@@ -419,7 +491,7 @@ function getAdjacentStarPairs(stars, cellsByStarId) {
   return pairs;
 }
 
-function drawStarConnections(ctx, camera, viewport, adjacentPairs, hoveredStarId, state) {
+function drawStarConnections(ctx, camera, viewport, adjacentPairs, hoveredStarId, ownedStarIds) {
   ctx.save();
   ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
   ctx.lineWidth = 1;
@@ -433,13 +505,8 @@ function drawStarConnections(ctx, camera, viewport, adjacentPairs, hoveredStarId
     }
     
     // Draw if either star belongs to a territory
-    if (!shouldDraw && state.territories.size > 0) {
-      for (const [, territory] of state.territories.entries()) {
-        if (territory.stars.has(star1.id) || territory.stars.has(star2.id)) {
-          shouldDraw = true;
-          break;
-        }
-      }
+    if (!shouldDraw && ownedStarIds.size > 0) {
+      shouldDraw = ownedStarIds.has(star1.id) || ownedStarIds.has(star2.id);
     }
 
     if (shouldDraw) {
@@ -475,7 +542,14 @@ export function createRenderer(state) {
   let cachedVoronoi = {
     bounds: null,
     cellsByStarId: new Map(),
+    edgeMap: new Map(),
     adjacentPairs: [],
+  };
+  let cachedTerritorySignature = '';
+  let cachedTerritoryRenderData = {
+    loopsByTerritoryId: new Map(),
+    starTerritoryByStarId: new Map(),
+    ownedStarIds: new Set(),
   };
 
   let lastSelectedStarId = null;
@@ -513,8 +587,17 @@ export function createRenderer(state) {
 
     if (signature !== cachedStarSignature) {
       cachedVoronoi = buildVoronoiCells(stars);
-      cachedVoronoi.adjacentPairs = getAdjacentStarPairs(stars, cachedVoronoi.cellsByStarId);
       cachedStarSignature = signature;
+      cachedTerritorySignature = '';
+    }
+  }
+
+  function ensureTerritoryRenderCache() {
+    const territorySignature = `${cachedStarSignature}|${getTerritorySignature(state)}`;
+
+    if (territorySignature !== cachedTerritorySignature) {
+      cachedTerritoryRenderData = buildTerritoryRenderData(cachedVoronoi.edgeMap, state);
+      cachedTerritorySignature = territorySignature;
     }
   }
 
@@ -523,10 +606,21 @@ export function createRenderer(state) {
     const width = canvas.clientWidth || window.innerWidth;
     const height = canvas.clientHeight || window.innerHeight;
     const viewport = { width, height };
+    const worldPadding = 40 / camera.zoom;
+    const visibleStars = state.starSpatialIndex
+      ? state.starSpatialIndex.queryRange(
+          camera.x - width / (2 * camera.zoom) - worldPadding,
+          camera.y - height / (2 * camera.zoom) - worldPadding,
+          camera.x + width / (2 * camera.zoom) + worldPadding,
+          camera.y + height / (2 * camera.zoom) + worldPadding
+        )
+      : galaxy.stars;
 
     ensureVoronoiCache(galaxy.stars);
+    ensureTerritoryRenderCache();
 
     const { cellsByStarId, adjacentPairs } = cachedVoronoi;
+    const { loopsByTerritoryId, starTerritoryByStarId, ownedStarIds } = cachedTerritoryRenderData;
 
     ctx.clearRect(0, 0, width, height);
 
@@ -535,7 +629,7 @@ export function createRenderer(state) {
 
     // Draw star connections
     if (state.showLines) {
-      drawStarConnections(ctx, camera, viewport, adjacentPairs, selection.hoveredStarId, state);
+      drawStarConnections(ctx, camera, viewport, adjacentPairs, selection.hoveredStarId, ownedStarIds);
     }
 
     const selected =
@@ -550,13 +644,13 @@ export function createRenderer(state) {
     }
 
     // One unified territory mass from all owned systems
-    drawOwnedTerritoryMass(ctx, camera, viewport, cellsByStarId, state);
+    drawOwnedTerritoryMass(ctx, camera, viewport, loopsByTerritoryId, state);
 
     // Optional selected-system highlight
     drawSelectedCell(ctx, camera, viewport, selected, cellsByStarId);
 
     // Stars on top
-    for (const star of galaxy.stars) {
+    for (const star of visibleStars) {
       const p = worldToScreen(camera, viewport, star.x, star.y);
 
       if (p.x < -20 || p.x > width + 20 || p.y < -20 || p.y > height + 20) {
@@ -566,13 +660,7 @@ export function createRenderer(state) {
       const r = Math.max(0.8, star.radius * camera.zoom);
 
       // Find which territory this star belongs to
-      let starTerritory = null;
-      for (const [, territory] of state.territories.entries()) {
-        if (territory.stars.has(star.id)) {
-          starTerritory = territory;
-          break;
-        }
-      }
+      const starTerritory = starTerritoryByStarId.get(star.id) || null;
 
       // Draw territory aura if star belongs to a territory
       if (starTerritory) {

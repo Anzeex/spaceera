@@ -1,11 +1,19 @@
 import { deleteDoc, doc, onSnapshot, setDoc } from 'firebase/firestore';
 import { applyStoredState, restoreBaselineState, serializeGameState } from './galaxyState.js';
 import { db } from './firebase.js';
+import {
+  fetchPlayerState as fetchAuthoritativePlayerState,
+  fetchServerGalaxyState,
+  isLocalServerUnavailable,
+  resetServerGalaxyState,
+  saveServerGalaxyState,
+} from './serverApi.js';
 
 export function createMultiplayerSync({ state, baselineState, onStateApplied }) {
   let unsubscribe = null;
   let lastAppliedSnapshot = null;
   let hasLoggedConnectionIssue = false;
+  let hasLoggedLocalServerIssue = false;
 
   function getStateRef() {
     return doc(db, 'galaxies', state.galaxySeed);
@@ -28,6 +36,17 @@ export function createMultiplayerSync({ state, baselineState, onStateApplied }) 
         state: nextState,
         updatedAt: Date.now(),
       });
+      try {
+        await saveServerGalaxyState(state.galaxySeed, nextState);
+      } catch (serverError) {
+        if (!hasLoggedLocalServerIssue) {
+          console.warn(
+            'Local resource server is unavailable. Start `npm run dev:server` to enable authoritative resource updates.',
+            serverError
+          );
+          hasLoggedLocalServerIssue = true;
+        }
+      }
       lastAppliedSnapshot = nextSnapshot;
       hasLoggedConnectionIssue = false;
     } catch (error) {
@@ -41,6 +60,17 @@ export function createMultiplayerSync({ state, baselineState, onStateApplied }) 
   async function resetRemoteState() {
     try {
       await deleteDoc(getStateRef());
+      try {
+        await resetServerGalaxyState(state.galaxySeed);
+      } catch (serverError) {
+        if (!hasLoggedLocalServerIssue) {
+          console.warn(
+            'Local resource server is unavailable. Start `npm run dev:server` to enable authoritative resource updates.',
+            serverError
+          );
+          hasLoggedLocalServerIssue = true;
+        }
+      }
       lastAppliedSnapshot = null;
       hasLoggedConnectionIssue = false;
     } catch (error) {
@@ -52,6 +82,26 @@ export function createMultiplayerSync({ state, baselineState, onStateApplied }) 
   }
 
   async function start() {
+    try {
+      const serverSnapshot = await fetchServerGalaxyState(state.galaxySeed);
+      if (serverSnapshot?.state) {
+        restoreBaselineState(state, baselineState);
+        applyStoredState(state, serverSnapshot.state);
+        lastAppliedSnapshot = snapshotState();
+        onStateApplied?.();
+        state.invalidateRender?.();
+      }
+      hasLoggedLocalServerIssue = false;
+    } catch (error) {
+      if (!hasLoggedLocalServerIssue) {
+        console.warn(
+          'Local resource server is unavailable. Start `npm run dev:server` to enable authoritative resource updates.',
+          error
+        );
+        hasLoggedLocalServerIssue = true;
+      }
+    }
+
     unsubscribe = onSnapshot(
       getStateRef(),
       (snapshot) => {
@@ -61,6 +111,7 @@ export function createMultiplayerSync({ state, baselineState, onStateApplied }) 
         lastAppliedSnapshot = snapshotState();
         hasLoggedConnectionIssue = false;
         onStateApplied?.();
+        state.invalidateRender?.();
       },
       (error) => {
         if (!hasLoggedConnectionIssue) {
@@ -83,5 +134,9 @@ export function createMultiplayerSync({ state, baselineState, onStateApplied }) 
     stop,
     pushState,
     resetRemoteState,
+    fetchPlayerState(playerId) {
+      return fetchAuthoritativePlayerState(state.galaxySeed, playerId);
+    },
+    isLocalServerUnavailable,
   };
 }

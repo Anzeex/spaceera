@@ -16,6 +16,7 @@ export function attachCameraControls(state) {
     drag.lastX = e.clientX;
     drag.lastY = e.clientY;
     canvas.setPointerCapture(e.pointerId);
+    state.invalidateRender?.();
   });
 
   canvas.addEventListener('pointermove', (e) => {
@@ -33,11 +34,13 @@ export function attachCameraControls(state) {
 
     drag.lastX = e.clientX;
     drag.lastY = e.clientY;
+    state.invalidateRender?.();
   });
 
   canvas.addEventListener('pointerup', (e) => {
     drag.active = false;
     canvas.releasePointerCapture(e.pointerId);
+    state.invalidateRender?.();
   });
 
   canvas.addEventListener('wheel', (e) => {
@@ -57,5 +60,6 @@ export function attachCameraControls(state) {
 
     camera.x += before.x - after.x;
     camera.y += before.y - after.y;
+    state.invalidateRender?.();
   }, { passive: false });
 }

@@ -7,6 +7,7 @@ import { captureBaselineState } from './galaxyState.js';
 import { createLoop } from './loop.js';
 import { MULTIPLAYER_GALAXY_SEED } from './multiplayerConfig.js';
 import { createMultiplayerSync } from './multiplayerSync.js';
+import { createSpatialGrid } from '../utils/spatialGrid.js';
 
 export function createGame(container, galaxyOptions = {}) {
   const persistentSeed = galaxyOptions.seed ?? MULTIPLAYER_GALAXY_SEED;
@@ -88,6 +89,53 @@ export function createGame(container, galaxyOptions = {}) {
   territoryNameInput.style.display = 'none';
   uiContainer.appendChild(territoryNameInput);
 
+  const resourcePanel = document.createElement('div');
+  resourcePanel.style.padding = '8px 10px';
+  resourcePanel.style.background = 'rgba(0,0,0,0.8)';
+  resourcePanel.style.color = 'white';
+  resourcePanel.style.border = '1px solid white';
+  resourcePanel.style.borderRadius = '4px';
+  resourcePanel.style.marginTop = '8px';
+  resourcePanel.style.maxWidth = '280px';
+  resourcePanel.style.fontSize = '12px';
+  resourcePanel.style.display = 'none';
+  resourcePanel.textContent = 'No player resources loaded yet.';
+  uiContainer.appendChild(resourcePanel);
+
+  const performancePanel = document.createElement('div');
+  performancePanel.style.position = 'absolute';
+  performancePanel.style.right = '10px';
+  performancePanel.style.bottom = '10px';
+  performancePanel.style.width = '240px';
+  performancePanel.style.padding = '8px';
+  performancePanel.style.background = 'rgba(0,0,0,0.82)';
+  performancePanel.style.color = 'white';
+  performancePanel.style.border = '1px solid rgba(255,255,255,0.35)';
+  performancePanel.style.borderRadius = '6px';
+  performancePanel.style.display = 'none';
+  performancePanel.style.zIndex = '10';
+  container.appendChild(performancePanel);
+
+  const performanceTitle = document.createElement('div');
+  performanceTitle.style.fontSize = '12px';
+  performanceTitle.style.marginBottom = '6px';
+  performanceTitle.textContent = 'Performance';
+  performancePanel.appendChild(performanceTitle);
+
+  const performanceStats = document.createElement('div');
+  performanceStats.style.fontSize = '11px';
+  performanceStats.style.marginBottom = '6px';
+  performanceStats.textContent = 'FPS: -- | Frame: -- ms';
+  performancePanel.appendChild(performanceStats);
+
+  const performanceCanvas = document.createElement('canvas');
+  performanceCanvas.width = 224;
+  performanceCanvas.height = 72;
+  performanceCanvas.style.width = '224px';
+  performanceCanvas.style.height = '72px';
+  performanceCanvas.style.display = 'block';
+  performancePanel.appendChild(performanceCanvas);
+
   const colors = ['#ff6b6b', '#4ecdc4', '#45b7d1', '#f9ca24', '#6c5ce7', '#a29bfe'];
   let nextColorIndex = 0;
 
@@ -139,6 +187,36 @@ export function createGame(container, galaxyOptions = {}) {
   linesLabel.appendChild(document.createTextNode('Show Lines'));
   settingsPanel.appendChild(linesLabel);
 
+  const resourceDebugLabel = document.createElement('label');
+  resourceDebugLabel.style.display = 'block';
+  resourceDebugLabel.style.color = 'white';
+  resourceDebugLabel.style.marginBottom = '8px';
+  resourceDebugLabel.style.cursor = 'pointer';
+
+  const resourceDebugCheckbox = document.createElement('input');
+  resourceDebugCheckbox.type = 'checkbox';
+  resourceDebugCheckbox.checked = false;
+  resourceDebugCheckbox.style.marginRight = '6px';
+
+  resourceDebugLabel.appendChild(resourceDebugCheckbox);
+  resourceDebugLabel.appendChild(document.createTextNode('Show Resource Debug'));
+  settingsPanel.appendChild(resourceDebugLabel);
+
+  const performanceGraphLabel = document.createElement('label');
+  performanceGraphLabel.style.display = 'block';
+  performanceGraphLabel.style.color = 'white';
+  performanceGraphLabel.style.marginBottom = '8px';
+  performanceGraphLabel.style.cursor = 'pointer';
+
+  const performanceGraphCheckbox = document.createElement('input');
+  performanceGraphCheckbox.type = 'checkbox';
+  performanceGraphCheckbox.checked = false;
+  performanceGraphCheckbox.style.marginRight = '6px';
+
+  performanceGraphLabel.appendChild(performanceGraphCheckbox);
+  performanceGraphLabel.appendChild(document.createTextNode('Show Performance Graph'));
+  settingsPanel.appendChild(performanceGraphLabel);
+
   const seedLabel = document.createElement('div');
   seedLabel.style.color = 'rgba(255,255,255,0.75)';
   seedLabel.style.fontSize = '12px';
@@ -183,13 +261,39 @@ export function createGame(container, galaxyOptions = {}) {
     territories: new Map(),
     currentTerritoryId: null,
     showLines: true,
+    showResourceDebug: false,
+    showPerformanceGraph: false,
+    playerState: null,
+    performanceHistory: [],
+    lastFrameTimestamp: null,
+    performanceGraphFrameId: null,
+    invalidateRender: () => {},
   };
   const baselineState = captureBaselineState(state.galaxy);
+  state.starSpatialIndex = createSpatialGrid(state.galaxy.stars, { cellSize: 400 });
 
   seedLabel.textContent = `Galaxy Seed: ${state.galaxySeed}`;
 
   linesCheckbox.addEventListener('change', () => {
     state.showLines = linesCheckbox.checked;
+    state.invalidateRender();
+  });
+
+  resourceDebugCheckbox.addEventListener('change', () => {
+    state.showResourceDebug = resourceDebugCheckbox.checked;
+    renderPlayerResources();
+    state.invalidateRender();
+  });
+
+  performanceGraphCheckbox.addEventListener('change', () => {
+    state.showPerformanceGraph = performanceGraphCheckbox.checked;
+    performancePanel.style.display = state.showPerformanceGraph ? 'block' : 'none';
+    if (state.showPerformanceGraph) {
+      startPerformanceGraphLoop();
+    } else {
+      stopPerformanceGraphLoop();
+    }
+    state.invalidateRender();
   });
 
   function updateTerritorySelector() {
@@ -231,6 +335,202 @@ export function createGame(container, galaxyOptions = {}) {
     onStateApplied: updateTerritorySelector,
   });
 
+  function formatSwedishDateTime(isoString) {
+    if (!isoString) {
+      return 'Unknown';
+    }
+
+    const parsedDate = new Date(isoString);
+    if (Number.isNaN(parsedDate.getTime())) {
+      return isoString;
+    }
+
+    return new Intl.DateTimeFormat('sv-SE', {
+      dateStyle: 'short',
+      timeStyle: 'medium',
+      timeZone: 'Europe/Stockholm',
+    }).format(parsedDate);
+  }
+
+  function renderPlayerResources() {
+    resourcePanel.style.display = state.showResourceDebug ? 'block' : 'none';
+    if (!state.showResourceDebug) {
+      return;
+    }
+
+    const playerState = state.playerState;
+    if (!playerState) {
+      resourcePanel.textContent = sync.isLocalServerUnavailable()
+        ? 'Resource server offline. Start `npm run dev:server` for authoritative hourly production.'
+        : 'No player resources loaded yet.';
+      return;
+    }
+
+    const activeTerritory = state.territories.get(state.currentTerritoryId);
+    const ownedStarCount = activeTerritory?.stars?.size ?? 0;
+    const resourceLines = Object.entries(playerState.resources || {})
+      .map(([resourceName, amount]) => `${resourceName}: ${amount}`)
+      .join(' | ');
+    const hourlyLines = Object.entries(playerState.hourlyProduction || {})
+      .filter(([, amount]) => amount > 0)
+      .map(([resourceName, amount]) => `${resourceName}: ${amount}/h`)
+      .join(' | ');
+    const productionStatus = ownedStarCount === 0
+      ? 'No owned stars'
+      : hourlyLines || 'No production infrastructure';
+
+    resourcePanel.innerHTML = `
+      <strong>${playerState.playerName || playerState.playerId}</strong><br>
+      Owned stars: ${ownedStarCount}<br>
+      Resources: ${resourceLines || 'None'}<br>
+      Hourly: ${productionStatus}<br>
+      Completed hours: ${playerState.completedHours ?? 0}<br>
+      Last update: ${formatSwedishDateTime(playerState.lastResourceUpdate)}
+    `;
+  }
+
+  function drawPerformanceGraph() {
+    if (!state.showPerformanceGraph) {
+      return;
+    }
+
+    const ctx = performanceCanvas.getContext('2d');
+    const { width, height } = performanceCanvas;
+    const samples = state.performanceHistory;
+
+    ctx.clearRect(0, 0, width, height);
+    ctx.fillStyle = '#081018';
+    ctx.fillRect(0, 0, width, height);
+
+    ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+    ctx.lineWidth = 1;
+    for (const y of [16, 33, 50]) {
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(width, y);
+      ctx.stroke();
+    }
+
+    if (!samples.length) {
+      performanceStats.textContent = 'FPS: -- | Frame: -- ms';
+      return;
+    }
+
+    const latest = samples[samples.length - 1];
+    const averageFrameMs =
+      samples.reduce((sum, sample) => sum + sample.frameMs, 0) / samples.length;
+    const averageFps = averageFrameMs > 0 ? 1000 / averageFrameMs : 0;
+
+    performanceStats.textContent =
+      `FPS: ${averageFps.toFixed(1)} | Frame: ${latest.frameMs.toFixed(1)} ms`;
+
+    ctx.strokeStyle = '#4ecdc4';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+
+    samples.forEach((sample, index) => {
+      const x = samples.length === 1 ? 0 : (index / (samples.length - 1)) * (width - 1);
+      const normalized = Math.min(sample.frameMs, 50) / 50;
+      const y = height - 4 - normalized * (height - 8);
+
+      if (index === 0) {
+        ctx.moveTo(x, y);
+      } else {
+        ctx.lineTo(x, y);
+      }
+    });
+
+    ctx.stroke();
+
+    ctx.fillStyle = 'rgba(255, 209, 102, 0.9)';
+    const budgetY = height - 4 - (16.67 / 50) * (height - 8);
+    ctx.fillRect(0, budgetY, width, 1);
+  }
+
+  function recordPerformance(renderDurationMs) {
+    const now = performance.now();
+    const frameIntervalMs = state.lastFrameTimestamp === null
+      ? renderDurationMs
+      : now - state.lastFrameTimestamp;
+
+    state.lastFrameTimestamp = now;
+    state.performanceHistory.push({
+      frameMs: frameIntervalMs,
+      renderMs: renderDurationMs,
+    });
+
+    if (state.performanceHistory.length > 120) {
+      state.performanceHistory.shift();
+    }
+
+    drawPerformanceGraph();
+  }
+
+  function samplePerformanceGraphFrame() {
+    if (!state.showPerformanceGraph) {
+      state.performanceGraphFrameId = null;
+      return;
+    }
+
+    const now = performance.now();
+    const frameIntervalMs = state.lastFrameTimestamp === null
+      ? 16.67
+      : now - state.lastFrameTimestamp;
+
+    state.lastFrameTimestamp = now;
+    state.performanceHistory.push({
+      frameMs: frameIntervalMs,
+      renderMs: 0,
+    });
+
+    if (state.performanceHistory.length > 120) {
+      state.performanceHistory.shift();
+    }
+
+    drawPerformanceGraph();
+    state.performanceGraphFrameId = requestAnimationFrame(samplePerformanceGraphFrame);
+  }
+
+  function startPerformanceGraphLoop() {
+    if (state.performanceGraphFrameId !== null) {
+      return;
+    }
+
+    state.lastFrameTimestamp = performance.now();
+    state.performanceGraphFrameId = requestAnimationFrame(samplePerformanceGraphFrame);
+  }
+
+  function stopPerformanceGraphLoop() {
+    if (state.performanceGraphFrameId !== null) {
+      cancelAnimationFrame(state.performanceGraphFrameId);
+      state.performanceGraphFrameId = null;
+    }
+  }
+
+  async function refreshCurrentPlayerState() {
+    if (!state.currentTerritoryId) {
+      state.playerState = null;
+      renderPlayerResources();
+      return;
+    }
+
+    try {
+      const territory = state.territories.get(state.currentTerritoryId);
+      const response = await sync.fetchPlayerState(state.currentTerritoryId);
+      state.playerState = {
+        ...response.player,
+        playerName: territory?.name ?? response.player.playerId,
+      };
+      renderPlayerResources();
+      state.invalidateRender();
+    } catch (error) {
+      console.warn('Failed to fetch authoritative player resources.', error);
+      resourcePanel.textContent = sync.isLocalServerUnavailable()
+        ? 'Resource server offline. Start `npm run dev:server` for authoritative hourly production.'
+        : 'Failed to load player resources from server.';
+    }
+  }
+
   resetGalaxyButton.addEventListener('click', async () => {
     await sync.resetRemoteState();
     window.location.reload();
@@ -250,7 +550,7 @@ export function createGame(container, galaxyOptions = {}) {
     territoryNameInput.style.display = state.territoryMode ? 'block' : 'none';
   });
 
-  addTerritoryButton.addEventListener('click', () => {
+  addTerritoryButton.addEventListener('click', async () => {
     const color = colorPicker.value || colors[nextColorIndex % colors.length];
     nextColorIndex++;
     const name = territoryNameInput.value.trim() || `Territory ${state.territories.size + 1}`;
@@ -264,12 +564,14 @@ export function createGame(container, galaxyOptions = {}) {
     });
     territoryNameInput.value = '';
     updateTerritorySelector();
-    void sync.pushState();
+    await sync.pushState();
+    await refreshCurrentPlayerState();
   });
 
-  territorySelector.addEventListener('change', (e) => {
+  territorySelector.addEventListener('change', async (e) => {
     state.currentTerritoryId = e.target.value;
-    void sync.pushState();
+    await sync.pushState();
+    await refreshCurrentPlayerState();
   });
 
   const renderer = createRenderer(state);
@@ -284,19 +586,7 @@ export function createGame(container, galaxyOptions = {}) {
     }
 
     const worldPoint = screenToWorld(state.camera, { width: rect.width, height: rect.height }, screenX, screenY);
-
-    let closest = null;
-    let closestDistSq = Infinity;
-
-    for (const star of state.galaxy.stars) {
-      const dx = star.x - worldPoint.x;
-      const dy = star.y - worldPoint.y;
-      const distSq = dx * dx + dy * dy;
-      if (distSq < closestDistSq) {
-        closest = star;
-        closestDistSq = distSq;
-      }
-    }
+    const closest = findClosestStarNearPoint(worldPoint, 12, rect.width, rect.height);
 
     if (closest) {
       const maybeScreen = {
@@ -319,34 +609,41 @@ export function createGame(container, galaxyOptions = {}) {
             closest.owner = 'Unclaimed';
             updateTerritorySelector();
             void sync.pushState();
+            state.invalidateRender();
           } else if (territory) {
               territory.stars.add(closest.id);
               closest.faction = territory.faction;
               closest.owner = territory.faction;
               updateTerritorySelector();
               void sync.pushState();
+              state.invalidateRender();
           }
         } else {
           state.selection.selectedStarId = closest.id;
+          state.invalidateRender();
         }
       }
     } else {
       if (!state.territoryMode) {
         state.selection.selectedStarId = null;
+        state.invalidateRender();
       }
     }
   });
 
-  canvas.addEventListener('mousemove', (event) => {
-    const rect = canvas.getBoundingClientRect();
-    const screenX = event.clientX - rect.left;
-    const screenY = event.clientY - rect.top;
-    const worldPoint = screenToWorld(state.camera, { width: rect.width, height: rect.height }, screenX, screenY);
+  function findClosestStarNearPoint(worldPoint, screenRadius) {
+    const worldRadius = screenRadius / state.camera.zoom;
+    const nearbyStars = state.starSpatialIndex.queryRange(
+      worldPoint.x - worldRadius,
+      worldPoint.y - worldRadius,
+      worldPoint.x + worldRadius,
+      worldPoint.y + worldRadius
+    );
 
     let closest = null;
     let closestDistSq = Infinity;
 
-    for (const star of state.galaxy.stars) {
+    for (const star of nearbyStars) {
       const dx = star.x - worldPoint.x;
       const dy = star.y - worldPoint.y;
       const distSq = dx * dx + dy * dy;
@@ -355,6 +652,17 @@ export function createGame(container, galaxyOptions = {}) {
         closestDistSq = distSq;
       }
     }
+
+    return closest;
+  }
+
+  canvas.addEventListener('mousemove', (event) => {
+    const rect = canvas.getBoundingClientRect();
+    const screenX = event.clientX - rect.left;
+    const screenY = event.clientY - rect.top;
+    const worldPoint = screenToWorld(state.camera, { width: rect.width, height: rect.height }, screenX, screenY);
+    const previousHoveredStarId = state.selection.hoveredStarId;
+    const closest = findClosestStarNearPoint(worldPoint, 50);
 
     if (closest) {
       const maybeScreen = {
@@ -374,16 +682,28 @@ export function createGame(container, galaxyOptions = {}) {
     } else {
       state.selection.hoveredStarId = null;
     }
+
+    if (previousHoveredStarId !== state.selection.hoveredStarId) {
+      state.invalidateRender();
+    }
   });
 
   attachCameraControls(state);
-  const loop = createLoop(() => renderer.render());
+  const loop = createLoop(() => {
+    const renderStart = performance.now();
+    renderer.render();
+    recordPerformance(performance.now() - renderStart);
+  });
+  state.invalidateRender = () => loop.invalidate();
 
   return {
     async start() {
       await sync.start();
+      await sync.pushState();
+      await refreshCurrentPlayerState();
       renderer.resize();
       loop.start();
+      loop.invalidate();
       window.addEventListener('resize', renderer.resize);
     },
   };

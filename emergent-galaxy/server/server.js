@@ -2,6 +2,10 @@ import { createServer } from 'node:http';
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import {
+  createInitialPlayerState,
+  updatePlayerResources,
+} from './resourceProduction.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -30,22 +34,28 @@ async function readJsonBody(request) {
 async function loadState(seed) {
   try {
     const raw = await readFile(getStatePath(seed), 'utf8');
-    return JSON.parse(raw);
+    const parsed = JSON.parse(raw);
+    return {
+      state: parsed.state ?? null,
+      players: parsed.players ?? {},
+      updatedAt: parsed.updatedAt ?? null,
+    };
   } catch (error) {
     if (error.code === 'ENOENT') {
-      return { state: null };
+      return { state: null, players: {}, updatedAt: null };
     }
 
     throw error;
   }
 }
 
-async function saveState(seed, state) {
+async function saveStateDocument(seed, documentState) {
   await ensureDataDir();
   await writeFile(
     getStatePath(seed),
     JSON.stringify({
-      state,
+      state: documentState.state ?? null,
+      players: documentState.players ?? {},
       updatedAt: new Date().toISOString(),
     }, null, 2),
     'utf8'
@@ -60,6 +70,9 @@ function sendJson(response, statusCode, payload) {
   response.writeHead(statusCode, {
     'Content-Type': 'application/json',
     'Cache-Control': 'no-store',
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET,PUT,DELETE,OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type',
   });
   response.end(JSON.stringify(payload));
 }
@@ -67,7 +80,12 @@ function sendJson(response, statusCode, payload) {
 const server = createServer(async (request, response) => {
   const url = new URL(request.url, `http://${request.headers.host}`);
 
-  if (url.pathname !== '/api/galaxy-state') {
+  if (request.method === 'OPTIONS') {
+    sendJson(response, 200, { ok: true });
+    return;
+  }
+
+  if (url.pathname !== '/api/galaxy-state' && url.pathname !== '/api/player-state') {
     sendJson(response, 404, { error: 'Not found' });
     return;
   }
@@ -75,6 +93,36 @@ const server = createServer(async (request, response) => {
   const seed = url.searchParams.get('seed') || 'default';
 
   try {
+    if (url.pathname === '/api/player-state') {
+      if (request.method !== 'GET') {
+        sendJson(response, 405, { error: 'Method not allowed' });
+        return;
+      }
+
+      const playerId = url.searchParams.get('playerId');
+      if (!playerId) {
+        sendJson(response, 400, { error: 'Missing playerId' });
+        return;
+      }
+
+      const documentState = await loadState(seed);
+      const nowMs = Date.now();
+      const existingPlayerState =
+        documentState.players[playerId] ?? createInitialPlayerState(playerId, nowMs);
+      const nextPlayerState = updatePlayerResources({
+        seed,
+        storedState: documentState.state,
+        playerId,
+        existingPlayerState,
+        nowMs,
+      });
+
+      documentState.players[playerId] = nextPlayerState;
+      await saveStateDocument(seed, documentState);
+      sendJson(response, 200, { player: nextPlayerState });
+      return;
+    }
+
     if (request.method === 'GET') {
       sendJson(response, 200, await loadState(seed));
       return;
@@ -82,7 +130,11 @@ const server = createServer(async (request, response) => {
 
     if (request.method === 'PUT') {
       const state = await readJsonBody(request);
-      await saveState(seed, state);
+      const currentState = await loadState(seed);
+      await saveStateDocument(seed, {
+        ...currentState,
+        state,
+      });
       sendJson(response, 200, { ok: true });
       return;
     }
