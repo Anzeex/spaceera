@@ -139,6 +139,32 @@
     ],
     "currentTerritoryId": "territory-1775511296596",
     "starOverrides": {
+      "8e42c65e-a3d8-4353-b507-a207a2240f0b": {
+        "planets": {
+          "e6017e37-ee30-4a7a-92c0-7135517a0307": {
+            "infrastructure": {
+              "cities": 1,
+              "industrial": 1,
+              "energy": 1,
+              "defense": 1,
+              "mining": 2,
+              "waterExtraction": 1
+            }
+          }
+        }
+      },
+      "ecb96244-53d4-4e5d-a693-919c22913c9e": {
+        "planets": {
+          "dc07eb5f-d6b0-4d2f-a038-083a4ab9f97a": {
+            "infrastructure": {
+              "cities": 1,
+              "industrial": 1,
+              "energy": 1,
+              "defense": 1
+            }
+          }
+        }
+      },
       "52737736-ee02-4200-93fb-7ac826ca053d": {
         "faction": "Unclaimed"
       },
@@ -275,7 +301,16 @@
       },
       "b37bd717-9ea4-4ec3-9261-c2e3b1169bca": {
         "owner": "Territory 1",
-        "faction": "Territory 1"
+        "faction": "Territory 1",
+        "planets": {
+          "bdb79e75-a057-4fac-8d4d-593fac9a17f6": {
+            "infrastructure": {
+              "cities": 4,
+              "industrial": 3,
+              "energy": 3
+            }
+          }
+        }
       },
       "f8b6118e-98ae-4031-a556-9022d2123041": {
         "owner": "Territory 2",
@@ -625,8 +660,8 @@
         "Water": 0
       },
       "completedHours": 0,
-      "lastResourceUpdate": "2026-04-06T21:34:57.807Z"
+      "lastResourceUpdate": "2026-04-07T22:00:00.000Z"
     }
   },
-  "updatedAt": "2026-04-06T21:35:24.323Z"
+  "updatedAt": "2026-04-07T22:06:13.171Z"
 }

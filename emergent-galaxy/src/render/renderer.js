@@ -558,6 +558,8 @@ export function createRenderer(state) {
   let planetsLineBounds = null;
   let planetListBoxBounds = null;
   let planetItemBounds = [];
+  let infrastructureControlBounds = [];
+  let infrastructureSaveButtonBounds = null;
 
   function formatNumber(value, digits = 0) {
     return Number(value || 0).toLocaleString(undefined, {
@@ -640,6 +642,8 @@ export function createRenderer(state) {
       selectedPlanetId = null;
       planetListBoxBounds = null;
       planetItemBounds = [];
+      infrastructureControlBounds = [];
+      infrastructureSaveButtonBounds = null;
       lastSelectedStarId = selection.selectedStarId;
     }
 
@@ -810,12 +814,15 @@ export function createRenderer(state) {
         selected.planets.find((planet) => planet.id === selectedPlanetId) || null;
 
       if (selectedPlanet) {
+        infrastructureControlBounds = [];
+        infrastructureSaveButtonBounds = null;
         const resourceText = selectedPlanet.prominentResources.length
           ? selectedPlanet.prominentResources
               .map((resource) => `${resource.name} (${resource.abundance})`)
               .join(', ')
           : 'None';
-        const infrastructureLines = Object.entries(selectedPlanet.infrastructure).map(
+        const infrastructureEntries = Object.entries(selectedPlanet.infrastructure);
+        const infrastructureLines = infrastructureEntries.map(
           ([key, value]) => {
             const label = key
               .replace(/([A-Z])/g, ' $1')
@@ -838,7 +845,14 @@ export function createRenderer(state) {
         const detailPadding = 8;
         const detailLineHeight = 16;
         const detailWidth = 280;
-        const detailHeight = detailLines.length * detailLineHeight + detailPadding * 2;
+        const saveButtonHeight = 20;
+        const saveButtonWidth = 64;
+        const saveSectionSpacing = 10;
+        const detailHeight =
+          detailLines.length * detailLineHeight +
+          detailPadding * 2 +
+          saveSectionSpacing +
+          saveButtonHeight;
         const detailX = Math.min(width - detailWidth - 12, x + boxWidth + 12);
         const detailY = Math.min(height - detailHeight - 12, y);
 
@@ -855,28 +869,155 @@ export function createRenderer(state) {
         ctx.textBaseline = 'top';
 
         for (let i = 0; i < detailLines.length; i++) {
+          const textX = detailX + detailPadding;
+          const textY = detailY + detailPadding + i * detailLineHeight;
+
           if (i === 0) {
             ctx.fillStyle = '#ffd166';
-          } else if (i === 7) {
+          } else if (i === 6) {
             ctx.fillStyle = '#9ad1ff';
           } else {
             ctx.fillStyle = '#ffffff';
           }
 
-          ctx.fillText(detailLines[i], detailX + detailPadding, detailY + detailPadding + i * detailLineHeight);
+          ctx.fillText(detailLines[i], textX, textY);
+
+          if (i >= 7) {
+            const infrastructureIndex = i - 7;
+            const [infrastructureKey] = infrastructureEntries[infrastructureIndex];
+            const buttonSize = 14;
+            const buttonGap = 6;
+            const rightButtonX = detailX + detailWidth - detailPadding - buttonSize;
+            const leftButtonX = rightButtonX - buttonGap - buttonSize;
+            const buttonY = textY;
+
+            ctx.fillStyle = 'rgba(255, 209, 102, 0.14)';
+            drawInfoBox(ctx, leftButtonX, buttonY, buttonSize, buttonSize, 4);
+            ctx.fill();
+            drawInfoBox(ctx, rightButtonX, buttonY, buttonSize, buttonSize, 4);
+            ctx.fill();
+
+            ctx.strokeStyle = 'rgba(255, 209, 102, 0.55)';
+            ctx.lineWidth = 1;
+            drawInfoBox(ctx, leftButtonX, buttonY, buttonSize, buttonSize, 4);
+            ctx.stroke();
+            drawInfoBox(ctx, rightButtonX, buttonY, buttonSize, buttonSize, 4);
+            ctx.stroke();
+
+            ctx.fillStyle = '#ffd166';
+            ctx.fillText('<', leftButtonX + 4, buttonY - 1);
+            ctx.fillText('>', rightButtonX + 4, buttonY - 1);
+
+            infrastructureControlBounds.push({
+              planetId: selectedPlanet.id,
+              infrastructureKey,
+              decrement: {
+                x: leftButtonX,
+                y: buttonY,
+                width: buttonSize,
+                height: buttonSize,
+              },
+              increment: {
+                x: rightButtonX,
+                y: buttonY,
+                width: buttonSize,
+                height: buttonSize,
+              },
+            });
+          }
         }
 
+        const saveButtonX = detailX + detailWidth - detailPadding - saveButtonWidth;
+        const saveButtonY = detailY + detailHeight - detailPadding - saveButtonHeight;
+        const saveButtonActive = state.hasPendingInfrastructureChanges;
+
+        ctx.fillStyle = saveButtonActive ? 'rgba(255, 209, 102, 0.18)' : 'rgba(255, 255, 255, 0.08)';
+        drawInfoBox(ctx, saveButtonX, saveButtonY, saveButtonWidth, saveButtonHeight, 5);
+        ctx.fill();
+
+        ctx.strokeStyle = saveButtonActive ? 'rgba(255, 209, 102, 0.9)' : 'rgba(255, 255, 255, 0.2)';
+        ctx.lineWidth = 1;
+        drawInfoBox(ctx, saveButtonX, saveButtonY, saveButtonWidth, saveButtonHeight, 5);
+        ctx.stroke();
+
+        ctx.fillStyle = saveButtonActive ? '#ffd166' : 'rgba(255,255,255,0.6)';
+        ctx.fillText('Save', saveButtonX + 18, saveButtonY + 3);
+
+        infrastructureSaveButtonBounds = {
+          x: saveButtonX,
+          y: saveButtonY,
+          width: saveButtonWidth,
+          height: saveButtonHeight,
+          disabled: !saveButtonActive,
+        };
+
         ctx.restore();
+      } else {
+        infrastructureControlBounds = [];
+        infrastructureSaveButtonBounds = null;
       }
     } else {
       planetsLineBounds = null;
       planetListBoxBounds = null;
       planetItemBounds = [];
+      infrastructureControlBounds = [];
+      infrastructureSaveButtonBounds = null;
       selectedPlanetId = null;
     }
   }
 
   function handleCanvasClick(screenX, screenY) {
+    if (infrastructureSaveButtonBounds) {
+      const inSaveButton =
+        screenX >= infrastructureSaveButtonBounds.x &&
+        screenX <= infrastructureSaveButtonBounds.x + infrastructureSaveButtonBounds.width &&
+        screenY >= infrastructureSaveButtonBounds.y &&
+        screenY <= infrastructureSaveButtonBounds.y + infrastructureSaveButtonBounds.height;
+
+      if (inSaveButton) {
+        if (!infrastructureSaveButtonBounds.disabled) {
+          state.onSaveInfrastructureChanges?.();
+        }
+        return true;
+      }
+    }
+
+    const clickedInfrastructureControl = infrastructureControlBounds.find((control) => {
+      const inDecrement =
+        screenX >= control.decrement.x &&
+        screenX <= control.decrement.x + control.decrement.width &&
+        screenY >= control.decrement.y &&
+        screenY <= control.decrement.y + control.decrement.height;
+      const inIncrement =
+        screenX >= control.increment.x &&
+        screenX <= control.increment.x + control.increment.width &&
+        screenY >= control.increment.y &&
+        screenY <= control.increment.y + control.increment.height;
+
+      return inDecrement || inIncrement;
+    });
+
+    if (clickedInfrastructureControl) {
+      const selected =
+        state.galaxy.stars.find((star) => star.id === state.selection.selectedStarId) || null;
+      const selectedPlanet =
+        selected?.planets.find((planet) => planet.id === clickedInfrastructureControl.planetId) || null;
+
+      if (selectedPlanet) {
+        const isIncrement =
+          screenX >= clickedInfrastructureControl.increment.x &&
+          screenX <= clickedInfrastructureControl.increment.x + clickedInfrastructureControl.increment.width &&
+          screenY >= clickedInfrastructureControl.increment.y &&
+          screenY <= clickedInfrastructureControl.increment.y + clickedInfrastructureControl.increment.height;
+        const delta = isIncrement ? 1 : -1;
+        const currentValue = selectedPlanet.infrastructure[clickedInfrastructureControl.infrastructureKey] ?? 0;
+        selectedPlanet.infrastructure[clickedInfrastructureControl.infrastructureKey] = Math.max(0, currentValue + delta);
+        state.onInfrastructureChanged?.(selectedPlanet, clickedInfrastructureControl.infrastructureKey);
+      }
+
+      return true;
+    }
+
     if (planetsLineBounds) {
       const inPlanetsLine =
         screenX >= planetsLineBounds.x &&

@@ -125,7 +125,7 @@ export function createGame(container, galaxyOptions = {}) {
   const performanceStats = document.createElement('div');
   performanceStats.style.fontSize = '11px';
   performanceStats.style.marginBottom = '6px';
-  performanceStats.textContent = 'FPS: -- | Frame: -- ms';
+  performanceStats.textContent = 'FPS: -- | Frame: -- ms | Load: --';
   performancePanel.appendChild(performanceStats);
 
   const performanceCanvas = document.createElement('canvas');
@@ -267,6 +267,9 @@ export function createGame(container, galaxyOptions = {}) {
     performanceHistory: [],
     lastFrameTimestamp: null,
     performanceGraphFrameId: null,
+    hasPendingInfrastructureChanges: false,
+    onInfrastructureChanged: null,
+    onSaveInfrastructureChanges: null,
     invalidateRender: () => {},
   };
   const baselineState = captureBaselineState(state.galaxy);
@@ -329,10 +332,15 @@ export function createGame(container, galaxyOptions = {}) {
 
   updateTerritorySelector();
 
+  function handleStateApplied() {
+    updateTerritorySelector();
+    state.hasPendingInfrastructureChanges = false;
+  }
+
   const sync = createMultiplayerSync({
     state,
     baselineState,
-    onStateApplied: updateTerritorySelector,
+    onStateApplied: handleStateApplied,
   });
 
   function formatSwedishDateTime(isoString) {
@@ -361,13 +369,14 @@ export function createGame(container, galaxyOptions = {}) {
     const playerState = state.playerState;
     if (!playerState) {
       resourcePanel.textContent = sync.isLocalServerUnavailable()
-        ? 'Resource server offline. Start `npm run dev:server` for authoritative hourly production.'
+        ? 'Resource server offline. Start `npm run dev:server` for authoritative resource production.'
         : 'No player resources loaded yet.';
       return;
     }
 
     const activeTerritory = state.territories.get(state.currentTerritoryId);
     const ownedStarCount = activeTerritory?.stars?.size ?? 0;
+    const updateInterval = playerState.resourceUpdateInterval === 'minute' ? 'min' : 'h';
     const resourceLines = Object.entries(playerState.resources || {})
       .map(([resourceName, amount]) => `${resourceName}: ${amount}`)
       .join(' | ');
@@ -383,8 +392,8 @@ export function createGame(container, galaxyOptions = {}) {
       <strong>${playerState.playerName || playerState.playerId}</strong><br>
       Owned stars: ${ownedStarCount}<br>
       Resources: ${resourceLines || 'None'}<br>
-      Hourly: ${productionStatus}<br>
-      Completed hours: ${playerState.completedHours ?? 0}<br>
+      Production (/h): ${productionStatus}<br>
+      Completed ${updateInterval} ticks: ${playerState.completedHours ?? 0}<br>
       Last update: ${formatSwedishDateTime(playerState.lastResourceUpdate)}
     `;
   }
@@ -412,25 +421,87 @@ export function createGame(container, galaxyOptions = {}) {
     }
 
     if (!samples.length) {
-      performanceStats.textContent = 'FPS: -- | Frame: -- ms';
+      performanceStats.textContent = 'FPS: -- | Frame: -- ms | Load: --';
       return;
     }
 
     const latest = samples[samples.length - 1];
+    const smoothedSamples = samples.map((sample) => {
+      const windowSamples = getRecentPerformanceSamples(sample.timestamp);
+      const averageFrameMs =
+        windowSamples.reduce((sum, item) => sum + item.frameMs, 0) / windowSamples.length;
+      const averageRenderMs =
+        windowSamples.reduce((sum, item) => sum + item.renderMs, 0) / windowSamples.length;
+
+      return {
+        ...sample,
+        frameMs: averageFrameMs,
+        renderMs: averageRenderMs,
+      };
+    });
+    const recentSmoothedSamples = smoothedSamples.filter((sample) => {
+      const ageMs = latest.timestamp - sample.timestamp;
+      return ageMs >= 0 && ageMs <= 1000;
+    });
+    const statsSamples = recentSmoothedSamples.length ? recentSmoothedSamples : smoothedSamples;
     const averageFrameMs =
-      samples.reduce((sum, sample) => sum + sample.frameMs, 0) / samples.length;
+      statsSamples.reduce((sum, sample) => sum + sample.frameMs, 0) / statsSamples.length;
     const averageFps = averageFrameMs > 0 ? 1000 / averageFrameMs : 0;
+    const averageRenderMs =
+      statsSamples.reduce((sum, sample) => sum + sample.renderMs, 0) / statsSamples.length;
+    const loadRatio = averageFrameMs > 0 ? averageRenderMs / averageFrameMs : 0;
+    const loadPercent = Math.max(0, Math.min(loadRatio * 100, 999));
 
     performanceStats.textContent =
-      `FPS: ${averageFps.toFixed(1)} | Frame: ${latest.frameMs.toFixed(1)} ms`;
+      `FPS: ${averageFps.toFixed(1)} | Frame: ${averageFrameMs.toFixed(1)} ms | Load: ${loadPercent.toFixed(0)}%`;
+
+    ctx.fillStyle = 'rgba(78, 205, 196, 0.14)';
+    ctx.beginPath();
+
+    smoothedSamples.forEach((sample, index) => {
+      const x = smoothedSamples.length === 1 ? 0 : (index / (smoothedSamples.length - 1)) * (width - 1);
+      const load = sample.frameMs > 0 ? sample.renderMs / sample.frameMs : 0;
+      const normalized = Math.min(Math.max(load, 0), 1);
+      const y = height - 4 - normalized * (height - 8);
+
+      if (index === 0) {
+        ctx.moveTo(x, height - 4);
+        ctx.lineTo(x, y);
+      } else {
+        ctx.lineTo(x, y);
+      }
+    });
+
+    ctx.lineTo(width - 1, height - 4);
+    ctx.closePath();
+    ctx.fill();
 
     ctx.strokeStyle = '#4ecdc4';
     ctx.lineWidth = 1.5;
     ctx.beginPath();
 
-    samples.forEach((sample, index) => {
-      const x = samples.length === 1 ? 0 : (index / (samples.length - 1)) * (width - 1);
+    smoothedSamples.forEach((sample, index) => {
+      const x = smoothedSamples.length === 1 ? 0 : (index / (smoothedSamples.length - 1)) * (width - 1);
       const normalized = Math.min(sample.frameMs, 50) / 50;
+      const y = height - 4 - normalized * (height - 8);
+
+      if (index === 0) {
+        ctx.moveTo(x, y);
+      } else {
+        ctx.lineTo(x, y);
+      }
+    });
+
+    ctx.stroke();
+
+    ctx.strokeStyle = '#ff9f43';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+
+    smoothedSamples.forEach((sample, index) => {
+      const x = smoothedSamples.length === 1 ? 0 : (index / (smoothedSamples.length - 1)) * (width - 1);
+      const load = sample.frameMs > 0 ? sample.renderMs / sample.frameMs : 0;
+      const normalized = Math.min(Math.max(load, 0), 1);
       const y = height - 4 - normalized * (height - 8);
 
       if (index === 0) {
@@ -445,6 +516,12 @@ export function createGame(container, galaxyOptions = {}) {
     ctx.fillStyle = 'rgba(255, 209, 102, 0.9)';
     const budgetY = height - 4 - (16.67 / 50) * (height - 8);
     ctx.fillRect(0, budgetY, width, 1);
+
+    ctx.fillStyle = 'rgba(255,255,255,0.75)';
+    ctx.font = '10px sans-serif';
+    ctx.fillText('Frame ms', 6, 11);
+    ctx.fillStyle = '#ff9f43';
+    ctx.fillText('Load %', width - 42, 11);
   }
 
   function recordPerformance(renderDurationMs) {
@@ -455,6 +532,7 @@ export function createGame(container, galaxyOptions = {}) {
 
     state.lastFrameTimestamp = now;
     state.performanceHistory.push({
+      timestamp: now,
       frameMs: frameIntervalMs,
       renderMs: renderDurationMs,
     });
@@ -479,6 +557,7 @@ export function createGame(container, galaxyOptions = {}) {
 
     state.lastFrameTimestamp = now;
     state.performanceHistory.push({
+      timestamp: now,
       frameMs: frameIntervalMs,
       renderMs: 0,
     });
@@ -489,6 +568,15 @@ export function createGame(container, galaxyOptions = {}) {
 
     drawPerformanceGraph();
     state.performanceGraphFrameId = requestAnimationFrame(samplePerformanceGraphFrame);
+  }
+
+  function getRecentPerformanceSamples(referenceTimestamp, windowMs = 1000) {
+    return state.performanceHistory.filter(
+      (sample) => {
+        const ageMs = referenceTimestamp - sample.timestamp;
+        return ageMs >= 0 && ageMs <= windowMs;
+      }
+    );
   }
 
   function startPerformanceGraphLoop() {
@@ -526,10 +614,26 @@ export function createGame(container, galaxyOptions = {}) {
     } catch (error) {
       console.warn('Failed to fetch authoritative player resources.', error);
       resourcePanel.textContent = sync.isLocalServerUnavailable()
-        ? 'Resource server offline. Start `npm run dev:server` for authoritative hourly production.'
+        ? 'Resource server offline. Start `npm run dev:server` for authoritative resource production.'
         : 'Failed to load player resources from server.';
     }
   }
+
+  state.onInfrastructureChanged = () => {
+    state.hasPendingInfrastructureChanges = true;
+    state.invalidateRender();
+  };
+
+  state.onSaveInfrastructureChanges = async () => {
+    if (!state.hasPendingInfrastructureChanges) {
+      return;
+    }
+
+    await sync.pushState();
+    state.hasPendingInfrastructureChanges = false;
+    await refreshCurrentPlayerState();
+    state.invalidateRender();
+  };
 
   resetGalaxyButton.addEventListener('click', async () => {
     await sync.resetRemoteState();
