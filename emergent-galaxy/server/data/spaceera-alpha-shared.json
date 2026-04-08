@@ -2,666 +2,2628 @@
   "state": {
     "territories": [
       {
-        "id": "territory-1775511201016",
+        "id": "territory-1775683281635",
         "name": "Territory 1",
-        "color": "#7affe4",
+        "color": "#fbff00",
         "faction": "Territory 1",
         "stars": [
-          "b920380e-c95f-46e3-9b2d-7b406f8019dc",
-          "f73b8b27-3547-4a27-8605-3efb02d5b03a",
-          "780733d6-29ea-492c-8490-95ddaa70f383",
-          "86f45092-4419-45e1-a202-8ec7bf71b0d6",
-          "691453f2-55d1-4fbd-94a5-be82b5b5887b",
-          "db619930-b18b-49ce-9818-8d8b7f259baf",
-          "dae482b3-b0db-4193-8012-b1179a143d13",
-          "b8f36466-bed9-4e0e-8968-8660b5ace41d",
-          "3b25c40b-99e5-43a4-9c72-8009dfaa683a",
-          "2a71d8a8-14a0-4ffb-8111-38861249c8bd",
-          "ab0e62b3-c1d5-46e0-96db-efbf5c8da9d2",
-          "90cb47aa-a498-40e8-9307-1e51615baa17",
-          "c79e0f9d-a9b7-4b64-90ee-ae054082cafb",
-          "5f653324-f8c2-4122-96cc-46d11ab739bd",
-          "76d3b5cd-ca16-4973-a5e3-80fcf2b8fcde",
-          "34bd241a-547c-4bec-aa74-e004283533fe",
-          "5183ab79-df7f-40f1-bae6-3c2663c59477",
-          "9d3ab74f-02e4-4311-878b-492489395904",
-          "b37bd717-9ea4-4ec3-9261-c2e3b1169bca",
-          "f0841fde-07c2-4c6c-bf62-0e70cb021d20",
-          "70e13c81-c8c3-4ee9-9509-585cbb262832",
-          "6bb7110a-7808-4c93-a2a0-25b9d9cd9d96",
-          "44f4568a-aeb7-4808-b775-471e7a989155",
-          "6fd06c5f-3d7d-4ec9-8f98-8d9bf580b562",
-          "8a459399-4657-4ba5-85a3-55e9da9f8bc1",
-          "4bb5add7-8a54-4832-9e3d-fb0f3e52de75",
-          "cbb29108-098d-40df-8ef9-f3665c2a18b4",
-          "7702eabb-8d8d-4211-a64c-15ba27804ab8",
-          "112d38e3-2d7f-42d0-82d9-a33022ec8054",
-          "9cd2dd8d-36c1-41cd-b25d-68370b8042e7",
-          "1dcd1d21-138f-4da0-be1a-969dffd14074",
-          "f9c840b6-e52c-4c51-b941-dbaef409228d"
-        ]
-      },
-      {
-        "id": "territory-1775511209394",
-        "name": "Territory 2",
-        "color": "#ffc800",
-        "faction": "Territory 2",
-        "stars": [
-          "f179b326-f6d4-4366-af5c-eadd878ae440",
-          "279ff3ce-19c2-4136-9566-75d52aded6a0",
-          "3ccd14f7-dd02-4114-a831-8ada58e9f30f",
-          "3468df28-bf43-460f-a923-82732b74d95d",
-          "c2ccf32b-fb1a-4429-925b-1e8b2c297b9e",
-          "f24390d1-e085-431d-8094-8531fcb5fe35",
-          "7a07cb0d-2deb-401e-ad5f-4225a629ead0",
-          "a62f5429-bc75-47cc-9c0e-6f96862f6033",
-          "2b733337-6e16-4484-97c6-c549ca5502a4",
-          "75c99481-a53a-4de1-9ca3-bf6979b81089",
-          "0b9c4ba1-7ca2-4236-b052-6b6871abedc9",
-          "657af285-abf8-401f-8187-bd1b98c1183c",
-          "2ebc4064-51c6-436b-8e6e-94c66178e1c4",
-          "ccb1be93-f878-4809-b304-b08ab0376527",
-          "e534d193-3882-45da-af2a-6f46e2345362",
-          "456e0eaa-8cd9-4b74-9446-5701c281b4fd",
-          "c778ea5f-2823-46d6-8a90-5f1dbd9571a4",
-          "0e30a102-d23e-4982-ba7d-0ff96d1a1bbb",
-          "3ab95541-ee8c-43c8-8bf1-7702814648ad",
-          "5cc10232-bd62-4831-9c55-2c5b190f59ea",
-          "56bd0f25-96f8-4078-ad2c-6bb31ca6c2f0",
-          "28d8d987-f89a-4c94-8bb1-e79b4ece0806",
-          "39bc3036-5f36-4c0a-9fe2-47e2b5ad6bed",
-          "e1e85644-c3de-48ef-b771-037633f37047",
-          "9c0ad239-389b-44cf-9b75-605b2edbdfa7",
-          "4f48e533-c49e-49a8-a164-dbfc6bba9255",
-          "defbff4d-5b89-4a80-a0ec-8b31eab8d7b2",
-          "3e8b101f-d7fb-4f7c-a625-1a643af36b57",
-          "e448e303-a9e9-48bd-a956-a07923f074c6",
-          "332b0dc8-2e93-4c73-888b-04d245389444",
-          "c340cfc7-4083-4fe9-be59-0c3514ec31a1",
-          "6e40dcba-594a-4a7c-a169-d14f9f454e33",
-          "f8b6118e-98ae-4031-a556-9022d2123041",
-          "c389e97d-b857-4eaa-b02d-b3da7823da95",
-          "764ce7e5-b4ae-4d99-b236-d9d21d9130bb",
-          "4a9dde7c-88b1-4c82-b2b2-c1271db2597f",
-          "6da7bd98-e123-41f4-9ce4-bde6edebabfe",
-          "00916a46-5c89-44a7-b76f-8f9d32ca789f",
-          "c1012a0a-90b8-4f8d-b90a-2e3b97dd3a58",
-          "86d04e35-df90-4a69-9819-cdaf897bf992",
-          "f3707184-a8bc-4ad6-9a13-87bdea1e5a76",
-          "b296d493-7f67-45cd-9c5e-9ec3991b1d10",
-          "d97dc16e-5c7a-4978-b036-8c4dbcb1310a",
-          "8baa9ece-7470-44e8-b2bb-56877a850397",
-          "f4af53d8-822e-44d0-b7d3-26dda91f0c69",
-          "513d07fe-31fa-4065-8cc3-02d449d65a61",
-          "4a3d658f-cf0d-4ef7-be04-7e900e2fe434"
-        ]
-      },
-      {
-        "id": "territory-1775511210235",
-        "name": "Territory 3",
-        "color": "#ffc800",
-        "faction": "Territory 3",
-        "stars": []
-      },
-      {
-        "id": "territory-1775511296596",
-        "name": "Territory 4",
-        "color": "#ffffff",
-        "faction": "Territory 4",
-        "stars": [
-          "4ba8a93b-60f3-4ec2-8045-9027ea19186d",
-          "8b822c47-5d0d-4480-8018-e0ab5d7f6c07",
-          "8aa7ee48-266d-44c6-a96f-55dc6f7e56b3",
-          "b9f2bba9-c707-49b2-b280-0f99a34e30b0",
-          "21d2326b-81fc-4f25-bd3d-0c6d6564ba0e",
-          "647f1acc-c644-4efb-bb43-154a922c3d54",
-          "39fe8ffa-5dfd-42cb-b979-e860f82c5e47",
-          "d346db15-b05c-400b-ba93-0cd938e651e9",
-          "26f1f9b1-5edb-494e-ac3a-80b4b567ad64",
-          "a5b9d410-e02a-4590-be3d-1f4f258d6972",
-          "19418876-f54a-41fc-a7da-0c77c4ea7f66",
-          "8c08d1df-d478-4533-9d11-4d8a25e4bc36",
-          "d3c57a78-29e5-4d15-8e10-332a562cb514",
-          "7ad31683-6bc4-4f30-89fe-ae709e9616da",
-          "8e00f209-9890-4cd9-81a3-05118da3ddcf",
-          "556cac7d-2821-4b1a-ba35-8d9201f7261d",
-          "3b0785be-03f2-4b89-9a21-b35d64e55e14",
-          "3a180a76-3f84-43c7-ae02-41ec26cc0605",
-          "7bc4c7ba-7e4b-45b7-8a02-fa9617b3f5a9",
-          "6ed62fb6-5bcf-4ed4-bf00-699e9306925f",
-          "7bca7677-63e4-4e4a-ab44-9a6aec18d2d2",
-          "cf5a1f70-c5bf-4c8f-b3e5-10e6ccf42817",
-          "93d5e9b8-320c-4a21-9b0b-2b05e3fa2868",
-          "1fca7115-580d-4c36-893f-b4e29f16a539",
-          "f4c6301d-04a0-42bc-afac-923176795740"
+          "a839713d-1424-4528-822a-92cfd980c95a",
+          "f6250885-9d87-4d5a-98c6-f9063b96912c",
+          "5b382934-dde7-48f7-bf2f-350fdc5c3f26",
+          "65cc9675-af8d-4f92-a530-203a689d4c88",
+          "deda5442-4175-495b-ae3f-179d40feff55",
+          "ed75eab4-0d0f-44c2-8097-e98be0616f93",
+          "c434ecfb-e277-470a-b3b9-fa932998d565",
+          "8bef5778-333d-4d1c-b61b-264081ac003a",
+          "71ef136b-5fb4-4240-9ca6-36af3f60944b",
+          "590c913c-6da4-444a-aa04-02cb76cbe190",
+          "2849d78d-af5a-4014-9e43-6ad559d624ca",
+          "6e476df8-e90b-4e3d-9d3d-8f8f94063118",
+          "5e91b7b5-9791-4804-83ff-f215fc129a07",
+          "cf9b2785-c0ca-4c3b-bbcf-3da2fb4c6c11",
+          "8b750b02-5322-4d6a-b4bb-699eccdbd7ab",
+          "52b73cb7-0d77-4c96-b64f-96a4f6971faa",
+          "6f2d9b2f-2f5c-4317-8711-72cddac1db14",
+          "16e16579-288f-44ec-845d-0e31fafb132f",
+          "68fb1bdd-94b7-430d-af5c-057fb4a40dbc",
+          "c1f4773f-7a77-43ad-ac18-0f1a2f30f0f3",
+          "d6038024-b124-4aef-8a59-02d4a24e6995",
+          "ab0fc0b7-4242-4df5-950d-ad0b4dcb841f",
+          "543cf9f7-5537-4d9a-a280-6e5792283374",
+          "05e61e85-6e16-4764-936e-2bfa39da0085",
+          "7383bfc8-e8ed-42aa-ab8b-e238357f8f6e",
+          "6a451916-96fb-43f4-bf4f-888bfbd2869c",
+          "d66576ef-5132-4126-8b65-ee5101a515e9",
+          "c80a0099-c93c-4174-ba25-9056de1f067c",
+          "0c966a2b-1cb8-484c-ab50-9ae607c1f051",
+          "04b651b0-a6d9-4177-ac2e-cd20185eb223",
+          "0c61996a-fb09-4bc9-9e71-ca2564983271",
+          "3dad7695-6540-405d-b33e-66eaf8e11db5",
+          "e0eb4f9c-6f2c-4722-b45e-fba59e5487e8",
+          "9a03321e-c7e0-43ef-ad43-3cbfb07ecef8",
+          "38e591ba-59dd-4fa6-98e3-ae2c96662148",
+          "c82bf483-58cd-43b6-853e-79f013d2deee",
+          "35af4701-6a79-400a-9c62-cd4bea279e89",
+          "678a08bb-a0c4-452e-8ec3-f73182040f34",
+          "afd18305-a6bb-4f68-b441-6a387b77c162",
+          "40c0b1e3-e172-4fb2-8fc9-9baaf313aa9c",
+          "1d21e8a5-30a8-4b38-bb94-b790d58ee522",
+          "91cd9fc0-38d4-40af-8cba-b4ff14f390d8",
+          "22b8c65e-8ca2-4584-a2bd-5c94ab2cf6e6",
+          "366a512c-40f8-4d39-98dd-4798a697cea5",
+          "53c57e8b-158c-4586-b914-6b3501f8e2ec",
+          "981b6164-25da-473e-9f6b-d337c97b433a",
+          "199188ff-25f5-4fd9-9ecf-b168afd0c2c3",
+          "a840f968-b6eb-4146-83cd-b5b5ff989839",
+          "367f09dc-47c9-490f-a454-74821f6ec5fb",
+          "c795dcfe-95b8-4405-8d7e-e72ac479105a",
+          "4185addc-ca50-41fb-ad23-d390b1a9cebb",
+          "d86ac43f-fd63-46a7-bfba-2c876186317a",
+          "bf0e4aeb-025d-4c0a-80bc-ab6bccfba225",
+          "0b32050c-07a9-4aff-b6d5-4eded6c52b63",
+          "7dcbd401-eca0-48a2-a51e-b448c06b715b",
+          "60294a2e-83a6-46dc-8d67-1ad4c8c79df2",
+          "32f54a62-53e4-4a95-aefa-78e9b4c3d19d",
+          "e7f1c7fe-ccc3-430c-aaa4-b457c2a38292",
+          "a6768ecd-d24f-423e-8e56-22bec00208cf",
+          "ff92e2df-2eba-4542-abdb-c0afb240d442",
+          "0ca01748-35ab-4b86-9a73-f8b7501ba33f",
+          "88a8b590-08f9-436b-807f-81a79f005884",
+          "e9308a2f-1268-4db1-badd-1f922e70c1c0",
+          "74994239-201c-46d4-ad44-0bef5dd6fd53",
+          "d7fb7608-5125-4731-ae41-99f0e671b8e5",
+          "4db934b3-fb53-4756-8dff-1033c6c59b0c",
+          "c46466ea-f084-4558-b266-a33abd25c163",
+          "bcc96d4f-da25-4fa1-91ed-9d7fb4d8a9dd",
+          "8adc6fd0-2829-41f9-a358-f571229d38ee",
+          "1c4e701e-4d16-4eca-9476-49c68b43c4ba",
+          "c5570a0a-0b10-4ff9-8ffd-5f9cd17bb06b",
+          "d549ae6e-6364-4da6-a501-a749575720c4",
+          "5baabe2a-725a-4e07-a2b2-a5fb91e5b2f7",
+          "0917c135-b694-43a3-8afe-44720c303e72",
+          "a1d15bc0-627a-4052-a6fd-c83759314c3e",
+          "54b38d0c-caf4-4dc3-b66f-410101558660",
+          "f1971a6b-d05d-401d-a6c3-aaad82df3070",
+          "498fde2e-48dd-4a53-85df-790843be0bd9",
+          "894d785d-90c2-44c1-8519-05a13290ce4d",
+          "ecd8d57f-5b13-4683-9a55-2f2dabf2e11d",
+          "de1193ba-8db8-4bc9-8c78-0186c5d52552",
+          "7e7df450-0a32-4618-b049-8de44971ce95",
+          "117b208d-2f1f-4e10-9368-f7a07d80b351",
+          "5f443a72-dee5-459a-8195-7ce1d8ea7efb",
+          "7a46f815-b88e-46f5-8af4-315167c8388d",
+          "676b6892-05e0-4c72-a1ff-a32a53db1dd8",
+          "51eabe45-1421-426f-997e-4cf190dcc738",
+          "b1addd58-9527-439a-be09-a3669e4c2036",
+          "67b934d6-0513-44fb-8f24-3210fb15a797",
+          "ee736162-0350-4ed0-bea9-5aa103115e25",
+          "f017cfac-eb38-4040-b660-a52fe637303f",
+          "c208546b-1b00-4b4e-bdde-97103114d558",
+          "8244d0bb-37a0-4836-bb50-81f9d46a0a66",
+          "ad79ed97-5ead-4f33-bb83-3b858603923e",
+          "3bcd7046-f3d4-4681-b959-20dfe8c3e037",
+          "2cced2be-7fc9-4b29-9009-c1a365ec57b8",
+          "2e3f8e45-0cdc-4c95-bebd-af0d163bd96c",
+          "a0f6f61c-e938-4e33-b29c-1a98378e95ec",
+          "fae32a4e-f926-493d-b6c4-5ae8210b6d8e",
+          "701641c1-96dc-47fc-8f6d-6f463d2956a1",
+          "8c51d50a-dff1-4d12-8a42-6aa88460e0af",
+          "95051502-8d95-41b6-a014-59dfc1b9d10c",
+          "019a00dd-7a91-4f26-a5c4-8df12b9a4082",
+          "395fda9c-df20-47bc-9cb8-4c8b64518c73",
+          "c22776a1-31b8-40ae-982d-313d30ebe3df",
+          "3361d540-a311-4cae-973e-325976e0b40b",
+          "92ba4c17-73f2-485d-9ac2-1e7d880b132a",
+          "3929e583-be7f-48a7-a5a1-576e14f58539",
+          "cf3c3e4d-3a96-4fe0-a23d-ee4f2e2169c5",
+          "e91c2db8-cc0b-487c-af85-8fdc48e78baf",
+          "47a7254e-1d1d-4944-8e27-8cc45154a56b",
+          "0c47b6f3-fdbc-4356-9ea9-f8a104f553db",
+          "46062f56-0d87-4023-bb3b-31e10d352006",
+          "d7fab567-5cdb-479e-bbe4-2272279d400c",
+          "41678e43-8fef-4896-b188-55f45de2a270",
+          "ef97ca2a-13a9-4cca-b460-121e341add2d",
+          "dcf689f1-dd73-4747-a323-e74ec018459d",
+          "47e04334-ab1a-450d-bb19-9fcfddefb743",
+          "c09eddc9-f8ae-4601-b73a-dabfbb1c91cc",
+          "6fd81343-b347-4dd7-adfc-01d1e2b6ec88",
+          "b209c767-749c-4f12-ba01-7e5b49fefb57",
+          "c8cff5a3-5db6-4403-9da2-13262820efb5",
+          "afd9ffd6-5905-4094-ab31-d3d54be30054",
+          "09f7e960-5c34-4a09-8703-0348f10fc6a9",
+          "1793ab0a-956d-4e15-b0e8-139ccbf5d4dc",
+          "e1f4e209-2695-4a72-834d-145f2a2d2514",
+          "3d8e1c34-ed34-461f-b3c4-4d776608b072",
+          "bea5bbc9-3356-41e9-9a66-c93e678887e3",
+          "3a07e873-6909-4693-b0f6-1f94e288312c",
+          "9bb8add3-1b1c-4e66-afdb-f2219ea2b75a",
+          "758d9541-5db2-4447-8831-09a4daf358c2",
+          "f4f5b4b8-8cd5-4604-a57a-76eb6ccfacd1",
+          "3283f46d-e5df-45a7-a84c-a5ba8abbe108",
+          "fdebcf19-d0ec-4df8-aa97-9306126af872",
+          "84b7dc9b-3d71-4ef9-80b2-8286425d0e54",
+          "f2cc9ff5-996b-4258-91d5-7763dfa3a209",
+          "a22e0d7d-667d-4b02-9792-d57b78dffe96",
+          "b6a2b597-912b-4ab8-93d0-909410bc6f02",
+          "54a9e7e4-49e1-4efb-b6db-2a7dd2b79d9a",
+          "1a3fb144-8913-45d4-87a1-b3ad78b5609b",
+          "56b09ce1-562f-4147-a101-044d20724bd6",
+          "e0dde916-8d1f-4df8-a23b-fd8ac5a77eac",
+          "af9df462-e0cd-4f24-af16-de90d0f6d608",
+          "a42f23d2-3fd3-4540-90c2-cd77498ba30c",
+          "38ee0d73-a3a0-4029-bf17-eb17631cc693",
+          "2494d9f2-06f8-4fab-a22d-e17e19e84d25",
+          "3b85e607-ae61-42c6-b3d8-af3dd6a063f6",
+          "215a1e1f-a7ae-4219-a221-cce0a63140a0",
+          "48429eb5-8d53-4ef1-a66d-94e2c8d91042",
+          "86637664-5679-4704-a862-7d16e51daaad",
+          "d323387d-7ba4-4e10-a408-895400479225",
+          "5e71a4e8-553b-4051-b58a-4ccb6313f9fe",
+          "e852de17-7b3d-4c71-8a5b-f0198318265e",
+          "aa96f823-20bc-4807-867a-4c6d562f4071",
+          "3c1c77cd-3081-47f8-a3c8-1b3b14f7f7e6",
+          "74613b48-32c6-4701-917d-58276e318bef",
+          "3bd031c6-36b8-433b-a198-3db6a5270615",
+          "3946fc95-9a93-434d-a1c1-cb43be3a26ca",
+          "c403cd51-2ff1-4e42-8f60-fb6a46dee5a7",
+          "4e3edef2-1769-49d5-afd6-320be7e0218b"
         ]
       }
     ],
-    "currentTerritoryId": "territory-1775511296596",
+    "currentTerritoryId": "territory-1775683281635",
     "starOverrides": {
-      "8e42c65e-a3d8-4353-b507-a207a2240f0b": {
+      "0c966a2b-1cb8-484c-ab50-9ae607c1f051": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
+      },
+      "d66576ef-5132-4126-8b65-ee5101a515e9": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
+      },
+      "6a451916-96fb-43f4-bf4f-888bfbd2869c": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
+      },
+      "5e91b7b5-9791-4804-83ff-f215fc129a07": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
+      },
+      "f6250885-9d87-4d5a-98c6-f9063b96912c": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
+      },
+      "4e3edef2-1769-49d5-afd6-320be7e0218b": {
+        "owner": "Territory 1",
+        "faction": "Territory 1",
         "planets": {
-          "e6017e37-ee30-4a7a-92c0-7135517a0307": {
+          "0ebfd1a9-a9ef-4cef-bf0d-3f21a0a26e65": {
             "infrastructure": {
               "cities": 1,
               "industrial": 1,
               "energy": 1,
               "defense": 1,
-              "mining": 2,
+              "mining": 1,
               "waterExtraction": 1
             }
-          }
-        }
-      },
-      "ecb96244-53d4-4e5d-a693-919c22913c9e": {
-        "planets": {
-          "dc07eb5f-d6b0-4d2f-a038-083a4ab9f97a": {
+          },
+          "73ca0ca4-144a-4397-a989-9e30fe2ab5ba": {
             "infrastructure": {
               "cities": 1,
               "industrial": 1,
-              "energy": 1,
-              "defense": 1
+              "energy": 3,
+              "defense": 3,
+              "mining": 3,
+              "waterExtraction": 5
             }
           }
         }
       },
-      "52737736-ee02-4200-93fb-7ac826ca053d": {
-        "faction": "Unclaimed"
-      },
-      "61d64e10-8b6b-4cc2-a066-309522b070b0": {
-        "faction": "Unclaimed"
-      },
-      "ab0e62b3-c1d5-46e0-96db-efbf5c8da9d2": {
+      "6e476df8-e90b-4e3d-9d3d-8f8f94063118": {
         "owner": "Territory 1",
         "faction": "Territory 1"
       },
-      "b8f36466-bed9-4e0e-8968-8660b5ace41d": {
+      "3dad7695-6540-405d-b33e-66eaf8e11db5": {
         "owner": "Territory 1",
         "faction": "Territory 1"
       },
-      "2a71d8a8-14a0-4ffb-8111-38861249c8bd": {
+      "c80a0099-c93c-4174-ba25-9056de1f067c": {
         "owner": "Territory 1",
         "faction": "Territory 1"
       },
-      "90cb47aa-a498-40e8-9307-1e51615baa17": {
+      "cf9b2785-c0ca-4c3b-bbcf-3da2fb4c6c11": {
         "owner": "Territory 1",
         "faction": "Territory 1"
       },
-      "513d07fe-31fa-4065-8cc3-02d449d65a61": {
-        "owner": "Territory 2",
-        "faction": "Territory 2"
-      },
-      "dae482b3-b0db-4193-8012-b1179a143d13": {
+      "8b750b02-5322-4d6a-b4bb-699eccdbd7ab": {
         "owner": "Territory 1",
         "faction": "Territory 1"
       },
-      "4a3d658f-cf0d-4ef7-be04-7e900e2fe434": {
-        "owner": "Territory 2",
-        "faction": "Territory 2"
-      },
-      "3b25c40b-99e5-43a4-9c72-8009dfaa683a": {
+      "0c61996a-fb09-4bc9-9e71-ca2564983271": {
         "owner": "Territory 1",
         "faction": "Territory 1"
       },
-      "f4af53d8-822e-44d0-b7d3-26dda91f0c69": {
-        "owner": "Territory 2",
-        "faction": "Territory 2"
-      },
-      "5f653324-f8c2-4122-96cc-46d11ab739bd": {
+      "7383bfc8-e8ed-42aa-ab8b-e238357f8f6e": {
         "owner": "Territory 1",
         "faction": "Territory 1"
       },
-      "8baa9ece-7470-44e8-b2bb-56877a850397": {
-        "owner": "Territory 2",
-        "faction": "Territory 2"
-      },
-      "76d3b5cd-ca16-4973-a5e3-80fcf2b8fcde": {
+      "5b382934-dde7-48f7-bf2f-350fdc5c3f26": {
         "owner": "Territory 1",
         "faction": "Territory 1"
       },
-      "d97dc16e-5c7a-4978-b036-8c4dbcb1310a": {
-        "owner": "Territory 2",
-        "faction": "Territory 2"
-      },
-      "34bd241a-547c-4bec-aa74-e004283533fe": {
+      "2849d78d-af5a-4014-9e43-6ad559d624ca": {
         "owner": "Territory 1",
         "faction": "Territory 1"
       },
-      "f3707184-a8bc-4ad6-9a13-87bdea1e5a76": {
-        "owner": "Territory 2",
-        "faction": "Territory 2"
-      },
-      "c79e0f9d-a9b7-4b64-90ee-ae054082cafb": {
+      "543cf9f7-5537-4d9a-a280-6e5792283374": {
         "owner": "Territory 1",
         "faction": "Territory 1"
       },
-      "db619930-b18b-49ce-9818-8d8b7f259baf": {
+      "deda5442-4175-495b-ae3f-179d40feff55": {
         "owner": "Territory 1",
         "faction": "Territory 1"
       },
-      "1dcd1d21-138f-4da0-be1a-969dffd14074": {
+      "05e61e85-6e16-4764-936e-2bfa39da0085": {
         "owner": "Territory 1",
         "faction": "Territory 1"
       },
-      "b296d493-7f67-45cd-9c5e-9ec3991b1d10": {
-        "owner": "Territory 2",
-        "faction": "Territory 2"
-      },
-      "86d04e35-df90-4a69-9819-cdaf897bf992": {
-        "owner": "Territory 2",
-        "faction": "Territory 2"
-      },
-      "86f45092-4419-45e1-a202-8ec7bf71b0d6": {
+      "a839713d-1424-4528-822a-92cfd980c95a": {
         "owner": "Territory 1",
         "faction": "Territory 1"
       },
-      "9d3ab74f-02e4-4311-878b-492489395904": {
+      "38e591ba-59dd-4fa6-98e3-ae2c96662148": {
         "owner": "Territory 1",
         "faction": "Territory 1"
       },
-      "8a459399-4657-4ba5-85a3-55e9da9f8bc1": {
+      "ed75eab4-0d0f-44c2-8097-e98be0616f93": {
         "owner": "Territory 1",
         "faction": "Territory 1"
       },
-      "9cd2dd8d-36c1-41cd-b25d-68370b8042e7": {
+      "590c913c-6da4-444a-aa04-02cb76cbe190": {
         "owner": "Territory 1",
         "faction": "Territory 1"
       },
-      "691453f2-55d1-4fbd-94a5-be82b5b5887b": {
+      "65cc9675-af8d-4f92-a530-203a689d4c88": {
         "owner": "Territory 1",
         "faction": "Territory 1"
       },
-      "c1012a0a-90b8-4f8d-b90a-2e3b97dd3a58": {
-        "owner": "Territory 2",
-        "faction": "Territory 2"
-      },
-      "6fd06c5f-3d7d-4ec9-8f98-8d9bf580b562": {
+      "ab0fc0b7-4242-4df5-950d-ad0b4dcb841f": {
         "owner": "Territory 1",
         "faction": "Territory 1"
       },
-      "00916a46-5c89-44a7-b76f-8f9d32ca789f": {
-        "owner": "Territory 2",
-        "faction": "Territory 2"
-      },
-      "780733d6-29ea-492c-8490-95ddaa70f383": {
+      "4db934b3-fb53-4756-8dff-1033c6c59b0c": {
         "owner": "Territory 1",
         "faction": "Territory 1"
       },
-      "5183ab79-df7f-40f1-bae6-3c2663c59477": {
+      "52b73cb7-0d77-4c96-b64f-96a4f6971faa": {
         "owner": "Territory 1",
         "faction": "Territory 1"
       },
-      "6da7bd98-e123-41f4-9ce4-bde6edebabfe": {
-        "owner": "Territory 2",
-        "faction": "Territory 2"
-      },
-      "f73b8b27-3547-4a27-8605-3efb02d5b03a": {
+      "8bef5778-333d-4d1c-b61b-264081ac003a": {
         "owner": "Territory 1",
         "faction": "Territory 1"
       },
-      "b37bd717-9ea4-4ec3-9261-c2e3b1169bca": {
-        "owner": "Territory 1",
-        "faction": "Territory 1",
-        "planets": {
-          "bdb79e75-a057-4fac-8d4d-593fac9a17f6": {
-            "infrastructure": {
-              "cities": 4,
-              "industrial": 3,
-              "energy": 3
-            }
-          }
-        }
-      },
-      "f8b6118e-98ae-4031-a556-9022d2123041": {
-        "owner": "Territory 2",
-        "faction": "Territory 2"
-      },
-      "defbff4d-5b89-4a80-a0ec-8b31eab8d7b2": {
-        "owner": "Territory 2",
-        "faction": "Territory 2"
-      },
-      "4a9dde7c-88b1-4c82-b2b2-c1271db2597f": {
-        "owner": "Territory 2",
-        "faction": "Territory 2"
-      },
-      "c389e97d-b857-4eaa-b02d-b3da7823da95": {
-        "owner": "Territory 2",
-        "faction": "Territory 2"
-      },
-      "764ce7e5-b4ae-4d99-b236-d9d21d9130bb": {
-        "owner": "Territory 2",
-        "faction": "Territory 2"
-      },
-      "70e13c81-c8c3-4ee9-9509-585cbb262832": {
+      "04b651b0-a6d9-4177-ac2e-cd20185eb223": {
         "owner": "Territory 1",
         "faction": "Territory 1"
       },
-      "b920380e-c95f-46e3-9b2d-7b406f8019dc": {
+      "a840f968-b6eb-4146-83cd-b5b5ff989839": {
         "owner": "Territory 1",
         "faction": "Territory 1"
       },
-      "f9c840b6-e52c-4c51-b941-dbaef409228d": {
+      "88a8b590-08f9-436b-807f-81a79f005884": {
         "owner": "Territory 1",
         "faction": "Territory 1"
       },
-      "6e40dcba-594a-4a7c-a169-d14f9f454e33": {
-        "owner": "Territory 2",
-        "faction": "Territory 2"
-      },
-      "56bd0f25-96f8-4078-ad2c-6bb31ca6c2f0": {
-        "owner": "Territory 2",
-        "faction": "Territory 2"
-      },
-      "cbb29108-098d-40df-8ef9-f3665c2a18b4": {
+      "c434ecfb-e277-470a-b3b9-fa932998d565": {
         "owner": "Territory 1",
         "faction": "Territory 1"
       },
-      "5cc10232-bd62-4831-9c55-2c5b190f59ea": {
-        "owner": "Territory 2",
-        "faction": "Territory 2"
-      },
-      "f0841fde-07c2-4c6c-bf62-0e70cb021d20": {
+      "a6768ecd-d24f-423e-8e56-22bec00208cf": {
         "owner": "Territory 1",
         "faction": "Territory 1"
       },
-      "28d8d987-f89a-4c94-8bb1-e79b4ece0806": {
-        "owner": "Territory 2",
-        "faction": "Territory 2"
-      },
-      "39bc3036-5f36-4c0a-9fe2-47e2b5ad6bed": {
-        "owner": "Territory 2",
-        "faction": "Territory 2"
-      },
-      "4bb5add7-8a54-4832-9e3d-fb0f3e52de75": {
+      "0ca01748-35ab-4b86-9a73-f8b7501ba33f": {
         "owner": "Territory 1",
         "faction": "Territory 1"
       },
-      "3e8b101f-d7fb-4f7c-a625-1a643af36b57": {
-        "owner": "Territory 2",
-        "faction": "Territory 2"
-      },
-      "e1e85644-c3de-48ef-b771-037633f37047": {
-        "owner": "Territory 2",
-        "faction": "Territory 2"
-      },
-      "4f48e533-c49e-49a8-a164-dbfc6bba9255": {
-        "owner": "Territory 2",
-        "faction": "Territory 2"
-      },
-      "6bb7110a-7808-4c93-a2a0-25b9d9cd9d96": {
+      "e9308a2f-1268-4db1-badd-1f922e70c1c0": {
         "owner": "Territory 1",
         "faction": "Territory 1"
       },
-      "0e30a102-d23e-4982-ba7d-0ff96d1a1bbb": {
-        "owner": "Territory 2",
-        "faction": "Territory 2"
-      },
-      "112d38e3-2d7f-42d0-82d9-a33022ec8054": {
+      "d86ac43f-fd63-46a7-bfba-2c876186317a": {
         "owner": "Territory 1",
         "faction": "Territory 1"
       },
-      "3ab95541-ee8c-43c8-8bf1-7702814648ad": {
-        "owner": "Territory 2",
-        "faction": "Territory 2"
-      },
-      "7702eabb-8d8d-4211-a64c-15ba27804ab8": {
+      "71ef136b-5fb4-4240-9ca6-36af3f60944b": {
         "owner": "Territory 1",
         "faction": "Territory 1"
       },
-      "9c0ad239-389b-44cf-9b75-605b2edbdfa7": {
-        "owner": "Territory 2",
-        "faction": "Territory 2"
-      },
-      "332b0dc8-2e93-4c73-888b-04d245389444": {
-        "owner": "Territory 2",
-        "faction": "Territory 2"
-      },
-      "e448e303-a9e9-48bd-a956-a07923f074c6": {
-        "owner": "Territory 2",
-        "faction": "Territory 2"
-      },
-      "e534d193-3882-45da-af2a-6f46e2345362": {
-        "owner": "Territory 2",
-        "faction": "Territory 2"
-      },
-      "c778ea5f-2823-46d6-8a90-5f1dbd9571a4": {
-        "owner": "Territory 2",
-        "faction": "Territory 2"
-      },
-      "c340cfc7-4083-4fe9-be59-0c3514ec31a1": {
-        "owner": "Territory 2",
-        "faction": "Territory 2"
-      },
-      "456e0eaa-8cd9-4b74-9446-5701c281b4fd": {
-        "owner": "Territory 2",
-        "faction": "Territory 2"
-      },
-      "3468df28-bf43-460f-a923-82732b74d95d": {
-        "owner": "Territory 2",
-        "faction": "Territory 2"
-      },
-      "44f4568a-aeb7-4808-b775-471e7a989155": {
+      "9a03321e-c7e0-43ef-ad43-3cbfb07ecef8": {
         "owner": "Territory 1",
         "faction": "Territory 1"
       },
-      "279ff3ce-19c2-4136-9566-75d52aded6a0": {
-        "owner": "Territory 2",
-        "faction": "Territory 2"
+      "6f2d9b2f-2f5c-4317-8711-72cddac1db14": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
       },
-      "8aa7ee48-266d-44c6-a96f-55dc6f7e56b3": {
-        "owner": "Territory 4",
-        "faction": "Territory 4"
+      "74994239-201c-46d4-ad44-0bef5dd6fd53": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
       },
-      "c2ccf32b-fb1a-4429-925b-1e8b2c297b9e": {
-        "owner": "Territory 2",
-        "faction": "Territory 2"
+      "d7fb7608-5125-4731-ae41-99f0e671b8e5": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
       },
-      "3ccd14f7-dd02-4114-a831-8ada58e9f30f": {
-        "owner": "Territory 2",
-        "faction": "Territory 2"
+      "e7f1c7fe-ccc3-430c-aaa4-b457c2a38292": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
       },
-      "f179b326-f6d4-4366-af5c-eadd878ae440": {
-        "owner": "Territory 2",
-        "faction": "Territory 2"
+      "199188ff-25f5-4fd9-9ecf-b168afd0c2c3": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
       },
-      "f24390d1-e085-431d-8094-8531fcb5fe35": {
-        "owner": "Territory 2",
-        "faction": "Territory 2"
+      "d6038024-b124-4aef-8a59-02d4a24e6995": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
       },
-      "8b822c47-5d0d-4480-8018-e0ab5d7f6c07": {
-        "owner": "Territory 4",
-        "faction": "Territory 4"
+      "e0eb4f9c-6f2c-4722-b45e-fba59e5487e8": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
       },
-      "2ebc4064-51c6-436b-8e6e-94c66178e1c4": {
-        "owner": "Territory 2",
-        "faction": "Territory 2"
+      "367f09dc-47c9-490f-a454-74821f6ec5fb": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
       },
-      "4ba8a93b-60f3-4ec2-8045-9027ea19186d": {
-        "owner": "Territory 4",
-        "faction": "Territory 4"
+      "ff92e2df-2eba-4542-abdb-c0afb240d442": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
       },
-      "ccb1be93-f878-4809-b304-b08ab0376527": {
-        "owner": "Territory 2",
-        "faction": "Territory 2"
+      "c82bf483-58cd-43b6-853e-79f013d2deee": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
       },
-      "a62f5429-bc75-47cc-9c0e-6f96862f6033": {
-        "owner": "Territory 2",
-        "faction": "Territory 2"
+      "4185addc-ca50-41fb-ad23-d390b1a9cebb": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
       },
-      "39fe8ffa-5dfd-42cb-b979-e860f82c5e47": {
-        "owner": "Territory 4",
-        "faction": "Territory 4"
+      "32f54a62-53e4-4a95-aefa-78e9b4c3d19d": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
       },
-      "7a07cb0d-2deb-401e-ad5f-4225a629ead0": {
-        "owner": "Territory 2",
-        "faction": "Territory 2"
+      "395fda9c-df20-47bc-9cb8-4c8b64518c73": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
       },
-      "b9f2bba9-c707-49b2-b280-0f99a34e30b0": {
-        "owner": "Territory 4",
-        "faction": "Territory 4"
+      "8c51d50a-dff1-4d12-8a42-6aa88460e0af": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
       },
-      "657af285-abf8-401f-8187-bd1b98c1183c": {
-        "owner": "Territory 2",
-        "faction": "Territory 2"
+      "c46466ea-f084-4558-b266-a33abd25c163": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
       },
-      "f4c6301d-04a0-42bc-afac-923176795740": {
-        "owner": "Territory 4",
-        "faction": "Territory 4"
+      "019a00dd-7a91-4f26-a5c4-8df12b9a4082": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
       },
-      "21d2326b-81fc-4f25-bd3d-0c6d6564ba0e": {
-        "owner": "Territory 4",
-        "faction": "Territory 4"
+      "fae32a4e-f926-493d-b6c4-5ae8210b6d8e": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
       },
-      "647f1acc-c644-4efb-bb43-154a922c3d54": {
-        "owner": "Territory 4",
-        "faction": "Territory 4"
+      "54a9e7e4-49e1-4efb-b6db-2a7dd2b79d9a": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
       },
-      "d346db15-b05c-400b-ba93-0cd938e651e9": {
-        "owner": "Territory 4",
-        "faction": "Territory 4"
+      "68fb1bdd-94b7-430d-af5c-057fb4a40dbc": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
       },
-      "93d5e9b8-320c-4a21-9b0b-2b05e3fa2868": {
-        "owner": "Territory 4",
-        "faction": "Territory 4"
+      "35af4701-6a79-400a-9c62-cd4bea279e89": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
       },
-      "26f1f9b1-5edb-494e-ac3a-80b4b567ad64": {
-        "owner": "Territory 4",
-        "faction": "Territory 4"
+      "84b7dc9b-3d71-4ef9-80b2-8286425d0e54": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
       },
-      "a5b9d410-e02a-4590-be3d-1f4f258d6972": {
-        "owner": "Territory 4",
-        "faction": "Territory 4"
+      "a0f6f61c-e938-4e33-b29c-1a98378e95ec": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
       },
-      "2b733337-6e16-4484-97c6-c549ca5502a4": {
-        "owner": "Territory 2",
-        "faction": "Territory 2"
+      "c795dcfe-95b8-4405-8d7e-e72ac479105a": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
       },
-      "8c08d1df-d478-4533-9d11-4d8a25e4bc36": {
-        "owner": "Territory 4",
-        "faction": "Territory 4"
+      "f2cc9ff5-996b-4258-91d5-7763dfa3a209": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
       },
-      "0b9c4ba1-7ca2-4236-b052-6b6871abedc9": {
-        "owner": "Territory 2",
-        "faction": "Territory 2"
+      "53c57e8b-158c-4586-b914-6b3501f8e2ec": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
       },
-      "d3c57a78-29e5-4d15-8e10-332a562cb514": {
-        "owner": "Territory 4",
-        "faction": "Territory 4"
+      "b6a2b597-912b-4ab8-93d0-909410bc6f02": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
       },
-      "7ad31683-6bc4-4f30-89fe-ae709e9616da": {
-        "owner": "Territory 4",
-        "faction": "Territory 4"
+      "bcc96d4f-da25-4fa1-91ed-9d7fb4d8a9dd": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
       },
-      "19418876-f54a-41fc-a7da-0c77c4ea7f66": {
-        "owner": "Territory 4",
-        "faction": "Territory 4"
+      "16e16579-288f-44ec-845d-0e31fafb132f": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
       },
-      "1fca7115-580d-4c36-893f-b4e29f16a539": {
-        "owner": "Territory 4",
-        "faction": "Territory 4"
+      "1a3fb144-8913-45d4-87a1-b3ad78b5609b": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
       },
-      "75c99481-a53a-4de1-9ca3-bf6979b81089": {
-        "owner": "Territory 2",
-        "faction": "Territory 2"
+      "60294a2e-83a6-46dc-8d67-1ad4c8c79df2": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
       },
-      "3b0785be-03f2-4b89-9a21-b35d64e55e14": {
-        "owner": "Territory 4",
-        "faction": "Territory 4"
+      "701641c1-96dc-47fc-8f6d-6f463d2956a1": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
       },
-      "3a180a76-3f84-43c7-ae02-41ec26cc0605": {
-        "owner": "Territory 4",
-        "faction": "Territory 4"
+      "95051502-8d95-41b6-a014-59dfc1b9d10c": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
       },
-      "8e00f209-9890-4cd9-81a3-05118da3ddcf": {
-        "owner": "Territory 4",
-        "faction": "Territory 4"
+      "fdebcf19-d0ec-4df8-aa97-9306126af872": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
       },
-      "7bca7677-63e4-4e4a-ab44-9a6aec18d2d2": {
-        "owner": "Territory 4",
-        "faction": "Territory 4"
+      "758d9541-5db2-4447-8831-09a4daf358c2": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
       },
-      "6ed62fb6-5bcf-4ed4-bf00-699e9306925f": {
-        "owner": "Territory 4",
-        "faction": "Territory 4"
+      "56b09ce1-562f-4147-a101-044d20724bd6": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
       },
-      "556cac7d-2821-4b1a-ba35-8d9201f7261d": {
-        "owner": "Territory 4",
-        "faction": "Territory 4"
+      "a22e0d7d-667d-4b02-9792-d57b78dffe96": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
       },
-      "7bc4c7ba-7e4b-45b7-8a02-fa9617b3f5a9": {
-        "owner": "Territory 4",
-        "faction": "Territory 4"
+      "c1f4773f-7a77-43ad-ac18-0f1a2f30f0f3": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
       },
-      "cf5a1f70-c5bf-4c8f-b3e5-10e6ccf42817": {
-        "owner": "Territory 4",
-        "faction": "Territory 4"
+      "b1addd58-9527-439a-be09-a3669e4c2036": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
+      },
+      "7dcbd401-eca0-48a2-a51e-b448c06b715b": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
+      },
+      "a42f23d2-3fd3-4540-90c2-cd77498ba30c": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
+      },
+      "981b6164-25da-473e-9f6b-d337c97b433a": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
+      },
+      "3283f46d-e5df-45a7-a84c-a5ba8abbe108": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
+      },
+      "0b32050c-07a9-4aff-b6d5-4eded6c52b63": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
+      },
+      "366a512c-40f8-4d39-98dd-4798a697cea5": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
+      },
+      "9bb8add3-1b1c-4e66-afdb-f2219ea2b75a": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
+      },
+      "2494d9f2-06f8-4fab-a22d-e17e19e84d25": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
+      },
+      "ef97ca2a-13a9-4cca-b460-121e341add2d": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
+      },
+      "f4f5b4b8-8cd5-4604-a57a-76eb6ccfacd1": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
+      },
+      "8adc6fd0-2829-41f9-a358-f571229d38ee": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
+      },
+      "3a07e873-6909-4693-b0f6-1f94e288312c": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
+      },
+      "2e3f8e45-0cdc-4c95-bebd-af0d163bd96c": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
+      },
+      "41678e43-8fef-4896-b188-55f45de2a270": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
+      },
+      "1c4e701e-4d16-4eca-9476-49c68b43c4ba": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
+      },
+      "c09eddc9-f8ae-4601-b73a-dabfbb1c91cc": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
+      },
+      "3b85e607-ae61-42c6-b3d8-af3dd6a063f6": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
+      },
+      "6fd81343-b347-4dd7-adfc-01d1e2b6ec88": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
+      },
+      "e0dde916-8d1f-4df8-a23b-fd8ac5a77eac": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
+      },
+      "38ee0d73-a3a0-4029-bf17-eb17631cc693": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
+      },
+      "2cced2be-7fc9-4b29-9009-c1a365ec57b8": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
+      },
+      "c8cff5a3-5db6-4403-9da2-13262820efb5": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
+      },
+      "48429eb5-8d53-4ef1-a66d-94e2c8d91042": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
+      },
+      "dcf689f1-dd73-4747-a323-e74ec018459d": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
+      },
+      "678a08bb-a0c4-452e-8ec3-f73182040f34": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
+      },
+      "bf0e4aeb-025d-4c0a-80bc-ab6bccfba225": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
+      },
+      "22b8c65e-8ca2-4584-a2bd-5c94ab2cf6e6": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
+      },
+      "09f7e960-5c34-4a09-8703-0348f10fc6a9": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
+      },
+      "215a1e1f-a7ae-4219-a221-cce0a63140a0": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
+      },
+      "47e04334-ab1a-450d-bb19-9fcfddefb743": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
+      },
+      "afd9ffd6-5905-4094-ab31-d3d54be30054": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
+      },
+      "af9df462-e0cd-4f24-af16-de90d0f6d608": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
+      },
+      "46062f56-0d87-4023-bb3b-31e10d352006": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
+      },
+      "bea5bbc9-3356-41e9-9a66-c93e678887e3": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
+      },
+      "c5570a0a-0b10-4ff9-8ffd-5f9cd17bb06b": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
+      },
+      "b209c767-749c-4f12-ba01-7e5b49fefb57": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
+      },
+      "d549ae6e-6364-4da6-a501-a749575720c4": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
+      },
+      "67b934d6-0513-44fb-8f24-3210fb15a797": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
+      },
+      "0c47b6f3-fdbc-4356-9ea9-f8a104f553db": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
+      },
+      "86637664-5679-4704-a862-7d16e51daaad": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
+      },
+      "d7fab567-5cdb-479e-bbe4-2272279d400c": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
+      },
+      "1793ab0a-956d-4e15-b0e8-139ccbf5d4dc": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
+      },
+      "51eabe45-1421-426f-997e-4cf190dcc738": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
+      },
+      "47a7254e-1d1d-4944-8e27-8cc45154a56b": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
+      },
+      "91cd9fc0-38d4-40af-8cba-b4ff14f390d8": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
+      },
+      "e91c2db8-cc0b-487c-af85-8fdc48e78baf": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
+      },
+      "676b6892-05e0-4c72-a1ff-a32a53db1dd8": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
+      },
+      "e1f4e209-2695-4a72-834d-145f2a2d2514": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
+      },
+      "d323387d-7ba4-4e10-a408-895400479225": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
+      },
+      "5e71a4e8-553b-4051-b58a-4ccb6313f9fe": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
+      },
+      "e852de17-7b3d-4c71-8a5b-f0198318265e": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
+      },
+      "3c1c77cd-3081-47f8-a3c8-1b3b14f7f7e6": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
+      },
+      "cf3c3e4d-3a96-4fe0-a23d-ee4f2e2169c5": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
+      },
+      "3929e583-be7f-48a7-a5a1-576e14f58539": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
+      },
+      "ee736162-0350-4ed0-bea9-5aa103115e25": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
+      },
+      "3d8e1c34-ed34-461f-b3c4-4d776608b072": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
+      },
+      "92ba4c17-73f2-485d-9ac2-1e7d880b132a": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
+      },
+      "afd18305-a6bb-4f68-b441-6a387b77c162": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
+      },
+      "3361d540-a311-4cae-973e-325976e0b40b": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
+      },
+      "7a46f815-b88e-46f5-8af4-315167c8388d": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
+      },
+      "3bd031c6-36b8-433b-a198-3db6a5270615": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
+      },
+      "aa96f823-20bc-4807-867a-4c6d562f4071": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
+      },
+      "5f443a72-dee5-459a-8195-7ce1d8ea7efb": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
+      },
+      "1d21e8a5-30a8-4b38-bb94-b790d58ee522": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
+      },
+      "5baabe2a-725a-4e07-a2b2-a5fb91e5b2f7": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
+      },
+      "74613b48-32c6-4701-917d-58276e318bef": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
+      },
+      "ad79ed97-5ead-4f33-bb83-3b858603923e": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
+      },
+      "3bcd7046-f3d4-4681-b959-20dfe8c3e037": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
+      },
+      "f017cfac-eb38-4040-b660-a52fe637303f": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
+      },
+      "3946fc95-9a93-434d-a1c1-cb43be3a26ca": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
+      },
+      "8244d0bb-37a0-4836-bb50-81f9d46a0a66": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
+      },
+      "ecd8d57f-5b13-4683-9a55-2f2dabf2e11d": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
+      },
+      "c22776a1-31b8-40ae-982d-313d30ebe3df": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
+      },
+      "de1193ba-8db8-4bc9-8c78-0186c5d52552": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
+      },
+      "c208546b-1b00-4b4e-bdde-97103114d558": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
+      },
+      "c403cd51-2ff1-4e42-8f60-fb6a46dee5a7": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
+      },
+      "117b208d-2f1f-4e10-9368-f7a07d80b351": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
+      },
+      "0917c135-b694-43a3-8afe-44720c303e72": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
+      },
+      "894d785d-90c2-44c1-8519-05a13290ce4d": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
+      },
+      "40c0b1e3-e172-4fb2-8fc9-9baaf313aa9c": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
+      },
+      "54b38d0c-caf4-4dc3-b66f-410101558660": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
+      },
+      "7e7df450-0a32-4618-b049-8de44971ce95": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
+      },
+      "a1d15bc0-627a-4052-a6fd-c83759314c3e": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
+      },
+      "f1971a6b-d05d-401d-a6c3-aaad82df3070": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
+      },
+      "498fde2e-48dd-4a53-85df-790843be0bd9": {
+        "owner": "Territory 1",
+        "faction": "Territory 1"
       }
     }
   },
   "players": {
-    "territory-1775511201016": {
-      "playerId": "territory-1775511201016",
+    "territory-1775683281635": {
+      "playerId": "territory-1775683281635",
       "resources": {
+        "Credits": 0,
         "Metals": 0,
         "Gas": 0,
         "Food": 0,
         "Rare Earth Elements": 0,
-        "Uranium": 0,
-        "Water": 0
+        "Uranium": 25,
+        "Water": 37
       },
       "hourlyProduction": {
+        "Credits": 0,
         "Metals": 0,
         "Gas": 0,
         "Food": 0,
         "Rare Earth Elements": 0,
-        "Uranium": 0,
-        "Water": 0
+        "Uranium": 4,
+        "Water": 6
       },
-      "completedHours": 0,
-      "lastResourceUpdate": "2026-04-06T21:33:21.147Z"
-    },
-    "territory-1775511209394": {
-      "playerId": "territory-1775511209394",
-      "resources": {
-        "Metals": 0,
-        "Gas": 0,
-        "Food": 0,
-        "Rare Earth Elements": 0,
-        "Uranium": 0,
-        "Water": 0
+      "systemPools": {
+        "0c966a2b-1cb8-484c-ab50-9ae607c1f051": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "d66576ef-5132-4126-8b65-ee5101a515e9": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "6a451916-96fb-43f4-bf4f-888bfbd2869c": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "5e91b7b5-9791-4804-83ff-f215fc129a07": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "f6250885-9d87-4d5a-98c6-f9063b96912c": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "4e3edef2-1769-49d5-afd6-320be7e0218b": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "6e476df8-e90b-4e3d-9d3d-8f8f94063118": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "3dad7695-6540-405d-b33e-66eaf8e11db5": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "c80a0099-c93c-4174-ba25-9056de1f067c": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "cf9b2785-c0ca-4c3b-bbcf-3da2fb4c6c11": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "8b750b02-5322-4d6a-b4bb-699eccdbd7ab": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "0c61996a-fb09-4bc9-9e71-ca2564983271": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "7383bfc8-e8ed-42aa-ab8b-e238357f8f6e": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "5b382934-dde7-48f7-bf2f-350fdc5c3f26": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "2849d78d-af5a-4014-9e43-6ad559d624ca": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "543cf9f7-5537-4d9a-a280-6e5792283374": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "deda5442-4175-495b-ae3f-179d40feff55": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "05e61e85-6e16-4764-936e-2bfa39da0085": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "a839713d-1424-4528-822a-92cfd980c95a": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "38e591ba-59dd-4fa6-98e3-ae2c96662148": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "ed75eab4-0d0f-44c2-8097-e98be0616f93": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "590c913c-6da4-444a-aa04-02cb76cbe190": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "65cc9675-af8d-4f92-a530-203a689d4c88": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "ab0fc0b7-4242-4df5-950d-ad0b4dcb841f": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "4db934b3-fb53-4756-8dff-1033c6c59b0c": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "52b73cb7-0d77-4c96-b64f-96a4f6971faa": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "8bef5778-333d-4d1c-b61b-264081ac003a": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "04b651b0-a6d9-4177-ac2e-cd20185eb223": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "a840f968-b6eb-4146-83cd-b5b5ff989839": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "88a8b590-08f9-436b-807f-81a79f005884": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "c434ecfb-e277-470a-b3b9-fa932998d565": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "a6768ecd-d24f-423e-8e56-22bec00208cf": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "0ca01748-35ab-4b86-9a73-f8b7501ba33f": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "e9308a2f-1268-4db1-badd-1f922e70c1c0": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "d86ac43f-fd63-46a7-bfba-2c876186317a": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "71ef136b-5fb4-4240-9ca6-36af3f60944b": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "9a03321e-c7e0-43ef-ad43-3cbfb07ecef8": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "6f2d9b2f-2f5c-4317-8711-72cddac1db14": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "74994239-201c-46d4-ad44-0bef5dd6fd53": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "d7fb7608-5125-4731-ae41-99f0e671b8e5": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "e7f1c7fe-ccc3-430c-aaa4-b457c2a38292": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "199188ff-25f5-4fd9-9ecf-b168afd0c2c3": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "d6038024-b124-4aef-8a59-02d4a24e6995": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "e0eb4f9c-6f2c-4722-b45e-fba59e5487e8": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "367f09dc-47c9-490f-a454-74821f6ec5fb": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "ff92e2df-2eba-4542-abdb-c0afb240d442": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "c82bf483-58cd-43b6-853e-79f013d2deee": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "4185addc-ca50-41fb-ad23-d390b1a9cebb": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "32f54a62-53e4-4a95-aefa-78e9b4c3d19d": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "395fda9c-df20-47bc-9cb8-4c8b64518c73": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "8c51d50a-dff1-4d12-8a42-6aa88460e0af": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "c46466ea-f084-4558-b266-a33abd25c163": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "019a00dd-7a91-4f26-a5c4-8df12b9a4082": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "fae32a4e-f926-493d-b6c4-5ae8210b6d8e": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "54a9e7e4-49e1-4efb-b6db-2a7dd2b79d9a": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "68fb1bdd-94b7-430d-af5c-057fb4a40dbc": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "35af4701-6a79-400a-9c62-cd4bea279e89": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "84b7dc9b-3d71-4ef9-80b2-8286425d0e54": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "a0f6f61c-e938-4e33-b29c-1a98378e95ec": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "c795dcfe-95b8-4405-8d7e-e72ac479105a": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "f2cc9ff5-996b-4258-91d5-7763dfa3a209": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "53c57e8b-158c-4586-b914-6b3501f8e2ec": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "b6a2b597-912b-4ab8-93d0-909410bc6f02": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "bcc96d4f-da25-4fa1-91ed-9d7fb4d8a9dd": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "16e16579-288f-44ec-845d-0e31fafb132f": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "1a3fb144-8913-45d4-87a1-b3ad78b5609b": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "60294a2e-83a6-46dc-8d67-1ad4c8c79df2": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "701641c1-96dc-47fc-8f6d-6f463d2956a1": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "95051502-8d95-41b6-a014-59dfc1b9d10c": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "fdebcf19-d0ec-4df8-aa97-9306126af872": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "758d9541-5db2-4447-8831-09a4daf358c2": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "56b09ce1-562f-4147-a101-044d20724bd6": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "a22e0d7d-667d-4b02-9792-d57b78dffe96": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "c1f4773f-7a77-43ad-ac18-0f1a2f30f0f3": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "b1addd58-9527-439a-be09-a3669e4c2036": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "7dcbd401-eca0-48a2-a51e-b448c06b715b": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "a42f23d2-3fd3-4540-90c2-cd77498ba30c": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "981b6164-25da-473e-9f6b-d337c97b433a": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "3283f46d-e5df-45a7-a84c-a5ba8abbe108": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "0b32050c-07a9-4aff-b6d5-4eded6c52b63": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "366a512c-40f8-4d39-98dd-4798a697cea5": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "9bb8add3-1b1c-4e66-afdb-f2219ea2b75a": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "2494d9f2-06f8-4fab-a22d-e17e19e84d25": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "ef97ca2a-13a9-4cca-b460-121e341add2d": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "f4f5b4b8-8cd5-4604-a57a-76eb6ccfacd1": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "8adc6fd0-2829-41f9-a358-f571229d38ee": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "3a07e873-6909-4693-b0f6-1f94e288312c": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "2e3f8e45-0cdc-4c95-bebd-af0d163bd96c": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "41678e43-8fef-4896-b188-55f45de2a270": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "1c4e701e-4d16-4eca-9476-49c68b43c4ba": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "c09eddc9-f8ae-4601-b73a-dabfbb1c91cc": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "3b85e607-ae61-42c6-b3d8-af3dd6a063f6": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "6fd81343-b347-4dd7-adfc-01d1e2b6ec88": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "e0dde916-8d1f-4df8-a23b-fd8ac5a77eac": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "38ee0d73-a3a0-4029-bf17-eb17631cc693": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "2cced2be-7fc9-4b29-9009-c1a365ec57b8": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "c8cff5a3-5db6-4403-9da2-13262820efb5": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "48429eb5-8d53-4ef1-a66d-94e2c8d91042": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "dcf689f1-dd73-4747-a323-e74ec018459d": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "678a08bb-a0c4-452e-8ec3-f73182040f34": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "bf0e4aeb-025d-4c0a-80bc-ab6bccfba225": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "22b8c65e-8ca2-4584-a2bd-5c94ab2cf6e6": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "09f7e960-5c34-4a09-8703-0348f10fc6a9": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "215a1e1f-a7ae-4219-a221-cce0a63140a0": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "47e04334-ab1a-450d-bb19-9fcfddefb743": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "afd9ffd6-5905-4094-ab31-d3d54be30054": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "af9df462-e0cd-4f24-af16-de90d0f6d608": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "46062f56-0d87-4023-bb3b-31e10d352006": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "bea5bbc9-3356-41e9-9a66-c93e678887e3": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "c5570a0a-0b10-4ff9-8ffd-5f9cd17bb06b": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "b209c767-749c-4f12-ba01-7e5b49fefb57": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "d549ae6e-6364-4da6-a501-a749575720c4": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "67b934d6-0513-44fb-8f24-3210fb15a797": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "0c47b6f3-fdbc-4356-9ea9-f8a104f553db": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "86637664-5679-4704-a862-7d16e51daaad": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "d7fab567-5cdb-479e-bbe4-2272279d400c": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "1793ab0a-956d-4e15-b0e8-139ccbf5d4dc": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "51eabe45-1421-426f-997e-4cf190dcc738": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "47a7254e-1d1d-4944-8e27-8cc45154a56b": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "91cd9fc0-38d4-40af-8cba-b4ff14f390d8": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "e91c2db8-cc0b-487c-af85-8fdc48e78baf": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "676b6892-05e0-4c72-a1ff-a32a53db1dd8": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "e1f4e209-2695-4a72-834d-145f2a2d2514": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "d323387d-7ba4-4e10-a408-895400479225": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "5e71a4e8-553b-4051-b58a-4ccb6313f9fe": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "e852de17-7b3d-4c71-8a5b-f0198318265e": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "3c1c77cd-3081-47f8-a3c8-1b3b14f7f7e6": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "cf3c3e4d-3a96-4fe0-a23d-ee4f2e2169c5": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "3929e583-be7f-48a7-a5a1-576e14f58539": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "ee736162-0350-4ed0-bea9-5aa103115e25": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "3d8e1c34-ed34-461f-b3c4-4d776608b072": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "92ba4c17-73f2-485d-9ac2-1e7d880b132a": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "afd18305-a6bb-4f68-b441-6a387b77c162": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "3361d540-a311-4cae-973e-325976e0b40b": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "7a46f815-b88e-46f5-8af4-315167c8388d": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "3bd031c6-36b8-433b-a198-3db6a5270615": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "aa96f823-20bc-4807-867a-4c6d562f4071": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "5f443a72-dee5-459a-8195-7ce1d8ea7efb": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "1d21e8a5-30a8-4b38-bb94-b790d58ee522": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "5baabe2a-725a-4e07-a2b2-a5fb91e5b2f7": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "74613b48-32c6-4701-917d-58276e318bef": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "ad79ed97-5ead-4f33-bb83-3b858603923e": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "3bcd7046-f3d4-4681-b959-20dfe8c3e037": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "f017cfac-eb38-4040-b660-a52fe637303f": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "3946fc95-9a93-434d-a1c1-cb43be3a26ca": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "8244d0bb-37a0-4836-bb50-81f9d46a0a66": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "ecd8d57f-5b13-4683-9a55-2f2dabf2e11d": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "c22776a1-31b8-40ae-982d-313d30ebe3df": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "de1193ba-8db8-4bc9-8c78-0186c5d52552": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "c208546b-1b00-4b4e-bdde-97103114d558": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "c403cd51-2ff1-4e42-8f60-fb6a46dee5a7": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "117b208d-2f1f-4e10-9368-f7a07d80b351": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "0917c135-b694-43a3-8afe-44720c303e72": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "894d785d-90c2-44c1-8519-05a13290ce4d": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "40c0b1e3-e172-4fb2-8fc9-9baaf313aa9c": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "54b38d0c-caf4-4dc3-b66f-410101558660": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "7e7df450-0a32-4618-b049-8de44971ce95": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "a1d15bc0-627a-4052-a6fd-c83759314c3e": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "f1971a6b-d05d-401d-a6c3-aaad82df3070": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        },
+        "498fde2e-48dd-4a53-85df-790843be0bd9": {
+          "resources": {
+            "Credits": 0,
+            "Metals": 0,
+            "Gas": 0,
+            "Food": 0,
+            "Rare Earth Elements": 0,
+            "Uranium": 0,
+            "Water": 0
+          }
+        }
       },
-      "hourlyProduction": {
-        "Metals": 0,
-        "Gas": 0,
-        "Food": 0,
-        "Rare Earth Elements": 0,
-        "Uranium": 0,
-        "Water": 0
-      },
-      "completedHours": 0,
-      "lastResourceUpdate": "2026-04-06T21:33:31.633Z"
-    },
-    "territory-1775511296596": {
-      "playerId": "territory-1775511296596",
-      "resources": {
-        "Metals": 0,
-        "Gas": 0,
-        "Food": 0,
-        "Rare Earth Elements": 0,
-        "Uranium": 0,
-        "Water": 0
-      },
-      "hourlyProduction": {
-        "Metals": 0,
-        "Gas": 0,
-        "Food": 0,
-        "Rare Earth Elements": 0,
-        "Uranium": 0,
-        "Water": 0
-      },
-      "completedHours": 0,
-      "lastResourceUpdate": "2026-04-07T22:00:00.000Z"
+      "systemPoolCapacity": 500,
+      "completedHours": 2,
+      "resourceUpdateInterval": "minute",
+      "lastResourceUpdate": "2026-04-08T21:43:00.000Z"
     }
   },
-  "updatedAt": "2026-04-07T22:06:13.171Z"
+  "updatedAt": "2026-04-08T21:43:06.000Z"
 }

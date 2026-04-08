@@ -9,6 +9,154 @@ import { MULTIPLAYER_GALAXY_SEED } from './multiplayerConfig.js';
 import { createMultiplayerSync } from './multiplayerSync.js';
 import { createSpatialGrid } from '../utils/spatialGrid.js';
 
+const RESOURCE_DISPLAY = [
+  { key: 'Credits', icon: '$', color: '#fbbf24' },
+  { key: 'Metals', icon: '⚙', color: '#a8b5c7' },
+  { key: 'Gas', icon: '☁', color: '#7dd3fc' },
+  { key: 'Food', icon: '🌿', color: '#86efac' },
+  { key: 'Rare Earth Elements', icon: '✦', color: '#c4b5fd' },
+  { key: 'Uranium', icon: '☢', color: '#bef264' },
+  { key: 'Water', icon: '💧', color: '#60a5fa' },
+];
+const RESOURCE_KEYS = RESOURCE_DISPLAY.map((resource) => resource.key);
+const RESOURCE_INFRASTRUCTURE_MAP = {
+  Food: 'farming',
+  Water: 'waterExtraction',
+  Gas: 'gasExtraction',
+};
+const RESOURCE_UPDATE_INTERVALS_MS = {
+  hour: 60 * 60 * 1000,
+  minute: 60 * 1000,
+};
+const SYSTEM_POOL_CAPACITY = 500;
+const RESOURCE_STORAGE_WEIGHTS = {
+  Credits: 0,
+  Metals: 1,
+  Gas: 1,
+  Food: 1,
+  Water: 1,
+  'Rare Earth Elements': 2,
+  Uranium: 3,
+};
+
+function createEmptyResources() {
+  return Object.fromEntries(RESOURCE_KEYS.map((resource) => [resource, 0]));
+}
+
+function getLocalPeriodProductionForPlanet(planet) {
+  const production = createEmptyResources();
+
+  for (const resource of planet.prominentResources ?? []) {
+    const infrastructureKey =
+      RESOURCE_INFRASTRUCTURE_MAP[resource.name] ??
+      (['Metals', 'Rare Earth Elements', 'Uranium'].includes(resource.name)
+        ? 'mining'
+        : null);
+
+    if (!infrastructureKey) {
+      continue;
+    }
+
+    const infrastructureLevel = planet.infrastructure?.[infrastructureKey] ?? 0;
+    if (infrastructureLevel <= 0 || resource.abundance <= 0) {
+      continue;
+    }
+
+    production[resource.name] += infrastructureLevel;
+  }
+
+  return production;
+}
+
+function sumResources(target, source) {
+  for (const resource of RESOURCE_KEYS) {
+    target[resource] = (target[resource] ?? 0) + (source[resource] ?? 0);
+  }
+
+  return target;
+}
+
+function cloneResources(source = {}) {
+  return {
+    ...createEmptyResources(),
+    ...source,
+  };
+}
+
+function createEmptySystemPool() {
+  return {
+    resources: createEmptyResources(),
+  };
+}
+
+function cloneSystemPools(systemPools = {}, ownedStarIds = null) {
+  const nextSystemPools = {};
+  const starIds = ownedStarIds ? Array.from(ownedStarIds) : Object.keys(systemPools);
+
+  for (const starId of starIds) {
+    nextSystemPools[starId] = {
+      resources: cloneResources(systemPools?.[starId]?.resources ?? systemPools?.[starId]),
+    };
+  }
+
+  return nextSystemPools;
+}
+
+function getSystemPoolUsedCapacity(poolEntry) {
+  const resources = poolEntry?.resources ?? createEmptyResources();
+  return RESOURCE_KEYS.reduce(
+    (sum, resource) => sum + (resources[resource] ?? 0) * (RESOURCE_STORAGE_WEIGHTS[resource] ?? 1),
+    0
+  );
+}
+
+function addResourcesToSystemPool(poolEntry, production) {
+  const nextResources = cloneResources(poolEntry.resources);
+  const acceptedProduction = createEmptyResources();
+  let usedCapacity = getSystemPoolUsedCapacity({ resources: nextResources });
+
+  for (const resource of RESOURCE_KEYS) {
+    const amount = production[resource] ?? 0;
+    if (amount <= 0) {
+      continue;
+    }
+
+    const weight = RESOURCE_STORAGE_WEIGHTS[resource] ?? 1;
+    if (weight <= 0) {
+      nextResources[resource] += amount;
+      acceptedProduction[resource] += amount;
+      continue;
+    }
+
+    const remainingCapacity = Math.max(0, SYSTEM_POOL_CAPACITY - usedCapacity);
+    if (remainingCapacity < weight) {
+      continue;
+    }
+
+    const acceptedAmount = Math.min(amount, Math.floor(remainingCapacity / weight));
+    if (acceptedAmount <= 0) {
+      continue;
+    }
+
+    nextResources[resource] += acceptedAmount;
+    acceptedProduction[resource] += acceptedAmount;
+    usedCapacity += acceptedAmount * weight;
+  }
+
+  poolEntry.resources = nextResources;
+  return acceptedProduction;
+}
+
+function getLocalPeriodProductionForStar(star) {
+  const production = createEmptyResources();
+
+  for (const planet of star.planets ?? []) {
+    sumResources(production, getLocalPeriodProductionForPlanet(planet));
+  }
+
+  return production;
+}
+
 export function createGame(container, galaxyOptions = {}) {
   const persistentSeed = galaxyOptions.seed ?? MULTIPLAYER_GALAXY_SEED;
   const resolvedGalaxyOptions = {
@@ -26,6 +174,108 @@ export function createGame(container, galaxyOptions = {}) {
   uiContainer.style.left = '10px';
   uiContainer.style.zIndex = '10';
   container.appendChild(uiContainer);
+
+  const resourceTopBar = document.createElement('div');
+  resourceTopBar.style.position = 'absolute';
+  resourceTopBar.style.top = '10px';
+  resourceTopBar.style.left = '50%';
+  resourceTopBar.style.transform = 'translateX(-50%)';
+  resourceTopBar.style.zIndex = '10';
+  resourceTopBar.style.display = 'flex';
+  resourceTopBar.style.flexWrap = 'wrap';
+  resourceTopBar.style.justifyContent = 'center';
+  resourceTopBar.style.gap = '8px';
+  resourceTopBar.style.maxWidth = 'min(720px, calc(100vw - 32px))';
+  container.appendChild(resourceTopBar);
+
+  const resourceBadgeAmounts = new Map();
+  const resourceBadgeProduction = new Map();
+  for (const resource of RESOURCE_DISPLAY) {
+    const badge = document.createElement('div');
+    badge.style.position = 'relative';
+    badge.style.display = 'flex';
+    badge.style.alignItems = 'center';
+    badge.style.gap = '8px';
+    badge.style.padding = '6px 10px';
+    badge.style.background = 'rgba(0,0,0,0.78)';
+    badge.style.border = '1px solid rgba(255,255,255,0.24)';
+    badge.style.borderRadius = '999px';
+    badge.style.color = 'white';
+    badge.style.fontSize = '12px';
+    badge.style.lineHeight = '1';
+
+    const icon = document.createElement('span');
+    icon.textContent = resource.icon;
+    icon.style.display = 'inline-flex';
+    icon.style.alignItems = 'center';
+    icon.style.justifyContent = 'center';
+    icon.style.width = '18px';
+    icon.style.height = '18px';
+    icon.style.borderRadius = '999px';
+    icon.style.background = resource.color;
+    icon.style.color = '#03111f';
+    icon.style.fontSize = '11px';
+    icon.style.fontWeight = '700';
+    icon.style.boxShadow = `0 0 12px ${resource.color}55`;
+
+    const amount = document.createElement('span');
+    amount.textContent = '0';
+    amount.style.fontVariantNumeric = 'tabular-nums';
+    amount.style.minWidth = '18px';
+
+    const tooltip = document.createElement('div');
+    tooltip.style.position = 'absolute';
+    tooltip.style.top = 'calc(100% + 10px)';
+    tooltip.style.left = '50%';
+    tooltip.style.transform = 'translateX(-50%)';
+    tooltip.style.minWidth = '150px';
+    tooltip.style.padding = '10px 12px';
+    tooltip.style.background = 'rgba(3, 11, 20, 0.96)';
+    tooltip.style.border = `1px solid ${resource.color}`;
+    tooltip.style.borderRadius = '10px';
+    tooltip.style.boxShadow = '0 12px 28px rgba(0,0,0,0.35)';
+    tooltip.style.display = 'none';
+    tooltip.style.pointerEvents = 'none';
+    tooltip.style.zIndex = '20';
+    tooltip.style.lineHeight = '1.35';
+    tooltip.style.whiteSpace = 'nowrap';
+
+    const tooltipTitle = document.createElement('div');
+    tooltipTitle.textContent = resource.key;
+    tooltipTitle.style.color = resource.color;
+    tooltipTitle.style.fontSize = '12px';
+    tooltipTitle.style.fontWeight = '700';
+    tooltipTitle.style.marginBottom = '6px';
+
+    const tooltipProduction = document.createElement('div');
+    tooltipProduction.textContent = 'Production: 0/min';
+    tooltipProduction.style.fontSize = '11px';
+    tooltipProduction.style.color = 'rgba(255,255,255,0.9)';
+    tooltipProduction.style.marginBottom = '4px';
+
+    const tooltipPrice = document.createElement('div');
+    tooltipPrice.textContent = 'Price: 10';
+    tooltipPrice.style.fontSize = '11px';
+    tooltipPrice.style.color = 'rgba(255,255,255,0.7)';
+
+    tooltip.appendChild(tooltipTitle);
+    tooltip.appendChild(tooltipProduction);
+    tooltip.appendChild(tooltipPrice);
+
+    badge.addEventListener('mouseenter', () => {
+      tooltip.style.display = 'block';
+    });
+    badge.addEventListener('mouseleave', () => {
+      tooltip.style.display = 'none';
+    });
+
+    badge.appendChild(icon);
+    badge.appendChild(amount);
+    badge.appendChild(tooltip);
+    resourceTopBar.appendChild(badge);
+    resourceBadgeAmounts.set(resource.key, amount);
+    resourceBadgeProduction.set(resource.key, tooltipProduction);
+  }
 
   // Territory mode button
   const territoryButton = document.createElement('button');
@@ -138,12 +388,13 @@ export function createGame(container, galaxyOptions = {}) {
 
   const colors = ['#ff6b6b', '#4ecdc4', '#45b7d1', '#f9ca24', '#6c5ce7', '#a29bfe'];
   let nextColorIndex = 0;
+  let localResourceTickIntervalId = null;
 
   // Create settings container (top right)
   const settingsContainer = document.createElement('div');
   settingsContainer.style.position = 'absolute';
-  settingsContainer.style.top = '10px';
-  settingsContainer.style.right = '10px';
+  settingsContainer.style.bottom = '10px';
+  settingsContainer.style.left = '10px';
   settingsContainer.style.zIndex = '10';
   container.appendChild(settingsContainer);
 
@@ -270,6 +521,7 @@ export function createGame(container, galaxyOptions = {}) {
     hasPendingInfrastructureChanges: false,
     onInfrastructureChanged: null,
     onSaveInfrastructureChanges: null,
+    onCollectStarResources: null,
     invalidateRender: () => {},
   };
   const baselineState = captureBaselineState(state.galaxy);
@@ -360,7 +612,146 @@ export function createGame(container, galaxyOptions = {}) {
     }).format(parsedDate);
   }
 
+  function renderTopResourceBar() {
+    const resources = state.playerState?.resources ?? {};
+    const production = state.playerState?.hourlyProduction ?? {};
+    const periodLabel = state.playerState?.resourceUpdateInterval === 'hour' ? 'h' : 'min';
+    for (const resource of RESOURCE_DISPLAY) {
+      const amountNode = resourceBadgeAmounts.get(resource.key);
+      const productionNode = resourceBadgeProduction.get(resource.key);
+      if (!amountNode) {
+        continue;
+      }
+
+      amountNode.textContent = String(resources[resource.key] ?? 0);
+      amountNode.style.opacity = state.playerState ? '1' : '0.65';
+      if (productionNode) {
+        productionNode.textContent = `Production: ${production[resource.key] ?? 0}/${periodLabel}`;
+      }
+    }
+  }
+
+  function getPlayerIntervalMs(playerState) {
+    return RESOURCE_UPDATE_INTERVALS_MS[playerState?.resourceUpdateInterval] ?? RESOURCE_UPDATE_INTERVALS_MS.minute;
+  }
+
+  function getOwnedStarsForCurrentTerritory() {
+    if (!state.currentTerritoryId) {
+      return [];
+    }
+
+    const territory = state.territories.get(state.currentTerritoryId);
+    const ownedStarIds = territory?.stars ?? new Set();
+    return state.galaxy.stars.filter((star) => ownedStarIds.has(star.id));
+  }
+
+  function calculateLocalPeriodProductionFromPools(systemPools, ownedStars) {
+    const periodProduction = createEmptyResources();
+
+    for (const star of ownedStars) {
+      const poolEntry = systemPools[star.id] ?? createEmptySystemPool();
+      sumResources(
+        periodProduction,
+        addResourcesToSystemPool(
+          { resources: cloneResources(poolEntry.resources) },
+          getLocalPeriodProductionForStar(star)
+        )
+      );
+    }
+
+    return periodProduction;
+  }
+
+  function settleLocalSystemPools(nowMs = Date.now()) {
+    if (!state.playerState || !state.currentTerritoryId) {
+      return false;
+    }
+
+    const ownedStars = getOwnedStarsForCurrentTerritory();
+    const ownedStarIds = new Set(ownedStars.map((star) => star.id));
+    const intervalMs = getPlayerIntervalMs(state.playerState);
+    const lastResourceUpdateMs = Date.parse(state.playerState.lastResourceUpdate);
+    if (!Number.isFinite(lastResourceUpdateMs)) {
+      return false;
+    }
+
+    const completedIntervals =
+      Math.floor(nowMs / intervalMs) - Math.floor(lastResourceUpdateMs / intervalMs);
+
+    if (completedIntervals <= 0) {
+      return false;
+    }
+
+    const systemPools = cloneSystemPools(state.playerState.systemPools, ownedStarIds);
+    for (let intervalIndex = 0; intervalIndex < completedIntervals; intervalIndex++) {
+      for (const star of ownedStars) {
+        const poolEntry = systemPools[star.id] ?? createEmptySystemPool();
+        systemPools[star.id] = poolEntry;
+        addResourcesToSystemPool(poolEntry, getLocalPeriodProductionForStar(star));
+      }
+    }
+
+    state.playerState = {
+      ...state.playerState,
+      systemPools,
+      systemPoolCapacity: SYSTEM_POOL_CAPACITY,
+      hourlyProduction: calculateLocalPeriodProductionFromPools(systemPools, ownedStars),
+      completedHours: (state.playerState.completedHours ?? 0) + completedIntervals,
+      lastResourceUpdate: new Date(Math.floor(nowMs / intervalMs) * intervalMs).toISOString(),
+    };
+
+    return true;
+  }
+
+  function updateLocalPlayerProduction() {
+    if (!state.playerState || !state.currentTerritoryId) {
+      return;
+    }
+
+    const ownedStars = getOwnedStarsForCurrentTerritory();
+    const ownedStarIds = new Set(ownedStars.map((star) => star.id));
+    const systemPools = cloneSystemPools(state.playerState.systemPools, ownedStarIds);
+    const periodProduction = calculateLocalPeriodProductionFromPools(systemPools, ownedStars);
+
+    state.playerState = {
+      ...state.playerState,
+      systemPools,
+      systemPoolCapacity: SYSTEM_POOL_CAPACITY,
+      hourlyProduction: periodProduction,
+    };
+  }
+
+  function collectLocalStarSystemPool(starId) {
+    if (!state.playerState || !state.currentTerritoryId) {
+      return false;
+    }
+
+    const ownedStars = getOwnedStarsForCurrentTerritory();
+    if (!ownedStars.some((star) => star.id === starId)) {
+      return false;
+    }
+
+    const ownedStarIds = new Set(ownedStars.map((star) => star.id));
+    const systemPools = cloneSystemPools(state.playerState.systemPools, ownedStarIds);
+    const poolEntry = systemPools[starId] ?? createEmptySystemPool();
+    const nextResources = cloneResources(state.playerState.resources);
+    sumResources(nextResources, poolEntry.resources);
+    systemPools[starId] = createEmptySystemPool();
+
+    state.playerState = {
+      ...state.playerState,
+      resources: nextResources,
+      systemPools,
+      systemPoolCapacity: SYSTEM_POOL_CAPACITY,
+      hourlyProduction: calculateLocalPeriodProductionFromPools(systemPools, ownedStars),
+    };
+
+    return true;
+  }
+
   function renderPlayerResources() {
+    settleLocalSystemPools();
+    renderTopResourceBar();
     resourcePanel.style.display = state.showResourceDebug ? 'block' : 'none';
     if (!state.showResourceDebug) {
       return;
@@ -380,19 +771,19 @@ export function createGame(container, galaxyOptions = {}) {
     const resourceLines = Object.entries(playerState.resources || {})
       .map(([resourceName, amount]) => `${resourceName}: ${amount}`)
       .join(' | ');
-    const hourlyLines = Object.entries(playerState.hourlyProduction || {})
+    const periodLines = Object.entries(playerState.hourlyProduction || {})
       .filter(([, amount]) => amount > 0)
-      .map(([resourceName, amount]) => `${resourceName}: ${amount}/h`)
+      .map(([resourceName, amount]) => `${resourceName}: ${amount}/${updateInterval}`)
       .join(' | ');
     const productionStatus = ownedStarCount === 0
       ? 'No owned stars'
-      : hourlyLines || 'No production infrastructure';
+      : periodLines || 'No production infrastructure';
 
     resourcePanel.innerHTML = `
       <strong>${playerState.playerName || playerState.playerId}</strong><br>
       Owned stars: ${ownedStarCount}<br>
       Resources: ${resourceLines || 'None'}<br>
-      Production (/h): ${productionStatus}<br>
+      Production (/${updateInterval}): ${productionStatus}<br>
       Completed ${updateInterval} ticks: ${playerState.completedHours ?? 0}<br>
       Last update: ${formatSwedishDateTime(playerState.lastResourceUpdate)}
     `;
@@ -620,7 +1011,10 @@ export function createGame(container, galaxyOptions = {}) {
   }
 
   state.onInfrastructureChanged = () => {
+    settleLocalSystemPools();
+    updateLocalPlayerProduction();
     state.hasPendingInfrastructureChanges = true;
+    renderPlayerResources();
     state.invalidateRender();
   };
 
@@ -634,6 +1028,44 @@ export function createGame(container, galaxyOptions = {}) {
     await refreshCurrentPlayerState();
     state.invalidateRender();
   };
+
+  state.onCollectStarResources = async (starId) => {
+    settleLocalSystemPools();
+    collectLocalStarSystemPool(starId);
+    renderPlayerResources();
+    state.invalidateRender();
+
+    if (!state.currentTerritoryId) {
+      return;
+    }
+
+    try {
+      const territory = state.territories.get(state.currentTerritoryId);
+      const response = await sync.collectStarSystemPool(state.currentTerritoryId, starId);
+      state.playerState = {
+        ...response.player,
+        playerName: territory?.name ?? response.player.playerId,
+      };
+      renderPlayerResources();
+      state.invalidateRender();
+    } catch (error) {
+      console.warn('Failed to collect star system pool.', error);
+      await refreshCurrentPlayerState();
+    }
+  };
+
+  function startLocalResourceTicker() {
+    if (localResourceTickIntervalId !== null) {
+      return;
+    }
+
+    localResourceTickIntervalId = window.setInterval(() => {
+      if (settleLocalSystemPools()) {
+        renderPlayerResources();
+        state.invalidateRender();
+      }
+    }, 1000);
+  }
 
   resetGalaxyButton.addEventListener('click', async () => {
     await sync.resetRemoteState();
@@ -805,6 +1237,8 @@ export function createGame(container, galaxyOptions = {}) {
       await sync.start();
       await sync.pushState();
       await refreshCurrentPlayerState();
+      startLocalResourceTicker();
+      renderTopResourceBar();
       renderer.resize();
       loop.start();
       loop.invalidate();

@@ -82,3 +82,23 @@ export async function fetchPlayerState(seed, playerId) {
     throw markServerUnavailableIfNeeded(error);
   }
 }
+
+export async function collectStarSystemPool(seed, playerId, starId) {
+  try {
+    const response = await fetch(
+      `${API_BASE_URL}/api/player-state?seed=${encodeURIComponent(seed)}&playerId=${encodeURIComponent(playerId)}`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ starId }),
+      }
+    );
+
+    localServerUnavailable = false;
+    return parseJsonResponse(response);
+  } catch (error) {
+    throw markServerUnavailableIfNeeded(error);
+  }
+}

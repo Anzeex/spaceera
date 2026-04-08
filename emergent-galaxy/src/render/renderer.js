@@ -1,5 +1,16 @@
 import { worldToScreen } from '../camera/camera.js';
 
+const SYSTEM_POOL_CAPACITY = 500;
+const RESOURCE_STORAGE_WEIGHTS = {
+  Credits: 0,
+  Metals: 1,
+  Gas: 1,
+  Food: 1,
+  Water: 1,
+  'Rare Earth Elements': 2,
+  Uranium: 3,
+};
+
 // ---------- Geometry helpers ----------
 
 function clipPolygonWithHalfPlane(polygon, a, b, c) {
@@ -560,6 +571,16 @@ export function createRenderer(state) {
   let planetItemBounds = [];
   let infrastructureControlBounds = [];
   let infrastructureSaveButtonBounds = null;
+  let starCollectButtonBounds = null;
+
+  function canManageInfrastructureForStar(star) {
+    if (!star || !state.currentTerritoryId) {
+      return false;
+    }
+
+    const activeTerritory = state.territories.get(state.currentTerritoryId);
+    return activeTerritory?.stars?.has(star.id) ?? false;
+  }
 
   function formatNumber(value, digits = 0) {
     return Number(value || 0).toLocaleString(undefined, {
@@ -592,6 +613,26 @@ export function createRenderer(state) {
       cachedStarSignature = signature;
       cachedTerritorySignature = '';
     }
+  }
+
+  function getSystemPoolUsedCapacity(poolResources) {
+    return Object.entries(poolResources || {}).reduce(
+      (sum, [resource, amount]) => sum + Number(amount || 0) * (RESOURCE_STORAGE_WEIGHTS[resource] ?? 1),
+      0
+    );
+  }
+
+  function summarizePoolResources(poolResources) {
+    const summary = Object.entries(poolResources || {})
+      .filter(([, amount]) => amount > 0)
+      .map(([resource, amount]) => `${resource}: ${amount}`)
+      .join(' | ');
+
+    if (!summary) {
+      return 'Empty';
+    }
+
+    return summary.length > 34 ? `${summary.slice(0, 31)}...` : summary;
   }
 
   function ensureTerritoryRenderCache() {
@@ -644,6 +685,7 @@ export function createRenderer(state) {
       planetItemBounds = [];
       infrastructureControlBounds = [];
       infrastructureSaveButtonBounds = null;
+      starCollectButtonBounds = null;
       lastSelectedStarId = selection.selectedStarId;
     }
 
@@ -690,6 +732,11 @@ export function createRenderer(state) {
 
     if (selected) {
       const sp = worldToScreen(camera, viewport, selected.x, selected.y);
+      const selectedPoolResources = state.playerState?.systemPools?.[selected.id]?.resources ?? {};
+      const selectedPoolCapacity = state.playerState?.systemPoolCapacity ?? SYSTEM_POOL_CAPACITY;
+      const selectedPoolUsed = getSystemPoolUsedCapacity(selectedPoolResources);
+      const selectedPoolSummary = summarizePoolResources(selectedPoolResources);
+      const canCollectFromStar = canManageInfrastructureForStar(selected);
 
       const text = [
         selected.name,
@@ -699,12 +746,16 @@ export function createRenderer(state) {
         `Population: ${selected.population.toLocaleString()}`,
         `GDP: ${selected.gdp.toFixed(0)}`,
         `Defense: ${selected.systemDefense}`,
+        `Pool Used: ${formatNumber(selectedPoolUsed)}/${formatNumber(selectedPoolCapacity)}`,
+        `Stored: ${selectedPoolSummary}`,
         `Planets: ${selected.planets.length}`,
       ];
 
       const padding = 8;
       const lineHeight = 16;
       const boxWidth = 220;
+      const collectButtonHeight = 16;
+      const collectButtonWidth = 58;
       const boxHeight = text.length * lineHeight + padding * 2;
       const x = Math.min(width - boxWidth - 12, Math.max(12, sp.x + 20));
       const y = Math.min(height - boxHeight - 12, Math.max(12, sp.y - boxHeight - 20));
@@ -735,16 +786,47 @@ export function createRenderer(state) {
             height: lineHeight,
           };
           ctx.beginPath();
-          ctx.moveTo(x + padding, textY + lineHeight - 2);
-          ctx.lineTo(x + boxWidth - padding, textY + lineHeight - 2);
+          ctx.moveTo(x + padding, textY + lineHeight + 1);
+          ctx.lineTo(x + boxWidth - padding, textY + lineHeight + 1);
           ctx.strokeStyle = 'rgba(255, 209, 102, 0.8)';
           ctx.lineWidth = 1;
           ctx.stroke();
           ctx.fillStyle = '#ffffff';
         } else {
+          if (i === 7) {
+            ctx.fillStyle = '#9ad1ff';
+          } else if (i === 8) {
+            ctx.fillStyle = 'rgba(255,255,255,0.78)';
+          } else {
+            ctx.fillStyle = '#ffffff';
+          }
           ctx.fillText(text[i], x + padding, textY);
         }
       }
+
+      const collectButtonX = x + boxWidth - padding - collectButtonWidth;
+      const collectButtonY = y + padding + (text.length - 1) * lineHeight;
+      const collectButtonActive = canCollectFromStar && selectedPoolUsed > 0;
+
+      ctx.fillStyle = collectButtonActive ? 'rgba(255, 209, 102, 0.18)' : 'rgba(255, 255, 255, 0.08)';
+      drawInfoBox(ctx, collectButtonX, collectButtonY, collectButtonWidth, collectButtonHeight, 5);
+      ctx.fill();
+
+      ctx.strokeStyle = collectButtonActive ? 'rgba(255, 209, 102, 0.9)' : 'rgba(255, 255, 255, 0.2)';
+      ctx.lineWidth = 1;
+      drawInfoBox(ctx, collectButtonX, collectButtonY, collectButtonWidth, collectButtonHeight, 5);
+      ctx.stroke();
+
+      ctx.fillStyle = collectButtonActive ? '#ffd166' : 'rgba(255,255,255,0.6)';
+      ctx.fillText('Collect', collectButtonX + 8, collectButtonY + 1);
+      starCollectButtonBounds = canCollectFromStar ? {
+        starId: selected.id,
+        x: collectButtonX,
+        y: collectButtonY,
+        width: collectButtonWidth,
+        height: collectButtonHeight,
+        disabled: !collectButtonActive,
+      } : null;
 
       ctx.restore();
 
@@ -816,6 +898,7 @@ export function createRenderer(state) {
       if (selectedPlanet) {
         infrastructureControlBounds = [];
         infrastructureSaveButtonBounds = null;
+        const canManageInfrastructure = canManageInfrastructureForStar(selected);
         const resourceText = selectedPlanet.prominentResources.length
           ? selectedPlanet.prominentResources
               .map((resource) => `${resource.name} (${resource.abundance})`)
@@ -848,9 +931,11 @@ export function createRenderer(state) {
         const saveButtonHeight = 20;
         const saveButtonWidth = 64;
         const saveSectionSpacing = 10;
+        const ownershipNoticeHeight = canManageInfrastructure ? 0 : detailLineHeight;
         const detailHeight =
           detailLines.length * detailLineHeight +
           detailPadding * 2 +
+          ownershipNoticeHeight +
           saveSectionSpacing +
           saveButtonHeight;
         const detailX = Math.min(width - detailWidth - 12, x + boxWidth + 12);
@@ -882,7 +967,7 @@ export function createRenderer(state) {
 
           ctx.fillText(detailLines[i], textX, textY);
 
-          if (i >= 7) {
+          if (canManageInfrastructure && i >= 7) {
             const infrastructureIndex = i - 7;
             const [infrastructureKey] = infrastructureEntries[infrastructureIndex];
             const buttonSize = 14;
@@ -927,9 +1012,15 @@ export function createRenderer(state) {
           }
         }
 
+        if (!canManageInfrastructure) {
+          const noticeY = detailY + detailPadding + detailLines.length * detailLineHeight;
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+          ctx.fillText('Build only on planets around stars you own.', detailX + detailPadding, noticeY);
+        }
+
         const saveButtonX = detailX + detailWidth - detailPadding - saveButtonWidth;
         const saveButtonY = detailY + detailHeight - detailPadding - saveButtonHeight;
-        const saveButtonActive = state.hasPendingInfrastructureChanges;
+        const saveButtonActive = canManageInfrastructure && state.hasPendingInfrastructureChanges;
 
         ctx.fillStyle = saveButtonActive ? 'rgba(255, 209, 102, 0.18)' : 'rgba(255, 255, 255, 0.08)';
         drawInfoBox(ctx, saveButtonX, saveButtonY, saveButtonWidth, saveButtonHeight, 5);
@@ -962,11 +1053,27 @@ export function createRenderer(state) {
       planetItemBounds = [];
       infrastructureControlBounds = [];
       infrastructureSaveButtonBounds = null;
+      starCollectButtonBounds = null;
       selectedPlanetId = null;
     }
   }
 
   function handleCanvasClick(screenX, screenY) {
+    if (starCollectButtonBounds) {
+      const inCollectButton =
+        screenX >= starCollectButtonBounds.x &&
+        screenX <= starCollectButtonBounds.x + starCollectButtonBounds.width &&
+        screenY >= starCollectButtonBounds.y &&
+        screenY <= starCollectButtonBounds.y + starCollectButtonBounds.height;
+
+      if (inCollectButton) {
+        if (!starCollectButtonBounds.disabled) {
+          state.onCollectStarResources?.(starCollectButtonBounds.starId);
+        }
+        return true;
+      }
+    }
+
     if (infrastructureSaveButtonBounds) {
       const inSaveButton =
         screenX >= infrastructureSaveButtonBounds.x &&
@@ -1000,6 +1107,9 @@ export function createRenderer(state) {
     if (clickedInfrastructureControl) {
       const selected =
         state.galaxy.stars.find((star) => star.id === state.selection.selectedStarId) || null;
+      if (!canManageInfrastructureForStar(selected)) {
+        return true;
+      }
       const selectedPlanet =
         selected?.planets.find((planet) => planet.id === clickedInfrastructureControl.planetId) || null;
 

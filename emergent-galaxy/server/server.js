@@ -3,6 +3,7 @@ import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
+  collectPlayerSystemPool,
   createInitialPlayerState,
   updatePlayerResources,
 } from './resourceProduction.js';
@@ -71,7 +72,7 @@ function sendJson(response, statusCode, payload) {
     'Content-Type': 'application/json',
     'Cache-Control': 'no-store',
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'GET,PUT,DELETE,OPTIONS',
+    'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type',
   });
   response.end(JSON.stringify(payload));
@@ -94,11 +95,6 @@ const server = createServer(async (request, response) => {
 
   try {
     if (url.pathname === '/api/player-state') {
-      if (request.method !== 'GET') {
-        sendJson(response, 405, { error: 'Method not allowed' });
-        return;
-      }
-
       const playerId = url.searchParams.get('playerId');
       if (!playerId) {
         sendJson(response, 400, { error: 'Missing playerId' });
@@ -109,17 +105,46 @@ const server = createServer(async (request, response) => {
       const nowMs = Date.now();
       const existingPlayerState =
         documentState.players[playerId] ?? createInitialPlayerState(playerId, nowMs);
-      const nextPlayerState = updatePlayerResources({
-        seed,
-        storedState: documentState.state,
-        playerId,
-        existingPlayerState,
-        nowMs,
-      });
 
-      documentState.players[playerId] = nextPlayerState;
-      await saveStateDocument(seed, documentState);
-      sendJson(response, 200, { player: nextPlayerState });
+      if (request.method === 'GET') {
+        const nextPlayerState = updatePlayerResources({
+          seed,
+          storedState: documentState.state,
+          playerId,
+          existingPlayerState,
+          nowMs,
+        });
+
+        documentState.players[playerId] = nextPlayerState;
+        await saveStateDocument(seed, documentState);
+        sendJson(response, 200, { player: nextPlayerState });
+        return;
+      }
+
+      if (request.method === 'POST') {
+        const body = await readJsonBody(request);
+        const starId = body?.starId;
+        if (!starId) {
+          sendJson(response, 400, { error: 'Missing starId' });
+          return;
+        }
+
+        const nextPlayerState = collectPlayerSystemPool({
+          seed,
+          storedState: documentState.state,
+          playerId,
+          existingPlayerState,
+          starId,
+          nowMs,
+        });
+
+        documentState.players[playerId] = nextPlayerState;
+        await saveStateDocument(seed, documentState);
+        sendJson(response, 200, { player: nextPlayerState });
+        return;
+      }
+
+      sendJson(response, 405, { error: 'Method not allowed' });
       return;
     }
 

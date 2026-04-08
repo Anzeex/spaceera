@@ -20,6 +20,7 @@ const ACTIVE_RESOURCE_UPDATE_PRESET = RESOURCE_UPDATE_PRESETS.minute;
 // const ACTIVE_RESOURCE_UPDATE_PRESET = RESOURCE_UPDATE_PRESETS.hour;
 
 const RESOURCE_KEYS = [
+  'Credits',
   'Metals',
   'Gas',
   'Food',
@@ -27,6 +28,16 @@ const RESOURCE_KEYS = [
   'Uranium',
   'Water',
 ];
+const SYSTEM_POOL_CAPACITY = 500;
+const RESOURCE_STORAGE_WEIGHTS = {
+  Credits: 0,
+  Metals: 1,
+  Gas: 1,
+  Food: 1,
+  Water: 1,
+  'Rare Earth Elements': 2,
+  Uranium: 3,
+};
 
 const RESOURCE_INFRASTRUCTURE_MAP = {
   Food: 'farming',
@@ -37,6 +48,50 @@ const baselineGalaxyCache = new Map();
 
 function createEmptyResources() {
   return Object.fromEntries(RESOURCE_KEYS.map((resource) => [resource, 0]));
+}
+
+function cloneResources(source = {}) {
+  return {
+    ...createEmptyResources(),
+    ...source,
+  };
+}
+
+function createEmptySystemPool() {
+  return {
+    resources: createEmptyResources(),
+  };
+}
+
+function getPoolResources(poolEntry) {
+  if (!poolEntry) {
+    return createEmptyResources();
+  }
+
+  if (poolEntry.resources) {
+    return cloneResources(poolEntry.resources);
+  }
+
+  return cloneResources(poolEntry);
+}
+
+function getPoolUsedCapacity(resources) {
+  return RESOURCE_KEYS.reduce(
+    (sum, resource) => sum + (resources[resource] ?? 0) * (RESOURCE_STORAGE_WEIGHTS[resource] ?? 1),
+    0
+  );
+}
+
+function normalizeSystemPools(existingPools, ownedStarIds) {
+  const normalizedPools = {};
+
+  for (const starId of ownedStarIds) {
+    normalizedPools[starId] = {
+      resources: getPoolResources(existingPools?.[starId]),
+    };
+  }
+
+  return normalizedPools;
 }
 
 function createServerStateContainer(seed, storedState) {
@@ -57,17 +112,6 @@ function createServerStateContainer(seed, storedState) {
   return state;
 }
 
-function getCompletedHourCount(lastResourceUpdateMs, nowMs) {
-  return Math.max(
-    0,
-    Math.floor(nowMs / HOUR_MS) - Math.floor(lastResourceUpdateMs / HOUR_MS)
-  );
-}
-
-function getLatestCompletedHourStart(nowMs) {
-  return Math.floor(nowMs / HOUR_MS) * HOUR_MS;
-}
-
 function getCompletedIntervalCount(lastResourceUpdateMs, nowMs) {
   return Math.max(
     0,
@@ -80,7 +124,7 @@ function getLatestCompletedIntervalStart(nowMs) {
   return Math.floor(nowMs / ACTIVE_RESOURCE_UPDATE_PRESET.ms) * ACTIVE_RESOURCE_UPDATE_PRESET.ms;
 }
 
-function getProductionPerHourForPlanet(planet) {
+function getProductionPerIntervalForPlanet(planet) {
   const production = createEmptyResources();
 
   for (const resource of planet.prominentResources ?? []) {
@@ -99,8 +143,17 @@ function getProductionPerHourForPlanet(planet) {
       continue;
     }
 
-    const hourlyOutput = Math.max(1, Math.round(resource.abundance / 20)) * infrastructureLevel;
-    production[resource.name] += hourlyOutput;
+    production[resource.name] += infrastructureLevel;
+  }
+
+  return production;
+}
+
+function getProductionPerIntervalForStar(star) {
+  const production = createEmptyResources();
+
+  for (const planet of star.planets ?? []) {
+    sumResources(production, getProductionPerIntervalForPlanet(planet));
   }
 
   return production;
@@ -114,38 +167,100 @@ function sumResources(target, source, multiplier = 1) {
   return target;
 }
 
-function scaleResources(source, factor) {
-  const scaled = createEmptyResources();
+function addResourcesToSystemPool(poolEntry, production) {
+  const nextPoolResources = cloneResources(poolEntry.resources);
+  const acceptedProduction = createEmptyResources();
+  let usedCapacity = getPoolUsedCapacity(nextPoolResources);
 
-  for (const key of RESOURCE_KEYS) {
-    scaled[key] = (source[key] ?? 0) * factor;
+  for (const resource of RESOURCE_KEYS) {
+    const amount = production[resource] ?? 0;
+    if (amount <= 0) {
+      continue;
+    }
+
+    const weight = RESOURCE_STORAGE_WEIGHTS[resource] ?? 1;
+    if (weight <= 0) {
+      nextPoolResources[resource] += amount;
+      acceptedProduction[resource] += amount;
+      continue;
+    }
+
+    const remainingCapacity = Math.max(0, SYSTEM_POOL_CAPACITY - usedCapacity);
+    if (remainingCapacity < weight) {
+      continue;
+    }
+
+    const acceptedAmount = Math.min(amount, Math.floor(remainingCapacity / weight));
+    if (acceptedAmount <= 0) {
+      continue;
+    }
+
+    nextPoolResources[resource] += acceptedAmount;
+    acceptedProduction[resource] += acceptedAmount;
+    usedCapacity += acceptedAmount * weight;
   }
 
-  return scaled;
+  poolEntry.resources = nextPoolResources;
+  return acceptedProduction;
 }
 
-function calculateHourlyProductionForPlayer(seed, storedState, playerId) {
+function projectResourcesIntoSystemPool(poolEntry, production) {
+  return addResourcesToSystemPool(
+    { resources: cloneResources(poolEntry.resources) },
+    production
+  );
+}
+
+function getOwnedStarsForPlayer(seed, storedState, playerId) {
   const hydratedState = createServerStateContainer(seed, storedState);
   const territory = hydratedState.territories.get(playerId);
 
   if (!territory) {
-    return createEmptyResources();
+    return [];
   }
 
   const ownedStarIds = territory.stars;
-  const hourlyProduction = createEmptyResources();
+  return hydratedState.galaxy.stars.filter((star) => ownedStarIds.has(star.id));
+}
 
-  for (const star of hydratedState.galaxy.stars) {
-    if (!ownedStarIds.has(star.id)) {
-      continue;
-    }
-
-    for (const planet of star.planets) {
-      sumResources(hourlyProduction, getProductionPerHourForPlanet(planet));
+function settleSystemPoolsForElapsedIntervals(systemPools, ownedStars, completedIntervals) {
+  for (let intervalIndex = 0; intervalIndex < completedIntervals; intervalIndex++) {
+    for (const star of ownedStars) {
+      const poolEntry = systemPools[star.id] ?? createEmptySystemPool();
+      systemPools[star.id] = poolEntry;
+      addResourcesToSystemPool(poolEntry, getProductionPerIntervalForStar(star));
     }
   }
+}
 
-  return hourlyProduction;
+function calculatePeriodProductionForPlayer(ownedStars, systemPools) {
+  const periodProduction = createEmptyResources();
+
+  for (const star of ownedStars) {
+    const poolEntry = systemPools[star.id] ?? createEmptySystemPool();
+    sumResources(periodProduction, projectResourcesIntoSystemPool(poolEntry, getProductionPerIntervalForStar(star)));
+  }
+
+  return periodProduction;
+}
+
+function collectSystemPoolResources(playerState, starId) {
+  const poolEntry = playerState.systemPools?.[starId];
+  if (!poolEntry) {
+    return playerState;
+  }
+
+  const nextResources = cloneResources(playerState.resources);
+  sumResources(nextResources, poolEntry.resources);
+
+  return {
+    ...playerState,
+    resources: nextResources,
+    systemPools: {
+      ...playerState.systemPools,
+      [starId]: createEmptySystemPool(),
+    },
+  };
 }
 
 export function createInitialPlayerState(playerId, nowMs) {
@@ -153,6 +268,8 @@ export function createInitialPlayerState(playerId, nowMs) {
     playerId,
     resources: createEmptyResources(),
     hourlyProduction: createEmptyResources(),
+    systemPools: {},
+    systemPoolCapacity: SYSTEM_POOL_CAPACITY,
     completedHours: 0,
     resourceUpdateInterval: ACTIVE_RESOURCE_UPDATE_PRESET.key,
     lastResourceUpdate: new Date(getLatestCompletedIntervalStart(nowMs)).toISOString(),
@@ -166,28 +283,44 @@ export function updatePlayerResources({ seed, storedState, playerId, existingPla
     ? lastResourceUpdateMs
     : nowMs;
   const completedHours = getCompletedIntervalCount(safeLastResourceUpdateMs, nowMs);
-  const hourlyProduction = calculateHourlyProductionForPlayer(seed, storedState, playerId);
-  const productionPerInterval = scaleResources(
-    hourlyProduction,
-    ACTIVE_RESOURCE_UPDATE_PRESET.ms / HOUR_MS
+  const ownedStars = getOwnedStarsForPlayer(seed, storedState, playerId);
+  const systemPools = normalizeSystemPools(
+    basePlayerState.systemPools,
+    new Set(ownedStars.map((star) => star.id))
   );
+  settleSystemPoolsForElapsedIntervals(systemPools, ownedStars, completedHours);
+  const periodProduction = calculatePeriodProductionForPlayer(ownedStars, systemPools);
   const nextResources = {
-    ...createEmptyResources(),
-    ...(basePlayerState.resources ?? {}),
+    ...cloneResources(basePlayerState.resources),
   };
-
-  if (completedHours > 0) {
-    sumResources(nextResources, productionPerInterval, completedHours);
-  }
 
   return {
     playerId,
     resources: nextResources,
-    hourlyProduction,
+    hourlyProduction: periodProduction,
+    systemPools,
+    systemPoolCapacity: SYSTEM_POOL_CAPACITY,
     completedHours,
     resourceUpdateInterval: ACTIVE_RESOURCE_UPDATE_PRESET.key,
     lastResourceUpdate: new Date(
       completedHours > 0 ? getLatestCompletedIntervalStart(nowMs) : safeLastResourceUpdateMs
     ).toISOString(),
   };
+}
+
+export function collectPlayerSystemPool({ seed, storedState, playerId, existingPlayerState, starId, nowMs }) {
+  const updatedPlayerState = updatePlayerResources({
+    seed,
+    storedState,
+    playerId,
+    existingPlayerState,
+    nowMs,
+  });
+
+  const ownedStars = getOwnedStarsForPlayer(seed, storedState, playerId);
+  if (!ownedStars.some((star) => star.id === starId)) {
+    return updatedPlayerState;
+  }
+
+  return collectSystemPoolResources(updatedPlayerState, starId);
 }

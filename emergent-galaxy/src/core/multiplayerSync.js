@@ -2,6 +2,7 @@ import { deleteDoc, doc, onSnapshot, setDoc } from 'firebase/firestore';
 import { applyStoredState, restoreBaselineState, serializeGameState } from './galaxyState.js';
 import { db } from './firebase.js';
 import {
+  collectStarSystemPool,
   fetchPlayerState as fetchAuthoritativePlayerState,
   fetchServerGalaxyState,
   isLocalServerUnavailable,
@@ -136,6 +137,9 @@ export function createMultiplayerSync({ state, baselineState, onStateApplied }) 
     resetRemoteState,
     fetchPlayerState(playerId) {
       return fetchAuthoritativePlayerState(state.galaxySeed, playerId);
+    },
+    collectStarSystemPool(playerId, starId) {
+      return collectStarSystemPool(state.galaxySeed, playerId, starId);
     },
     isLocalServerUnavailable,
   };
