@@ -7,6 +7,7 @@ import { captureBaselineState } from './galaxyState.js';
 import { createLoop } from './loop.js';
 import { MULTIPLAYER_GALAXY_SEED } from './multiplayerConfig.js';
 import { createMultiplayerSync } from './multiplayerSync.js';
+import { settleStarPopulation } from './population.js';
 import { createSpatialGrid } from '../utils/spatialGrid.js';
 
 const RESOURCE_DISPLAY = [
@@ -29,6 +30,7 @@ const RESOURCE_UPDATE_INTERVALS_MS = {
   minute: 60 * 1000,
 };
 const SYSTEM_POOL_CAPACITY = 500;
+const POPULATION_CREDITS_PER_PERSON = 0.001;
 const RESOURCE_STORAGE_WEIGHTS = {
   Credits: 0,
   Metals: 1,
@@ -41,6 +43,10 @@ const RESOURCE_STORAGE_WEIGHTS = {
 
 function createEmptyResources() {
   return Object.fromEntries(RESOURCE_KEYS.map((resource) => [resource, 0]));
+}
+
+function getPopulationCreditsForPlanet(planet) {
+  return Math.floor(Math.max(0, planet.population ?? 0) * POPULATION_CREDITS_PER_PERSON);
 }
 
 function getLocalPeriodProductionForPlanet(planet) {
@@ -155,6 +161,27 @@ function getLocalPeriodProductionForStar(star) {
   }
 
   return production;
+}
+
+function getDirectPopulationCreditsForStar(star) {
+  return (star.planets ?? []).reduce((sum, planet) => sum + getPopulationCreditsForPlanet(planet), 0);
+}
+
+function getDirectPopulationCreditsForOwnedStars(ownedStars, multiplier = 1) {
+  return ownedStars.reduce(
+    (sum, star) => sum + getDirectPopulationCreditsForStar(star) * multiplier,
+    0
+  );
+}
+
+function settleOwnedStarPopulations(ownedStars, completedIntervals) {
+  let changed = false;
+
+  for (const star of ownedStars) {
+    changed = settleStarPopulation(star, completedIntervals) || changed;
+  }
+
+  return changed;
 }
 
 export function createGame(container, galaxyOptions = {}) {
@@ -461,12 +488,27 @@ export function createGame(container, galaxyOptions = {}) {
 
   const performanceGraphCheckbox = document.createElement('input');
   performanceGraphCheckbox.type = 'checkbox';
-  performanceGraphCheckbox.checked = false;
+  performanceGraphCheckbox.checked = true;
   performanceGraphCheckbox.style.marginRight = '6px';
 
   performanceGraphLabel.appendChild(performanceGraphCheckbox);
   performanceGraphLabel.appendChild(document.createTextNode('Show Performance Graph'));
   settingsPanel.appendChild(performanceGraphLabel);
+
+  const populationTimingLabel = document.createElement('label');
+  populationTimingLabel.style.display = 'block';
+  populationTimingLabel.style.color = 'white';
+  populationTimingLabel.style.marginBottom = '8px';
+  populationTimingLabel.style.cursor = 'pointer';
+
+  const populationTimingCheckbox = document.createElement('input');
+  populationTimingCheckbox.type = 'checkbox';
+  populationTimingCheckbox.checked = false;
+  populationTimingCheckbox.style.marginRight = '6px';
+
+  populationTimingLabel.appendChild(populationTimingCheckbox);
+  populationTimingLabel.appendChild(document.createTextNode('Show Population Timing'));
+  settingsPanel.appendChild(populationTimingLabel);
 
   const seedLabel = document.createElement('div');
   seedLabel.style.color = 'rgba(255,255,255,0.75)';
@@ -513,7 +555,8 @@ export function createGame(container, galaxyOptions = {}) {
     currentTerritoryId: null,
     showLines: true,
     showResourceDebug: false,
-    showPerformanceGraph: false,
+    showPerformanceGraph: true,
+    showPopulationTiming: false,
     playerState: null,
     performanceHistory: [],
     lastFrameTimestamp: null,
@@ -528,6 +571,7 @@ export function createGame(container, galaxyOptions = {}) {
   state.starSpatialIndex = createSpatialGrid(state.galaxy.stars, { cellSize: 400 });
 
   seedLabel.textContent = `Galaxy Seed: ${state.galaxySeed}`;
+  performancePanel.style.display = state.showPerformanceGraph ? 'block' : 'none';
 
   linesCheckbox.addEventListener('change', () => {
     state.showLines = linesCheckbox.checked;
@@ -548,6 +592,11 @@ export function createGame(container, galaxyOptions = {}) {
     } else {
       stopPerformanceGraphLoop();
     }
+    state.invalidateRender();
+  });
+
+  populationTimingCheckbox.addEventListener('change', () => {
+    state.showPopulationTiming = populationTimingCheckbox.checked;
     state.invalidateRender();
   });
 
@@ -659,6 +708,8 @@ export function createGame(container, galaxyOptions = {}) {
       );
     }
 
+    periodProduction.Credits += getDirectPopulationCreditsForOwnedStars(ownedStars);
+
     return periodProduction;
   }
 
@@ -683,6 +734,9 @@ export function createGame(container, galaxyOptions = {}) {
     }
 
     const systemPools = cloneSystemPools(state.playerState.systemPools, ownedStarIds);
+    const populationChanged = settleOwnedStarPopulations(ownedStars, completedIntervals);
+    const nextResources = cloneResources(state.playerState.resources);
+    nextResources.Credits += getDirectPopulationCreditsForOwnedStars(ownedStars, completedIntervals);
     for (let intervalIndex = 0; intervalIndex < completedIntervals; intervalIndex++) {
       for (const star of ownedStars) {
         const poolEntry = systemPools[star.id] ?? createEmptySystemPool();
@@ -693,6 +747,7 @@ export function createGame(container, galaxyOptions = {}) {
 
     state.playerState = {
       ...state.playerState,
+      resources: nextResources,
       systemPools,
       systemPoolCapacity: SYSTEM_POOL_CAPACITY,
       hourlyProduction: calculateLocalPeriodProductionFromPools(systemPools, ownedStars),
@@ -700,7 +755,7 @@ export function createGame(container, galaxyOptions = {}) {
       lastResourceUpdate: new Date(Math.floor(nowMs / intervalMs) * intervalMs).toISOString(),
     };
 
-    return true;
+    return populationChanged || completedIntervals > 0;
   }
 
   function updateLocalPlayerProduction() {
@@ -1010,7 +1065,17 @@ export function createGame(container, galaxyOptions = {}) {
     }
   }
 
-  state.onInfrastructureChanged = () => {
+  state.onInfrastructureChanged = (planet) => {
+    if (planet) {
+      const owningStar = state.galaxy.stars.find((star) =>
+        star.planets?.some((entry) => entry.id === planet.id)
+      );
+
+      if (owningStar) {
+        settleStarPopulation(owningStar, 0);
+      }
+    }
+
     settleLocalSystemPools();
     updateLocalPlayerProduction();
     state.hasPendingInfrastructureChanges = true;
@@ -1061,6 +1126,7 @@ export function createGame(container, galaxyOptions = {}) {
 
     localResourceTickIntervalId = window.setInterval(() => {
       if (settleLocalSystemPools()) {
+        void sync.pushState();
         renderPlayerResources();
         state.invalidateRender();
       }
@@ -1238,6 +1304,9 @@ export function createGame(container, galaxyOptions = {}) {
       await sync.pushState();
       await refreshCurrentPlayerState();
       startLocalResourceTicker();
+      if (state.showPerformanceGraph) {
+        startPerformanceGraphLoop();
+      }
       renderTopResourceBar();
       renderer.resize();
       loop.start();

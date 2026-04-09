@@ -6,7 +6,6 @@ export function captureBaselineState(galaxy) {
       owner: star.owner,
       faction: star.faction ?? null,
       population: star.population,
-      gdp: star.gdp,
       systemDefense: star.systemDefense,
       explored: star.explored,
       richness: star.richness,
@@ -14,7 +13,6 @@ export function captureBaselineState(galaxy) {
       planets: star.planets.map((planet) => ({
         id: planet.id,
         population: planet.population,
-        gdp: planet.gdp,
         infrastructure: { ...planet.infrastructure },
       })),
     });
@@ -46,10 +44,6 @@ export function serializeGameState(state, baselineState) {
       starDiff.population = star.population;
     }
 
-    if (star.gdp !== baselineStar.gdp) {
-      starDiff.gdp = star.gdp;
-    }
-
     if (star.systemDefense !== baselineStar.systemDefense) {
       starDiff.systemDefense = star.systemDefense;
     }
@@ -74,10 +68,6 @@ export function serializeGameState(state, baselineState) {
       const planetDiff = {};
       if (planet.population !== baselinePlanet.population) {
         planetDiff.population = planet.population;
-      }
-
-      if (planet.gdp !== baselinePlanet.gdp) {
-        planetDiff.gdp = planet.gdp;
       }
 
       const infrastructureDiff = {};
@@ -140,7 +130,6 @@ export function applyStoredState(state, storedState) {
     if ('owner' in override) star.owner = override.owner;
     if ('faction' in override) star.faction = override.faction;
     if ('population' in override) star.population = override.population;
-    if ('gdp' in override) star.gdp = override.gdp;
     if ('systemDefense' in override) star.systemDefense = override.systemDefense;
     if ('explored' in override) star.explored = override.explored;
     if ('richness' in override) star.richness = override.richness;
@@ -152,7 +141,6 @@ export function applyStoredState(state, storedState) {
         if (!planetOverride) continue;
 
         if ('population' in planetOverride) planet.population = planetOverride.population;
-        if ('gdp' in planetOverride) planet.gdp = planetOverride.gdp;
         if (planetOverride.infrastructure) {
           Object.assign(planet.infrastructure, planetOverride.infrastructure);
         }
@@ -172,7 +160,6 @@ export function restoreBaselineState(state, baselineState) {
     star.owner = baselineStar.owner;
     star.faction = baselineStar.faction;
     star.population = baselineStar.population;
-    star.gdp = baselineStar.gdp;
     star.systemDefense = baselineStar.systemDefense;
     star.explored = baselineStar.explored;
     star.richness = baselineStar.richness;
@@ -183,7 +170,6 @@ export function restoreBaselineState(state, baselineState) {
       if (!baselinePlanet) continue;
 
       planet.population = baselinePlanet.population;
-      planet.gdp = baselinePlanet.gdp;
       planet.infrastructure = { ...baselinePlanet.infrastructure };
     }
   }

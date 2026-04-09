@@ -1,5 +1,10 @@
 import { generateGalaxy } from '../src/galaxy/galaxyGenerator.js';
-import { applyStoredState } from '../src/core/galaxyState.js';
+import {
+  applyStoredState,
+  captureBaselineState,
+  serializeGameState,
+} from '../src/core/galaxyState.js';
+import { settleStarPopulation } from '../src/core/population.js';
 
 const HOUR_MS = 60 * 60 * 1000;
 const MINUTE_MS = 60 * 1000;
@@ -29,6 +34,7 @@ const RESOURCE_KEYS = [
   'Water',
 ];
 const SYSTEM_POOL_CAPACITY = 500;
+const POPULATION_CREDITS_PER_PERSON = 0.001;
 const RESOURCE_STORAGE_WEIGHTS = {
   Credits: 0,
   Metals: 1,
@@ -45,9 +51,14 @@ const RESOURCE_INFRASTRUCTURE_MAP = {
   Gas: 'gasExtraction',
 };
 const baselineGalaxyCache = new Map();
+const baselineStateCache = new Map();
 
 function createEmptyResources() {
   return Object.fromEntries(RESOURCE_KEYS.map((resource) => [resource, 0]));
+}
+
+function getPopulationCreditsForPlanet(planet) {
+  return Math.floor(Math.max(0, planet.population ?? 0) * POPULATION_CREDITS_PER_PERSON);
 }
 
 function cloneResources(source = {}) {
@@ -112,6 +123,22 @@ function createServerStateContainer(seed, storedState) {
   return state;
 }
 
+function getBaselineState(seed) {
+  let baselineState = baselineStateCache.get(seed);
+  if (!baselineState) {
+    let baselineGalaxy = baselineGalaxyCache.get(seed);
+    if (!baselineGalaxy) {
+      baselineGalaxy = generateGalaxy({ seed });
+      baselineGalaxyCache.set(seed, baselineGalaxy);
+    }
+
+    baselineState = captureBaselineState(baselineGalaxy);
+    baselineStateCache.set(seed, baselineState);
+  }
+
+  return baselineState;
+}
+
 function getCompletedIntervalCount(lastResourceUpdateMs, nowMs) {
   return Math.max(
     0,
@@ -157,6 +184,17 @@ function getProductionPerIntervalForStar(star) {
   }
 
   return production;
+}
+
+function getDirectPopulationCreditsForStar(star) {
+  return (star.planets ?? []).reduce((sum, planet) => sum + getPopulationCreditsForPlanet(planet), 0);
+}
+
+function getDirectPopulationCreditsForOwnedStars(ownedStars, multiplier = 1) {
+  return ownedStars.reduce(
+    (sum, star) => sum + getDirectPopulationCreditsForStar(star) * multiplier,
+    0
+  );
 }
 
 function sumResources(target, source, multiplier = 1) {
@@ -223,6 +261,36 @@ function getOwnedStarsForPlayer(seed, storedState, playerId) {
   return hydratedState.galaxy.stars.filter((star) => ownedStarIds.has(star.id));
 }
 
+export function advanceGalaxyPopulation({ seed, storedState, playerId, lastResourceUpdate, nowMs }) {
+  const lastResourceUpdateMs = Date.parse(lastResourceUpdate);
+  const safeLastResourceUpdateMs = Number.isFinite(lastResourceUpdateMs)
+    ? lastResourceUpdateMs
+    : nowMs;
+  const completedIntervals = getCompletedIntervalCount(safeLastResourceUpdateMs, nowMs);
+
+  if (completedIntervals <= 0) {
+    return storedState;
+  }
+
+  const hydratedState = createServerStateContainer(seed, storedState);
+  const territory = hydratedState.territories.get(playerId);
+  if (!territory) {
+    return storedState;
+  }
+
+  const ownedStars = hydratedState.galaxy.stars.filter((star) => territory.stars.has(star.id));
+  let changed = false;
+  for (const star of ownedStars) {
+    changed = settleStarPopulation(star, completedIntervals) || changed;
+  }
+
+  if (!changed) {
+    return storedState;
+  }
+
+  return serializeGameState(hydratedState, getBaselineState(seed));
+}
+
 function settleSystemPoolsForElapsedIntervals(systemPools, ownedStars, completedIntervals) {
   for (let intervalIndex = 0; intervalIndex < completedIntervals; intervalIndex++) {
     for (const star of ownedStars) {
@@ -240,6 +308,8 @@ function calculatePeriodProductionForPlayer(ownedStars, systemPools) {
     const poolEntry = systemPools[star.id] ?? createEmptySystemPool();
     sumResources(periodProduction, projectResourcesIntoSystemPool(poolEntry, getProductionPerIntervalForStar(star)));
   }
+
+  periodProduction.Credits += getDirectPopulationCreditsForOwnedStars(ownedStars);
 
   return periodProduction;
 }
@@ -293,6 +363,7 @@ export function updatePlayerResources({ seed, storedState, playerId, existingPla
   const nextResources = {
     ...cloneResources(basePlayerState.resources),
   };
+  nextResources.Credits += getDirectPopulationCreditsForOwnedStars(ownedStars, completedHours);
 
   return {
     playerId,

@@ -57,7 +57,6 @@ export function createStar(index, position, rng) {
   const name = createStarName(index, rng);
   const planets = createPlanets(rng, name);
   const population = planets.reduce((sum, p) => sum + p.population, 0);
-  const gdp = planets.reduce((sum, p) => sum + p.gdp, 0);
   const systemDefense = calculateSystemDefense(planets);
   const profile = createStarProfile(rng);
 
@@ -71,7 +70,6 @@ export function createStar(index, position, rng) {
     starType: profile.starType,
     energyOutput: profile.energyOutput,
     population,
-    gdp,
     systemDefense,
     planets,
     // old fields

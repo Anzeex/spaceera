@@ -24,7 +24,6 @@ function hasResource(resources, resourceName) {
 
 function createPlanetInfrastructure(type, resources) {
   const infrastructure = {
-    cities: 0,
     industrial: 0,
     energy: 0,
     defense: 0,
@@ -32,6 +31,8 @@ function createPlanetInfrastructure(type, resources) {
 
   if (type === 'Gas Giant') {
     infrastructure.orbitalPopulation = 0;
+  } else {
+    infrastructure.cities = 0;
   }
 
   if (resources.some((resource) => MINED_RESOURCE_NAMES.includes(resource.name))) {
@@ -206,7 +207,6 @@ export function createPlanets(rng, starName) {
       )
     );
     const population = 0;
-    const gdp = 0;
     const infrastructure = createPlanetInfrastructure(profile.type, prominentResources);
 
     planets.push({
@@ -217,7 +217,6 @@ export function createPlanets(rng, starName) {
       population,
       prominentResources,
       infrastructure,
-      gdp,
     });
   }
 

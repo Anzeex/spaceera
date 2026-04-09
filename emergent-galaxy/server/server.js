@@ -3,6 +3,7 @@ import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
+  advanceGalaxyPopulation,
   collectPlayerSystemPool,
   createInitialPlayerState,
   updatePlayerResources,
@@ -105,6 +106,13 @@ const server = createServer(async (request, response) => {
       const nowMs = Date.now();
       const existingPlayerState =
         documentState.players[playerId] ?? createInitialPlayerState(playerId, nowMs);
+      documentState.state = advanceGalaxyPopulation({
+        seed,
+        storedState: documentState.state,
+        playerId,
+        lastResourceUpdate: existingPlayerState.lastResourceUpdate,
+        nowMs,
+      });
 
       if (request.method === 'GET') {
         const nextPlayerState = updatePlayerResources({

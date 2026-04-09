@@ -1,4 +1,14 @@
 import { worldToScreen } from '../camera/camera.js';
+import {
+  calculatePlanetPopulationCap,
+  calculatePlanetPopulationGrowth,
+  calculateStarPopulationCap,
+  calculateStarPopulationGrowth,
+  estimatePlanetDisplayPeriodsToFill,
+  estimatePlanetDisplayPeriodsToNinety,
+  estimateStarDisplayPeriodsToFill,
+  estimateStarDisplayPeriodsToNinety,
+} from '../core/population.js';
 
 const SYSTEM_POOL_CAPACITY = 500;
 const RESOURCE_STORAGE_WEIGHTS = {
@@ -737,14 +747,19 @@ export function createRenderer(state) {
       const selectedPoolUsed = getSystemPoolUsedCapacity(selectedPoolResources);
       const selectedPoolSummary = summarizePoolResources(selectedPoolResources);
       const canCollectFromStar = canManageInfrastructureForStar(selected);
-
+      const starPopulationCap = calculateStarPopulationCap(selected);
+      const starPopulationGrowth = calculateStarPopulationGrowth(selected);
+      const starPeriodsToFill = estimateStarDisplayPeriodsToFill(selected);
+      const starPeriodsToNinety = estimateStarDisplayPeriodsToNinety(selected);
+      const starTimingLine = `PTF: ${Number.isFinite(starPeriodsToFill) ? formatNumber(starPeriodsToFill) : '--'} | PT90%: ${Number.isFinite(starPeriodsToNinety) ? formatNumber(starPeriodsToNinety) : '--'}`;
       const text = [
         selected.name,
         `Owner: ${selected.owner}`,
         `Star Type: ${selected.starType}`,
         `Energy: ${selected.energyOutput}`,
-        `Population: ${selected.population.toLocaleString()}`,
-        `GDP: ${selected.gdp.toFixed(0)}`,
+        `Population: ${selected.population.toLocaleString()} (+${formatNumber(starPopulationGrowth)} pp)`,
+        `Population Cap: ${formatNumber(starPopulationCap)}`,
+        ...(state.showPopulationTiming ? [starTimingLine] : []),
         `Defense: ${selected.systemDefense}`,
         `Pool Used: ${formatNumber(selectedPoolUsed)}/${formatNumber(selectedPoolCapacity)}`,
         `Stored: ${selectedPoolSummary}`,
@@ -793,9 +808,9 @@ export function createRenderer(state) {
           ctx.stroke();
           ctx.fillStyle = '#ffffff';
         } else {
-          if (i === 7) {
+          if (i === 9) {
             ctx.fillStyle = '#9ad1ff';
-          } else if (i === 8) {
+          } else if (i === 10) {
             ctx.fillStyle = 'rgba(255,255,255,0.78)';
           } else {
             ctx.fillStyle = '#ffffff';
@@ -905,6 +920,11 @@ export function createRenderer(state) {
               .join(', ')
           : 'None';
         const infrastructureEntries = Object.entries(selectedPlanet.infrastructure);
+        const populationCap = calculatePlanetPopulationCap(selectedPlanet);
+        const populationGrowth = calculatePlanetPopulationGrowth(selectedPlanet);
+        const planetPeriodsToFill = estimatePlanetDisplayPeriodsToFill(selectedPlanet);
+        const planetPeriodsToNinety = estimatePlanetDisplayPeriodsToNinety(selectedPlanet);
+        const planetTimingLine = `PTF: ${Number.isFinite(planetPeriodsToFill) ? formatNumber(planetPeriodsToFill) : '--'} | PT90%: ${Number.isFinite(planetPeriodsToNinety) ? formatNumber(planetPeriodsToNinety) : '--'}`;
         const infrastructureLines = infrastructureEntries.map(
           ([key, value]) => {
             const label = key
@@ -918,12 +938,15 @@ export function createRenderer(state) {
           selectedPlanet.name,
           `Type: ${selectedPlanet.type}`,
           `Habitability: ${selectedPlanet.habitability}`,
-          `Population: ${formatNumber(selectedPlanet.population)}`,
-          `GDP: ${formatNumber(selectedPlanet.gdp, 0)}`,
+          `Population: ${formatNumber(selectedPlanet.population)} (+${formatNumber(populationGrowth)} pp)`,
+          `Population Cap: ${formatNumber(populationCap)}`,
+          ...(state.showPopulationTiming ? [planetTimingLine] : []),
           `Resources: ${resourceText}`,
           `Infrastructure`,
           ...infrastructureLines,
         ];
+        const infrastructureHeaderIndex = detailLines.indexOf('Infrastructure');
+        const infrastructureStartIndex = infrastructureHeaderIndex + 1;
 
         const detailPadding = 8;
         const detailLineHeight = 16;
@@ -959,7 +982,7 @@ export function createRenderer(state) {
 
           if (i === 0) {
             ctx.fillStyle = '#ffd166';
-          } else if (i === 6) {
+          } else if (i === infrastructureHeaderIndex) {
             ctx.fillStyle = '#9ad1ff';
           } else {
             ctx.fillStyle = '#ffffff';
@@ -967,8 +990,8 @@ export function createRenderer(state) {
 
           ctx.fillText(detailLines[i], textX, textY);
 
-          if (canManageInfrastructure && i >= 7) {
-            const infrastructureIndex = i - 7;
+          if (canManageInfrastructure && i >= infrastructureStartIndex) {
+            const infrastructureIndex = i - infrastructureStartIndex;
             const [infrastructureKey] = infrastructureEntries[infrastructureIndex];
             const buttonSize = 14;
             const buttonGap = 6;
