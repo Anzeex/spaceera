@@ -1,23 +1,40 @@
-import { deleteDoc, doc, onSnapshot, setDoc } from 'firebase/firestore';
 import { applyStoredState, restoreBaselineState, serializeGameState } from './galaxyState.js';
-import { db } from './firebase.js';
 import {
   collectStarSystemPool,
   fetchPlayerState as fetchAuthoritativePlayerState,
   fetchServerGalaxyState,
   isLocalServerUnavailable,
   resetServerGalaxyState,
+  savePlayerState,
   saveServerGalaxyState,
 } from './serverApi.js';
 
 export function createMultiplayerSync({ state, baselineState, onStateApplied }) {
-  let unsubscribe = null;
   let lastAppliedSnapshot = null;
-  let hasLoggedConnectionIssue = false;
   let hasLoggedLocalServerIssue = false;
 
-  function getStateRef() {
-    return doc(db, 'galaxies', state.galaxySeed);
+  function getSerializablePlayerState() {
+    const playerId = state.currentPlayerId ?? state.currentTerritoryId;
+    if (!playerId || !state.playerState) {
+      return null;
+    }
+
+    const { playerName, ...playerState } = state.playerState;
+    const territory = state.territories.get(playerId);
+    return {
+      ...playerState,
+      playerId,
+      territory: territory
+        ? {
+            id: territory.id,
+            name: territory.name,
+            color: territory.color,
+            faction: territory.faction,
+            capitalStarId: territory.capitalStarId ?? null,
+            stars: Array.from(territory.stars ?? []),
+          }
+        : playerState.territory ?? null,
+    };
   }
 
   function snapshotState() {
@@ -27,18 +44,17 @@ export function createMultiplayerSync({ state, baselineState, onStateApplied }) 
   async function pushState() {
     const nextState = serializeGameState(state, baselineState);
     const nextSnapshot = JSON.stringify(nextState);
-    if (nextSnapshot === lastAppliedSnapshot) {
+    const serializablePlayerState = getSerializablePlayerState();
+
+    if (nextSnapshot === lastAppliedSnapshot && !serializablePlayerState) {
       return;
     }
 
-    try {
-      await setDoc(getStateRef(), {
-        seed: state.galaxySeed,
-        state: nextState,
-        updatedAt: Date.now(),
-      });
+    if (nextSnapshot !== lastAppliedSnapshot) {
       try {
         await saveServerGalaxyState(state.galaxySeed, nextState);
+        lastAppliedSnapshot = nextSnapshot;
+        hasLoggedLocalServerIssue = false;
       } catch (serverError) {
         if (!hasLoggedLocalServerIssue) {
           console.warn(
@@ -48,37 +64,39 @@ export function createMultiplayerSync({ state, baselineState, onStateApplied }) 
           hasLoggedLocalServerIssue = true;
         }
       }
-      lastAppliedSnapshot = nextSnapshot;
-      hasLoggedConnectionIssue = false;
-    } catch (error) {
-      if (!hasLoggedConnectionIssue) {
-        console.warn('Failed to save multiplayer galaxy state to Firestore.', error);
-        hasLoggedConnectionIssue = true;
+    }
+
+    if (serializablePlayerState) {
+      try {
+        await savePlayerState(state.galaxySeed, serializablePlayerState.playerId, serializablePlayerState);
+        hasLoggedLocalServerIssue = false;
+      } catch (serverError) {
+        if (!hasLoggedLocalServerIssue) {
+          console.warn(
+            'Local resource server is unavailable. Start `npm run dev:server` to enable authoritative resource updates.',
+            serverError
+          );
+          hasLoggedLocalServerIssue = true;
+        }
       }
     }
   }
 
   async function resetRemoteState() {
     try {
-      await deleteDoc(getStateRef());
-      try {
-        await resetServerGalaxyState(state.galaxySeed);
-      } catch (serverError) {
-        if (!hasLoggedLocalServerIssue) {
-          console.warn(
-            'Local resource server is unavailable. Start `npm run dev:server` to enable authoritative resource updates.',
-            serverError
-          );
-          hasLoggedLocalServerIssue = true;
-        }
-      }
+      await resetServerGalaxyState(state.galaxySeed);
       lastAppliedSnapshot = null;
-      hasLoggedConnectionIssue = false;
-    } catch (error) {
-      if (!hasLoggedConnectionIssue) {
-        console.warn('Failed to reset multiplayer galaxy state in Firestore.', error);
-        hasLoggedConnectionIssue = true;
+      hasLoggedLocalServerIssue = false;
+      return true;
+    } catch (serverError) {
+      if (!hasLoggedLocalServerIssue) {
+        console.warn(
+          'Local resource server is unavailable. Start `npm run dev:server` to enable authoritative resource updates.',
+          serverError
+        );
+        hasLoggedLocalServerIssue = true;
       }
+      return false;
     }
   }
 
@@ -102,33 +120,9 @@ export function createMultiplayerSync({ state, baselineState, onStateApplied }) 
         hasLoggedLocalServerIssue = true;
       }
     }
-
-    unsubscribe = onSnapshot(
-      getStateRef(),
-      (snapshot) => {
-        const remoteState = snapshot.data()?.state || null;
-        restoreBaselineState(state, baselineState);
-        applyStoredState(state, remoteState);
-        lastAppliedSnapshot = snapshotState();
-        hasLoggedConnectionIssue = false;
-        onStateApplied?.();
-        state.invalidateRender?.();
-      },
-      (error) => {
-        if (!hasLoggedConnectionIssue) {
-          console.warn('Failed to subscribe to Firestore galaxy state.', error);
-          hasLoggedConnectionIssue = true;
-        }
-      }
-    );
   }
 
-  function stop() {
-    if (unsubscribe) {
-      unsubscribe();
-      unsubscribe = null;
-    }
-  }
+  function stop() {}
 
   return {
     start,

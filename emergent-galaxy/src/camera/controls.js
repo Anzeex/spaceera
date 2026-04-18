@@ -2,6 +2,30 @@ import { screenToWorld } from './camera.js';
 
 export function attachCameraControls(state) {
   const { canvas, camera } = state;
+  let wheelMovementTimeoutId = null;
+
+  function setCameraMoving(isMoving) {
+    if (state.isCameraMoving === isMoving) {
+      return;
+    }
+
+    state.isCameraMoving = isMoving;
+    state.onCameraMovementChanged?.(isMoving);
+    state.invalidateRender?.();
+  }
+
+  function scheduleWheelMovementStop() {
+    if (wheelMovementTimeoutId !== null) {
+      clearTimeout(wheelMovementTimeoutId);
+    }
+
+    wheelMovementTimeoutId = window.setTimeout(() => {
+      wheelMovementTimeoutId = null;
+      if (!drag.active) {
+        setCameraMoving(false);
+      }
+    }, 180);
+  }
 
   const drag = {
     active: false,
@@ -25,9 +49,13 @@ export function attachCameraControls(state) {
     const dx = e.clientX - drag.lastX;
     const dy = e.clientY - drag.lastY;
 
-    if (Math.abs(dx) > 1 || Math.abs(dy) > 1) {
-      drag.moved = true;
+    const hasMeaningfulMovement = Math.abs(dx) > 1 || Math.abs(dy) > 1;
+    if (!hasMeaningfulMovement) {
+      return;
     }
+
+    drag.moved = true;
+    setCameraMoving(true);
 
     camera.x -= dx / camera.zoom;
     camera.y -= dy / camera.zoom;
@@ -39,7 +67,14 @@ export function attachCameraControls(state) {
 
   canvas.addEventListener('pointerup', (e) => {
     drag.active = false;
+    setCameraMoving(false);
     canvas.releasePointerCapture(e.pointerId);
+    state.invalidateRender?.();
+  });
+
+  canvas.addEventListener('pointercancel', () => {
+    drag.active = false;
+    setCameraMoving(false);
     state.invalidateRender?.();
   });
 
@@ -60,6 +95,8 @@ export function attachCameraControls(state) {
 
     camera.x += before.x - after.x;
     camera.y += before.y - after.y;
+    setCameraMoving(true);
+    scheduleWheelMovementStop();
     state.invalidateRender?.();
   }, { passive: false });
 }

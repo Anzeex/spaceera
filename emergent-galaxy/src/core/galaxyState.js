@@ -101,6 +101,7 @@ export function serializeGameState(state, baselineState) {
       name: territory.name,
       color: territory.color,
       faction: territory.faction,
+      capitalStarId: territory.capitalStarId ?? null,
       stars: Array.from(territory.stars),
     })),
     currentTerritoryId: state.currentTerritoryId,
@@ -116,6 +117,7 @@ export function applyStoredState(state, storedState) {
       territory.id,
       {
         ...territory,
+        capitalStarId: territory.capitalStarId ?? null,
         stars: new Set(territory.stars || []),
       },
     ])

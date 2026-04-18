@@ -1,4 +1,8 @@
 import { worldToScreen } from '../camera/camera.js';
+import { getCapitalBonusMultiplier } from '../core/capitalBonuses.js';
+import { formatInfrastructureCost, MAX_INFRASTRUCTURE_LEVEL } from '../core/infrastructureCosts.js';
+import { getPopulationCreditsForPlanet } from '../core/resourceEconomy.js';
+import { getWeightedResourceAmount } from '../core/systemPools.js';
 import {
   calculatePlanetPopulationCap,
   calculatePlanetPopulationGrowth,
@@ -9,17 +13,6 @@ import {
   estimateStarDisplayPeriodsToFill,
   estimateStarDisplayPeriodsToNinety,
 } from '../core/population.js';
-
-const SYSTEM_POOL_CAPACITY = 500;
-const RESOURCE_STORAGE_WEIGHTS = {
-  Credits: 0,
-  Metals: 1,
-  Gas: 1,
-  Food: 1,
-  Water: 1,
-  'Rare Earth Elements': 2,
-  Uranium: 3,
-};
 
 // ---------- Geometry helpers ----------
 
@@ -128,12 +121,22 @@ function getGalaxyBounds(stars, padding = 1200) {
 }
 
 function createBoundingPolygon(bounds) {
-  return [
-    { x: bounds.minX, y: bounds.minY },
-    { x: bounds.maxX, y: bounds.minY },
-    { x: bounds.maxX, y: bounds.maxY },
-    { x: bounds.minX, y: bounds.maxY },
-  ];
+  const centerX = (bounds.minX + bounds.maxX) * 0.5;
+  const centerY = (bounds.minY + bounds.maxY) * 0.5;
+  const radiusX = (bounds.maxX - bounds.minX) * 0.5;
+  const radiusY = (bounds.maxY - bounds.minY) * 0.5;
+  const segments = 48;
+  const polygon = [];
+
+  for (let index = 0; index < segments; index++) {
+    const angle = (index / segments) * Math.PI * 2;
+    polygon.push({
+      x: centerX + Math.cos(angle) * radiusX,
+      y: centerY + Math.sin(angle) * radiusY,
+    });
+  }
+
+  return polygon;
 }
 
 function computeVoronoiCell(star, allStars, bounds) {
@@ -343,22 +346,16 @@ function buildBoundaryLoops(segments) {
   return loops;
 }
 
-function getTerritorySignature(state) {
-  return Array.from(state.territories.values())
-    .map((territory) => {
-      const stars = Array.from(territory.stars).sort().join(',');
-      return `${territory.id}:${territory.color}:${stars}`;
-    })
-    .sort()
-    .join('|');
-}
-
 function buildTerritoryRenderData(edgeMap, state) {
   const loopsByTerritoryId = new Map();
+  const smoothedLoopsByTerritoryId = new Map();
   const starTerritoryByStarId = new Map();
+  const territoryRgbById = new Map();
   const ownedStarIds = new Set();
 
   for (const [territoryId, territory] of state.territories.entries()) {
+    territoryRgbById.set(territoryId, hexToRgb(territory.color));
+
     for (const starId of territory.stars) {
       starTerritoryByStarId.set(starId, territory);
       ownedStarIds.add(starId);
@@ -366,16 +363,29 @@ function buildTerritoryRenderData(edgeMap, state) {
 
     if (territory.stars.size === 0) {
       loopsByTerritoryId.set(territoryId, []);
+      smoothedLoopsByTerritoryId.set(territoryId, {
+        0: [],
+        1: [],
+        3: [],
+      });
       continue;
     }
 
     const segments = buildOwnedBoundarySegments(edgeMap, territory.stars);
-    loopsByTerritoryId.set(territoryId, buildBoundaryLoops(segments));
+    const loops = buildBoundaryLoops(segments);
+    loopsByTerritoryId.set(territoryId, loops);
+    smoothedLoopsByTerritoryId.set(territoryId, {
+      0: loops,
+      1: loops.map((loop) => smoothClosedPolygon(loop, 1)),
+      3: loops.map((loop) => smoothClosedPolygon(loop, 3)),
+    });
   }
 
   return {
     loopsByTerritoryId,
+    smoothedLoopsByTerritoryId,
     starTerritoryByStarId,
+    territoryRgbById,
     ownedStarIds,
   };
 }
@@ -389,42 +399,56 @@ function hexToRgb(hex) {
   } : { r: 100, g: 255, b: 140 };
 }
 
-function drawOwnedTerritoryMass(ctx, camera, viewport, loopsByTerritoryId, state) {
+function getVisibleTerritoryStarColor(rgb) {
+  const luminance = 0.2126 * rgb.r + 0.7152 * rgb.g + 0.0722 * rgb.b;
+  if (luminance >= 95) {
+    return `rgb(${rgb.r}, ${rgb.g}, ${rgb.b})`;
+  }
+
+  const lift = Math.min(170, 95 - luminance + 55);
+  const boosted = {
+    r: Math.min(255, Math.round(rgb.r + lift)),
+    g: Math.min(255, Math.round(rgb.g + lift)),
+    b: Math.min(255, Math.round(rgb.b + lift)),
+  };
+
+  return `rgb(${boosted.r}, ${boosted.g}, ${boosted.b})`;
+}
+
+function drawOwnedTerritoryMass(ctx, camera, viewport, loopsByTerritoryId, smoothedLoopsByTerritoryId, territoryRgbById, state) {
   if (state.territories.size === 0) return;
 
-  const quality = getTerritoryRenderQuality(camera.zoom);
+  const quality = getTerritoryRenderQuality(camera.zoom, state);
 
   ctx.save();
 
   for (const [territoryId, territory] of state.territories.entries()) {
     const loops = loopsByTerritoryId.get(territoryId) || [];
+    const smoothedLoops = smoothedLoopsByTerritoryId.get(territoryId)?.[quality.smoothingIterations] || loops;
 
     if (!loops.length) continue;
 
-    const rgb = hexToRgb(territory.color);
-    const fillColor = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.12)`;
-    const shadowColor = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.14)`;
-    const outerBorderColor = `rgba(${rgb.r}, ${Math.min(255, rgb.g + 40)}, ${Math.min(255, rgb.b + 45)}, 0.14)`;
-    const topBorderColor = `rgba(${rgb.r}, ${Math.min(255, rgb.g + 30)}, ${Math.min(255, rgb.b + 35)}, 0.5)`;
+    const rgb = territoryRgbById.get(territoryId) ?? hexToRgb(territory.color);
+    const fillColor = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${quality.fillOpacity})`;
+    const shadowColor = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${quality.shadowOpacity})`;
+    const outerBorderColor = `rgba(${rgb.r}, ${Math.min(255, rgb.g + 40)}, ${Math.min(255, rgb.b + 45)}, ${quality.outerBorderOpacity})`;
+    const topBorderColor = `rgba(${rgb.r}, ${Math.min(255, rgb.g + 30)}, ${Math.min(255, rgb.b + 35)}, ${quality.topBorderOpacity})`;
 
-    for (const loop of loops) {
+    for (const loop of smoothedLoops) {
       const screenLoop = polygonToScreen(camera, viewport, loop);
-      const smoothLoop = quality.smoothingIterations > 0
-        ? smoothClosedPolygon(screenLoop, quality.smoothingIterations)
-        : screenLoop;
 
       // soft fill
       ctx.shadowColor = shadowColor;
       ctx.shadowBlur = quality.shadowBlur;
 
-      drawPolygonPath(ctx, smoothLoop);
+      drawPolygonPath(ctx, screenLoop);
       ctx.fillStyle = fillColor;
       ctx.fill();
 
       ctx.shadowBlur = 0;
 
       // soft outer border
-      drawPolygonPath(ctx, smoothLoop);
+      drawPolygonPath(ctx, screenLoop);
       ctx.strokeStyle = outerBorderColor;
       ctx.lineWidth = quality.outerBorderWidth;
       ctx.lineJoin = 'round';
@@ -432,7 +456,7 @@ function drawOwnedTerritoryMass(ctx, camera, viewport, loopsByTerritoryId, state
       ctx.stroke();
 
       // sharper top border
-      drawPolygonPath(ctx, smoothLoop);
+      drawPolygonPath(ctx, screenLoop);
       ctx.strokeStyle = topBorderColor;
       ctx.lineWidth = quality.topBorderWidth;
       ctx.lineJoin = 'round';
@@ -444,13 +468,47 @@ function drawOwnedTerritoryMass(ctx, camera, viewport, loopsByTerritoryId, state
   ctx.restore();
 }
 
-function getTerritoryRenderQuality(zoom) {
+function getTerritoryRenderQuality(zoom, state) {
+  const performanceMode = state.performanceMode ?? false;
+  const motionBlend = state.motionVisualBlend ?? 0;
+  const reducedDetailBlend = performanceMode ? 1 : motionBlend;
+
+  if (reducedDetailBlend >= 0.5) {
+    if (zoom < 0.28) {
+      return {
+        smoothingIterations: 0,
+        shadowBlur: 0,
+        outerBorderWidth: 2,
+        topBorderWidth: 0.8,
+        fillOpacity: 0.12 - 0.04 * reducedDetailBlend,
+        shadowOpacity: 0.14 * Math.max(0, 1 - reducedDetailBlend),
+        outerBorderOpacity: 0.14 - 0.04 * reducedDetailBlend,
+        topBorderOpacity: 0.5 - 0.22 * reducedDetailBlend,
+      };
+    }
+
+    return {
+      smoothingIterations: 1,
+      shadowBlur: 4,
+      outerBorderWidth: 4,
+      topBorderWidth: 1.25,
+      fillOpacity: 0.12 - 0.02 * reducedDetailBlend,
+      shadowOpacity: 0.14 - 0.06 * reducedDetailBlend,
+      outerBorderOpacity: 0.14 - 0.02 * reducedDetailBlend,
+      topBorderOpacity: 0.5 - 0.14 * reducedDetailBlend,
+    };
+  }
+
   if (zoom < 0.12) {
     return {
       smoothingIterations: 0,
       shadowBlur: 0,
       outerBorderWidth: 3,
       topBorderWidth: 1,
+      fillOpacity: 0.12,
+      shadowOpacity: 0.14,
+      outerBorderOpacity: 0.14,
+      topBorderOpacity: 0.5,
     };
   }
 
@@ -460,6 +518,10 @@ function getTerritoryRenderQuality(zoom) {
       shadowBlur: 8,
       outerBorderWidth: 6,
       topBorderWidth: 1.5,
+      fillOpacity: 0.12,
+      shadowOpacity: 0.14,
+      outerBorderOpacity: 0.14,
+      topBorderOpacity: 0.5,
     };
   }
 
@@ -468,29 +530,39 @@ function getTerritoryRenderQuality(zoom) {
     shadowBlur: 22,
     outerBorderWidth: 10,
     topBorderWidth: 2.5,
+    fillOpacity: 0.12,
+    shadowOpacity: 0.14,
+    outerBorderOpacity: 0.14,
+    topBorderOpacity: 0.5,
   };
 }
 
-function drawSelectedCell(ctx, camera, viewport, selectedStar, cellsByStarId) {
+function drawSelectedCell(ctx, camera, viewport, selectedStar, cellsByStarId, state) {
   if (!selectedStar) return;
 
   const cell = cellsByStarId.get(selectedStar.id);
   if (!cell || cell.length < 3) return;
 
-  const smoothCell = getSmoothedScreenCell(camera, viewport, cell, 3);
+  const reducedDetailBlend = state.performanceMode ? 1 : (state.motionVisualBlend ?? 0);
+  const smoothCell = getSmoothedScreenCell(
+    camera,
+    viewport,
+    cell,
+    reducedDetailBlend >= 0.5 ? 1 : 3
+  );
 
   ctx.save();
 
   drawPolygonPath(ctx, smoothCell);
-  ctx.fillStyle = 'rgba(255, 209, 102, 0.05)';
+  ctx.fillStyle = `rgba(255, 209, 102, ${0.05 * (1 - reducedDetailBlend * 0.65)})`;
   ctx.fill();
 
   drawPolygonPath(ctx, smoothCell);
-  ctx.strokeStyle = 'rgba(255, 209, 102, 0.55)';
+  ctx.strokeStyle = `rgba(255, 209, 102, ${0.55 * (1 - reducedDetailBlend * 0.35)})`;
   ctx.lineWidth = 2;
   ctx.lineJoin = 'round';
   ctx.shadowColor = 'rgba(255, 209, 102, 0.22)';
-  ctx.shadowBlur = 8;
+  ctx.shadowBlur = 8 - reducedDetailBlend * 6;
   ctx.stroke();
 
   ctx.restore();
@@ -512,9 +584,18 @@ function getAdjacentStarPairs(starById, edgeMap) {
   return pairs;
 }
 
-function drawStarConnections(ctx, camera, viewport, adjacentPairs, hoveredStarId, ownedStarIds) {
+function drawStarConnections(ctx, camera, viewport, adjacentPairs, hoveredStarId, ownedStarIds, state) {
+  const motionBlend = state.performanceMode ? 1 : (state.motionVisualBlend ?? 0);
+  const drawOwnedConnections =
+    !state.performanceMode && ownedStarIds.size > 0 && motionBlend < 0.98;
+
+  if (!hoveredStarId && !drawOwnedConnections) {
+    return;
+  }
+
   ctx.save();
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+  const connectionOpacity = 0.3 * (1 - motionBlend);
+  ctx.strokeStyle = `rgba(255, 255, 255, ${connectionOpacity})`;
   ctx.lineWidth = 1;
 
   for (const [star1, star2] of adjacentPairs) {
@@ -526,7 +607,7 @@ function drawStarConnections(ctx, camera, viewport, adjacentPairs, hoveredStarId
     }
     
     // Draw if either star belongs to a territory
-    if (!shouldDraw && ownedStarIds.size > 0) {
+    if (!shouldDraw && drawOwnedConnections) {
       shouldDraw = ownedStarIds.has(star1.id) || ownedStarIds.has(star2.id);
     }
 
@@ -558,6 +639,51 @@ function drawInfoBox(ctx, x, y, width, height, radius = 8) {
   ctx.closePath();
 }
 
+function drawCapitalCrown(ctx, x, y, size) {
+  const width = Math.max(8, size);
+  const height = width * 0.7;
+  const baseY = y - width * 1.15;
+  const left = x - width / 2;
+  const right = x + width / 2;
+  const baseTop = baseY + height * 0.55;
+  const tipInset = width * 0.18;
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(left, baseTop);
+  ctx.lineTo(left + tipInset, baseY + height * 0.15);
+  ctx.lineTo(x, baseY + height * 0.42);
+  ctx.lineTo(right - tipInset, baseY);
+  ctx.lineTo(right, baseTop);
+  ctx.lineTo(right, baseY + height);
+  ctx.lineTo(left, baseY + height);
+  ctx.closePath();
+
+  ctx.fillStyle = '#ffd166';
+  ctx.shadowColor = 'rgba(255, 209, 102, 0.45)';
+  ctx.shadowBlur = width * 0.55;
+  ctx.fill();
+
+  ctx.shadowBlur = 0;
+  ctx.strokeStyle = 'rgba(255, 244, 200, 0.95)';
+  ctx.lineWidth = Math.max(1, width * 0.08);
+  ctx.lineJoin = 'round';
+  ctx.stroke();
+
+  for (const point of [
+    { x: left + tipInset, y: baseY + height * 0.15 },
+    { x, y: baseY + height * 0.42 },
+    { x: right - tipInset, y: baseY },
+  ]) {
+    ctx.beginPath();
+    ctx.arc(point.x, point.y, Math.max(1.25, width * 0.08), 0, Math.PI * 2);
+    ctx.fillStyle = '#fff3b0';
+    ctx.fill();
+  }
+
+  ctx.restore();
+}
+
 export function createRenderer(state) {
   let cachedStarSignature = '';
   let cachedVoronoi = {
@@ -569,7 +695,9 @@ export function createRenderer(state) {
   let cachedTerritorySignature = '';
   let cachedTerritoryRenderData = {
     loopsByTerritoryId: new Map(),
+    smoothedLoopsByTerritoryId: new Map(),
     starTerritoryByStarId: new Map(),
+    territoryRgbById: new Map(),
     ownedStarIds: new Set(),
   };
 
@@ -582,6 +710,9 @@ export function createRenderer(state) {
   let infrastructureControlBounds = [];
   let infrastructureSaveButtonBounds = null;
   let starCollectButtonBounds = null;
+  let starCapitalButtonBounds = null;
+  let motionVisualBlend = 0;
+  let lastMotionBlendTimestamp = performance.now();
 
   function canManageInfrastructureForStar(star) {
     if (!star || !state.currentTerritoryId) {
@@ -600,7 +731,10 @@ export function createRenderer(state) {
   }
 
   function resize() {
-    const dpr = window.devicePixelRatio || 1;
+    const nativeDpr = window.devicePixelRatio || 1;
+    const dpr = state.performanceMode || state.isCameraMoving
+      ? Math.min(nativeDpr, 1.1)
+      : nativeDpr;
     const width = state.canvas.clientWidth || window.innerWidth;
     const height = state.canvas.clientHeight || window.innerHeight;
 
@@ -626,16 +760,13 @@ export function createRenderer(state) {
   }
 
   function getSystemPoolUsedCapacity(poolResources) {
-    return Object.entries(poolResources || {}).reduce(
-      (sum, [resource, amount]) => sum + Number(amount || 0) * (RESOURCE_STORAGE_WEIGHTS[resource] ?? 1),
-      0
-    );
+    return getWeightedResourceAmount(poolResources);
   }
 
   function summarizePoolResources(poolResources) {
     const summary = Object.entries(poolResources || {})
       .filter(([, amount]) => amount > 0)
-      .map(([resource, amount]) => `${resource}: ${amount}`)
+      .map(([resource, amount]) => `${resource}: ${formatNumber(amount)}`)
       .join(' | ');
 
     if (!summary) {
@@ -646,7 +777,7 @@ export function createRenderer(state) {
   }
 
   function ensureTerritoryRenderCache() {
-    const territorySignature = `${cachedStarSignature}|${getTerritorySignature(state)}`;
+    const territorySignature = `${cachedStarSignature}|${state.territoryRevision ?? 0}`;
 
     if (territorySignature !== cachedTerritorySignature) {
       cachedTerritoryRenderData = buildTerritoryRenderData(cachedVoronoi.edgeMap, state);
@@ -655,6 +786,21 @@ export function createRenderer(state) {
   }
 
   function render() {
+    const now = performance.now();
+    const elapsedSeconds = Math.min(0.1, (now - lastMotionBlendTimestamp) / 1000);
+    lastMotionBlendTimestamp = now;
+    const motionTarget = state.performanceMode ? 1 : (state.isCameraMoving ? 1 : 0);
+    const blendStep = elapsedSeconds * 4;
+    if (motionVisualBlend < motionTarget) {
+      motionVisualBlend = Math.min(motionTarget, motionVisualBlend + blendStep);
+    } else if (motionVisualBlend > motionTarget) {
+      motionVisualBlend = Math.max(motionTarget, motionVisualBlend - blendStep);
+    }
+    state.motionVisualBlend = motionVisualBlend;
+    if (Math.abs(motionVisualBlend - motionTarget) > 0.001) {
+      state.invalidateRender?.();
+    }
+
     const { ctx, canvas, camera, galaxy, selection } = state;
     const width = canvas.clientWidth || window.innerWidth;
     const height = canvas.clientHeight || window.innerHeight;
@@ -673,20 +819,22 @@ export function createRenderer(state) {
     ensureTerritoryRenderCache();
 
     const { cellsByStarId, adjacentPairs } = cachedVoronoi;
-    const { loopsByTerritoryId, starTerritoryByStarId, ownedStarIds } = cachedTerritoryRenderData;
+    const {
+      loopsByTerritoryId,
+      smoothedLoopsByTerritoryId,
+      starTerritoryByStarId,
+      territoryRgbById,
+      ownedStarIds,
+    } = cachedTerritoryRenderData;
 
     ctx.clearRect(0, 0, width, height);
 
     ctx.fillStyle = '#030712';
     ctx.fillRect(0, 0, width, height);
 
-    // Draw star connections
-    if (state.showLines) {
-      drawStarConnections(ctx, camera, viewport, adjacentPairs, selection.hoveredStarId, ownedStarIds);
-    }
+    drawStarConnections(ctx, camera, viewport, adjacentPairs, selection.hoveredStarId, ownedStarIds, state);
 
-    const selected =
-      galaxy.stars.find((star) => star.id === selection.selectedStarId) || null;
+    const selected = state.starsById?.get(selection.selectedStarId) || null;
 
     if (lastSelectedStarId !== selection.selectedStarId) {
       isPlanetListOpen = false;
@@ -696,14 +844,29 @@ export function createRenderer(state) {
       infrastructureControlBounds = [];
       infrastructureSaveButtonBounds = null;
       starCollectButtonBounds = null;
+      starCapitalButtonBounds = null;
       lastSelectedStarId = selection.selectedStarId;
     }
 
     // One unified territory mass from all owned systems
-    drawOwnedTerritoryMass(ctx, camera, viewport, loopsByTerritoryId, state);
+    drawOwnedTerritoryMass(
+      ctx,
+      camera,
+      viewport,
+      loopsByTerritoryId,
+      smoothedLoopsByTerritoryId,
+      territoryRgbById,
+      state
+    );
 
     // Optional selected-system highlight
-    drawSelectedCell(ctx, camera, viewport, selected, cellsByStarId);
+    drawSelectedCell(ctx, camera, viewport, selected, cellsByStarId, state);
+
+    const auraOpacityMultiplier = Math.max(0, 1 - motionVisualBlend);
+    const shouldDrawTerritoryAuras =
+      !state.performanceMode && auraOpacityMultiplier > 0.02;
+
+    const shouldDrawCapitalCrowns = true;
 
     // Stars on top
     for (const star of visibleStars) {
@@ -717,21 +880,29 @@ export function createRenderer(state) {
 
       // Find which territory this star belongs to
       const starTerritory = starTerritoryByStarId.get(star.id) || null;
+      const isCapital = starTerritory?.capitalStarId === star.id;
 
       // Draw territory aura if star belongs to a territory
-      if (starTerritory) {
+      if (starTerritory && shouldDrawTerritoryAuras) {
         ctx.beginPath();
         ctx.arc(p.x, p.y, r + 4, 0, Math.PI * 2);
-        const rgb = hexToRgb(starTerritory.color);
-        ctx.fillStyle = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.12)`;
+        const rgb =
+          territoryRgbById.get(starTerritory.id) ?? hexToRgb(starTerritory.color);
+        ctx.fillStyle = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${0.12 * auraOpacityMultiplier})`;
         ctx.fill();
+      }
+
+      if (isCapital && shouldDrawCapitalCrowns) {
+        drawCapitalCrown(ctx, p.x, p.y, Math.max(14, r * 4.4));
       }
 
       ctx.beginPath();
       if (selection.selectedStarId === star.id) {
         ctx.fillStyle = '#ffd166';
       } else if (starTerritory) {
-        ctx.fillStyle = starTerritory.color;
+        const starTerritoryRgb =
+          territoryRgbById.get(starTerritory.id) ?? hexToRgb(starTerritory.color);
+        ctx.fillStyle = getVisibleTerritoryStarColor(starTerritoryRgb);
       } else {
         ctx.fillStyle = '#ffffff';
       }
@@ -743,20 +914,27 @@ export function createRenderer(state) {
     if (selected) {
       const sp = worldToScreen(camera, viewport, selected.x, selected.y);
       const selectedPoolResources = state.playerState?.systemPools?.[selected.id]?.resources ?? {};
-      const selectedPoolCapacity = state.playerState?.systemPoolCapacity ?? SYSTEM_POOL_CAPACITY;
+      const selectedPoolCapacity = state.playerState?.systemPoolCapacities?.[selected.id] ?? 0;
       const selectedPoolUsed = getSystemPoolUsedCapacity(selectedPoolResources);
       const selectedPoolSummary = summarizePoolResources(selectedPoolResources);
       const canCollectFromStar = canManageInfrastructureForStar(selected);
+      const selectedTerritory = starTerritoryByStarId.get(selected.id) || null;
+      const selectedIsCapital = selectedTerritory?.capitalStarId === selected.id;
+      const capitalGrowthMultiplier = getCapitalBonusMultiplier(
+        selected.id,
+        selectedTerritory?.capitalStarId ?? null
+      );
+      const canSetCapital = canCollectFromStar && !selectedIsCapital;
       const starPopulationCap = calculateStarPopulationCap(selected);
-      const starPopulationGrowth = calculateStarPopulationGrowth(selected);
-      const starPeriodsToFill = estimateStarDisplayPeriodsToFill(selected);
-      const starPeriodsToNinety = estimateStarDisplayPeriodsToNinety(selected);
+      const starPopulationGrowth = calculateStarPopulationGrowth(selected, capitalGrowthMultiplier);
+      const starPeriodsToFill = estimateStarDisplayPeriodsToFill(selected, 100000, capitalGrowthMultiplier);
+      const starPeriodsToNinety = estimateStarDisplayPeriodsToNinety(selected, 100000, capitalGrowthMultiplier);
       const starTimingLine = `PTF: ${Number.isFinite(starPeriodsToFill) ? formatNumber(starPeriodsToFill) : '--'} | PT90%: ${Number.isFinite(starPeriodsToNinety) ? formatNumber(starPeriodsToNinety) : '--'}`;
       const text = [
         selected.name,
         `Owner: ${selected.owner}`,
         `Star Type: ${selected.starType}`,
-        `Energy: ${selected.energyOutput}`,
+        `Energy: ${formatNumber(selected.energyOutput)}`,
         `Population: ${selected.population.toLocaleString()} (+${formatNumber(starPopulationGrowth)} pp)`,
         `Population Cap: ${formatNumber(starPopulationCap)}`,
         ...(state.showPopulationTiming ? [starTimingLine] : []),
@@ -771,6 +949,8 @@ export function createRenderer(state) {
       const boxWidth = 220;
       const collectButtonHeight = 16;
       const collectButtonWidth = 58;
+      const capitalButtonHeight = 16;
+      const capitalButtonWidth = 70;
       const boxHeight = text.length * lineHeight + padding * 2;
       const x = Math.min(width - boxWidth - 12, Math.max(12, sp.x + 20));
       const y = Math.min(height - boxHeight - 12, Math.max(12, sp.y - boxHeight - 20));
@@ -808,9 +988,9 @@ export function createRenderer(state) {
           ctx.stroke();
           ctx.fillStyle = '#ffffff';
         } else {
-          if (i === 9) {
+          if (text[i].startsWith('Pool Used:')) {
             ctx.fillStyle = '#9ad1ff';
-          } else if (i === 10) {
+          } else if (text[i].startsWith('Stored:')) {
             ctx.fillStyle = 'rgba(255,255,255,0.78)';
           } else {
             ctx.fillStyle = '#ffffff';
@@ -822,6 +1002,8 @@ export function createRenderer(state) {
       const collectButtonX = x + boxWidth - padding - collectButtonWidth;
       const collectButtonY = y + padding + (text.length - 1) * lineHeight;
       const collectButtonActive = canCollectFromStar && selectedPoolUsed > 0;
+      const capitalButtonX = collectButtonX - 8 - capitalButtonWidth;
+      const capitalButtonY = collectButtonY;
 
       ctx.fillStyle = collectButtonActive ? 'rgba(255, 209, 102, 0.18)' : 'rgba(255, 255, 255, 0.08)';
       drawInfoBox(ctx, collectButtonX, collectButtonY, collectButtonWidth, collectButtonHeight, 5);
@@ -841,6 +1023,26 @@ export function createRenderer(state) {
         width: collectButtonWidth,
         height: collectButtonHeight,
         disabled: !collectButtonActive,
+      } : null;
+
+      ctx.fillStyle = canSetCapital ? 'rgba(255, 209, 102, 0.18)' : 'rgba(255, 255, 255, 0.08)';
+      drawInfoBox(ctx, capitalButtonX, capitalButtonY, capitalButtonWidth, capitalButtonHeight, 5);
+      ctx.fill();
+
+      ctx.strokeStyle = canSetCapital ? 'rgba(255, 209, 102, 0.9)' : 'rgba(255, 255, 255, 0.2)';
+      ctx.lineWidth = 1;
+      drawInfoBox(ctx, capitalButtonX, capitalButtonY, capitalButtonWidth, capitalButtonHeight, 5);
+      ctx.stroke();
+
+      ctx.fillStyle = canSetCapital ? '#ffd166' : 'rgba(255,255,255,0.6)';
+      ctx.fillText(selectedIsCapital ? 'Capital' : 'Set Capital', capitalButtonX + 6, capitalButtonY + 1);
+      starCapitalButtonBounds = canCollectFromStar ? {
+        starId: selected.id,
+        x: capitalButtonX,
+        y: capitalButtonY,
+        width: capitalButtonWidth,
+        height: capitalButtonHeight,
+        disabled: !canSetCapital,
       } : null;
 
       ctx.restore();
@@ -921,16 +1123,37 @@ export function createRenderer(state) {
           : 'None';
         const infrastructureEntries = Object.entries(selectedPlanet.infrastructure);
         const populationCap = calculatePlanetPopulationCap(selectedPlanet);
-        const populationGrowth = calculatePlanetPopulationGrowth(selectedPlanet);
-        const planetPeriodsToFill = estimatePlanetDisplayPeriodsToFill(selectedPlanet);
-        const planetPeriodsToNinety = estimatePlanetDisplayPeriodsToNinety(selectedPlanet);
+        const populationGrowth = calculatePlanetPopulationGrowth(selectedPlanet, capitalGrowthMultiplier);
+        const creditProduction = getPopulationCreditsForPlanet(selectedPlanet);
+        const creditPeriodLabel = state.playerState?.resourceUpdateInterval === 'hour' ? 'h' : 'min';
+        const planetPeriodsToFill = estimatePlanetDisplayPeriodsToFill(
+          selectedPlanet,
+          100000,
+          capitalGrowthMultiplier
+        );
+        const planetPeriodsToNinety = estimatePlanetDisplayPeriodsToNinety(
+          selectedPlanet,
+          100000,
+          capitalGrowthMultiplier
+        );
         const planetTimingLine = `PTF: ${Number.isFinite(planetPeriodsToFill) ? formatNumber(planetPeriodsToFill) : '--'} | PT90%: ${Number.isFinite(planetPeriodsToNinety) ? formatNumber(planetPeriodsToNinety) : '--'}`;
         const infrastructureLines = infrastructureEntries.map(
           ([key, value]) => {
             const label = key
               .replace(/([A-Z])/g, ' $1')
               .replace(/^./, (char) => char.toUpperCase());
-            return `  ${label}: ${value}`;
+            const activeLevel = selectedPlanet.activeInfrastructure?.[key] ?? value;
+            const inactiveLevel = Math.max(0, value - activeLevel);
+            const isMaxLevel = value >= MAX_INFRASTRUCTURE_LEVEL;
+            const nextLevelCost = isMaxLevel ? null : state.getInfrastructureBuildCost?.(selectedPlanet, key, value + 1);
+            const costText = isMaxLevel
+              ? ` | Max ${MAX_INFRASTRUCTURE_LEVEL}`
+              : nextLevelCost
+                ? ` | Next: ${formatInfrastructureCost(nextLevelCost) || 'Free'}`
+                : '';
+            return inactiveLevel > 0
+              ? `  ${label}: ${activeLevel}/${value} active (${inactiveLevel} offline)${costText}`
+              : `  ${label}: ${value}${costText}`;
           }
         );
 
@@ -939,6 +1162,7 @@ export function createRenderer(state) {
           `Type: ${selectedPlanet.type}`,
           `Habitability: ${selectedPlanet.habitability}`,
           `Population: ${formatNumber(selectedPlanet.population)} (+${formatNumber(populationGrowth)} pp)`,
+          `Gold: ${formatNumber(creditProduction)}/${creditPeriodLabel}`,
           `Population Cap: ${formatNumber(populationCap)}`,
           ...(state.showPopulationTiming ? [planetTimingLine] : []),
           `Resources: ${resourceText}`,
@@ -998,10 +1222,14 @@ export function createRenderer(state) {
             const rightButtonX = detailX + detailWidth - detailPadding - buttonSize;
             const leftButtonX = rightButtonX - buttonGap - buttonSize;
             const buttonY = textY;
+            const isMaxLevel = (selectedPlanet.infrastructure[infrastructureKey] ?? 0) >= MAX_INFRASTRUCTURE_LEVEL;
+            const canAffordUpgrade =
+              !isMaxLevel && (state.canAffordInfrastructureUpgrade?.(selectedPlanet, infrastructureKey) ?? true);
 
             ctx.fillStyle = 'rgba(255, 209, 102, 0.14)';
             drawInfoBox(ctx, leftButtonX, buttonY, buttonSize, buttonSize, 4);
             ctx.fill();
+            ctx.fillStyle = canAffordUpgrade ? 'rgba(255, 209, 102, 0.14)' : 'rgba(255, 255, 255, 0.08)';
             drawInfoBox(ctx, rightButtonX, buttonY, buttonSize, buttonSize, 4);
             ctx.fill();
 
@@ -1009,12 +1237,14 @@ export function createRenderer(state) {
             ctx.lineWidth = 1;
             drawInfoBox(ctx, leftButtonX, buttonY, buttonSize, buttonSize, 4);
             ctx.stroke();
+            ctx.strokeStyle = canAffordUpgrade ? 'rgba(255, 209, 102, 0.55)' : 'rgba(255, 255, 255, 0.2)';
             drawInfoBox(ctx, rightButtonX, buttonY, buttonSize, buttonSize, 4);
             ctx.stroke();
 
             ctx.fillStyle = '#ffd166';
             ctx.fillText('<', leftButtonX + 4, buttonY - 1);
-            ctx.fillText('>', rightButtonX + 4, buttonY - 1);
+            ctx.fillStyle = canAffordUpgrade ? '#ffd166' : 'rgba(255,255,255,0.5)';
+            ctx.fillText(isMaxLevel ? 'x' : '>', rightButtonX + 4, buttonY - 1);
 
             infrastructureControlBounds.push({
               planetId: selectedPlanet.id,
@@ -1030,6 +1260,7 @@ export function createRenderer(state) {
                 y: buttonY,
                 width: buttonSize,
                 height: buttonSize,
+                disabled: !canAffordUpgrade,
               },
             });
           }
@@ -1077,11 +1308,27 @@ export function createRenderer(state) {
       infrastructureControlBounds = [];
       infrastructureSaveButtonBounds = null;
       starCollectButtonBounds = null;
+      starCapitalButtonBounds = null;
       selectedPlanetId = null;
     }
   }
 
   function handleCanvasClick(screenX, screenY) {
+    if (starCapitalButtonBounds) {
+      const inCapitalButton =
+        screenX >= starCapitalButtonBounds.x &&
+        screenX <= starCapitalButtonBounds.x + starCapitalButtonBounds.width &&
+        screenY >= starCapitalButtonBounds.y &&
+        screenY <= starCapitalButtonBounds.y + starCapitalButtonBounds.height;
+
+      if (inCapitalButton) {
+        if (!starCapitalButtonBounds.disabled) {
+          state.onSetCapitalStar?.(starCapitalButtonBounds.starId);
+        }
+        return true;
+      }
+    }
+
     if (starCollectButtonBounds) {
       const inCollectButton =
         screenX >= starCollectButtonBounds.x &&
@@ -1128,8 +1375,7 @@ export function createRenderer(state) {
     });
 
     if (clickedInfrastructureControl) {
-      const selected =
-        state.galaxy.stars.find((star) => star.id === state.selection.selectedStarId) || null;
+      const selected = state.starsById?.get(state.selection.selectedStarId) || null;
       if (!canManageInfrastructureForStar(selected)) {
         return true;
       }
@@ -1143,9 +1389,10 @@ export function createRenderer(state) {
           screenY >= clickedInfrastructureControl.increment.y &&
           screenY <= clickedInfrastructureControl.increment.y + clickedInfrastructureControl.increment.height;
         const delta = isIncrement ? 1 : -1;
-        const currentValue = selectedPlanet.infrastructure[clickedInfrastructureControl.infrastructureKey] ?? 0;
-        selectedPlanet.infrastructure[clickedInfrastructureControl.infrastructureKey] = Math.max(0, currentValue + delta);
-        state.onInfrastructureChanged?.(selectedPlanet, clickedInfrastructureControl.infrastructureKey);
+        if (isIncrement && clickedInfrastructureControl.increment.disabled) {
+          return true;
+        }
+        state.onInfrastructureChanged?.(selectedPlanet, clickedInfrastructureControl.infrastructureKey, delta);
       }
 
       return true;

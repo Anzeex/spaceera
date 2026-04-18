@@ -8,6 +8,11 @@ import {
   createInitialPlayerState,
   updatePlayerResources,
 } from './resourceProduction.js';
+import {
+  applyRuntimeStateToPlayerRecord,
+  normalizePlayerRecord,
+  playerRecordToRuntimeState,
+} from '../src/core/playerRecord.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -104,28 +109,30 @@ const server = createServer(async (request, response) => {
 
       const documentState = await loadState(seed);
       const nowMs = Date.now();
-      const existingPlayerState =
+      const existingPlayerRecord =
         documentState.players[playerId] ?? createInitialPlayerState(playerId, nowMs);
       documentState.state = advanceGalaxyPopulation({
         seed,
         storedState: documentState.state,
         playerId,
-        lastResourceUpdate: existingPlayerState.lastResourceUpdate,
+        lastResourceUpdate: playerRecordToRuntimeState(
+          normalizePlayerRecord(existingPlayerRecord, playerId, nowMs)
+        ).lastResourceUpdate,
         nowMs,
       });
 
       if (request.method === 'GET') {
-        const nextPlayerState = updatePlayerResources({
+        const nextPlayerRecord = updatePlayerResources({
           seed,
           storedState: documentState.state,
           playerId,
-          existingPlayerState,
+          existingPlayerState: existingPlayerRecord,
           nowMs,
         });
 
-        documentState.players[playerId] = nextPlayerState;
+        documentState.players[playerId] = nextPlayerRecord;
         await saveStateDocument(seed, documentState);
-        sendJson(response, 200, { player: nextPlayerState });
+        sendJson(response, 200, { player: playerRecordToRuntimeState(nextPlayerRecord) });
         return;
       }
 
@@ -137,18 +144,40 @@ const server = createServer(async (request, response) => {
           return;
         }
 
-        const nextPlayerState = collectPlayerSystemPool({
+        const nextPlayerRecord = collectPlayerSystemPool({
           seed,
           storedState: documentState.state,
           playerId,
-          existingPlayerState,
+          existingPlayerState: existingPlayerRecord,
           starId,
           nowMs,
         });
 
-        documentState.players[playerId] = nextPlayerState;
+        documentState.players[playerId] = nextPlayerRecord;
         await saveStateDocument(seed, documentState);
-        sendJson(response, 200, { player: nextPlayerState });
+        sendJson(response, 200, { player: playerRecordToRuntimeState(nextPlayerRecord) });
+        return;
+      }
+
+      if (request.method === 'PUT') {
+        const body = await readJsonBody(request);
+        const nextPlayerState = body?.playerState;
+        if (!nextPlayerState) {
+          sendJson(response, 400, { error: 'Missing playerState' });
+          return;
+        }
+
+        const normalizedPlayerRecord = normalizePlayerRecord(existingPlayerRecord, playerId, nowMs);
+        documentState.players[playerId] = applyRuntimeStateToPlayerRecord(
+          normalizedPlayerRecord,
+          {
+            ...nextPlayerState,
+            playerId,
+          },
+          nowMs
+        );
+        await saveStateDocument(seed, documentState);
+        sendJson(response, 200, { ok: true });
         return;
       }
 
