@@ -6,8 +6,6 @@ export const INFRASTRUCTURE_ENERGY_COSTS = {
   orbitalPopulation: 8,
   mining: 4,
   farming: 3,
-  waterExtraction: 3,
-  gasExtraction: 4,
   industrial: 5,
   defense: 2,
 };
@@ -17,8 +15,6 @@ export const POWERABLE_INFRASTRUCTURE_PRIORITY = [
   'orbitalPopulation',
   'mining',
   'farming',
-  'waterExtraction',
-  'gasExtraction',
   'industrial',
   'defense',
 ];

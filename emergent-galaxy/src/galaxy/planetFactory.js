@@ -43,34 +43,19 @@ function createPlanetInfrastructure(type, resources) {
     infrastructure.farming = 0;
   }
 
-  if (hasResource(resources, 'Water')) {
-    infrastructure.waterExtraction = 0;
-  }
-
-  if (hasResource(resources, 'Gas')) {
-    infrastructure.gasExtraction = 0;
-  }
-
   return infrastructure;
 }
 
 function createProminentResources(type, habitability, rng) {
   if (type === 'Gas Giant') {
-    return [
-      {
-        name: 'Gas',
-        abundance: rng.randomInt(70, 100),
-      },
-    ];
+    return [];
   }
 
   const resourceWeights = [
     { name: 'Metals', chance: 55 },
-    { name: 'Gas', chance: type === 'Rocky' ? 10 : type === 'Icy' ? 12 : 8 },
     { name: 'Food', chance: 25 },
     { name: 'Rare Earth Elements', chance: 30 },
     { name: 'Uranium', chance: 20 },
-    { name: 'Water', chance: type === 'Icy' ? 70 : 35 },
   ];
 
   const resourceCandidates = resourceWeights.map((resource) => ({

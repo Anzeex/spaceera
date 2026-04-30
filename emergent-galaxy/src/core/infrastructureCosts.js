@@ -4,9 +4,7 @@ export const MAX_INFRASTRUCTURE_LEVEL = 15;
 
 const INFRASTRUCTURE_BASE_COSTS = {
   farming: { Credits: 4 },
-  waterExtraction: { Credits: 4 },
   mining: { Credits: 5 },
-  gasExtraction: { Credits: 5 },
   energy: { Credits: 6 },
   cities: { Credits: 6 },
   industrial: { Credits: 6 },

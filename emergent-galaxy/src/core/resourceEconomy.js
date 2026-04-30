@@ -17,20 +17,16 @@ import {
 
 export const RESOURCE_DISPLAY = [
   { key: 'Credits', icon: '$', color: '#fbbf24' },
-  { key: 'Metals', icon: 'âš™', color: '#a8b5c7' },
-  { key: 'Gas', icon: 'â˜', color: '#7dd3fc' },
-  { key: 'Food', icon: 'ðŸŒ¿', color: '#86efac' },
-  { key: 'Rare Earth Elements', icon: 'âœ¦', color: '#c4b5fd' },
-  { key: 'Uranium', icon: 'â˜¢', color: '#bef264' },
-  { key: 'Water', icon: 'ðŸ’§', color: '#60a5fa' },
+  { key: 'Metals', icon: 'M', color: '#a8b5c7' },
+  { key: 'Food', icon: 'F', color: '#86efac' },
+  { key: 'Rare Earth Elements', icon: 'R', color: '#c4b5fd' },
+  { key: 'Uranium', icon: 'U', color: '#bef264' },
 ];
 
 export const RESOURCE_KEYS = RESOURCE_DISPLAY.map((resource) => resource.key);
 
 const RESOURCE_INFRASTRUCTURE_MAP = {
   Food: 'farming',
-  Water: 'waterExtraction',
-  Gas: 'gasExtraction',
 };
 
 export function createEmptyResources() {
@@ -76,10 +72,11 @@ export function sumResources(target, source) {
 }
 
 export function cloneResources(source = {}) {
-  return {
-    ...createEmptyResources(),
-    ...source,
-  };
+  const resources = createEmptyResources();
+  for (const resource of RESOURCE_KEYS) {
+    resources[resource] = Number(source?.[resource]) || 0;
+  }
+  return resources;
 }
 
 export function createEmptySystemPool() {

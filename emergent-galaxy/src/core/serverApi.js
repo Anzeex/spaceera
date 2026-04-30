@@ -1,6 +1,51 @@
 const API_BASE_URL = import.meta.env.VITE_SERVER_URL || 'http://localhost:8787';
 let localServerUnavailable = false;
 
+function resolveAssetUrl(url) {
+  if (typeof url !== 'string' || url.length === 0) {
+    return '';
+  }
+
+  if (/^https?:\/\//i.test(url) || url.startsWith('data:')) {
+    return url;
+  }
+
+  return `${API_BASE_URL}${url.startsWith('/') ? url : `/${url}`}`;
+}
+
+function normalizePlayerProfileUrls(player) {
+  if (!player || typeof player !== 'object') {
+    return player;
+  }
+
+  return {
+    ...player,
+    profileImageUrl: resolveAssetUrl(player.profileImageUrl),
+    territory: player.territory
+      ? {
+          ...player.territory,
+          avatarImageUrl: resolveAssetUrl(player.territory.avatarImageUrl),
+        }
+      : player.territory,
+  };
+}
+
+function normalizeGalaxyStateProfileUrls(state) {
+  if (!state || typeof state !== 'object') {
+    return state;
+  }
+
+  return {
+    ...state,
+    territories: Array.isArray(state.territories)
+      ? state.territories.map((territory) => ({
+          ...territory,
+          avatarImageUrl: resolveAssetUrl(territory.avatarImageUrl),
+        }))
+      : state.territories,
+  };
+}
+
 function markServerUnavailableIfNeeded(error) {
   if (error instanceof TypeError) {
     localServerUnavailable = true;
@@ -28,7 +73,11 @@ export async function fetchServerGalaxyState(seed) {
       `${API_BASE_URL}/api/galaxy-state?seed=${encodeURIComponent(seed)}`
     );
     localServerUnavailable = false;
-    return parseJsonResponse(response);
+    const payload = await parseJsonResponse(response);
+    return {
+      ...payload,
+      state: normalizeGalaxyStateProfileUrls(payload.state),
+    };
   } catch (error) {
     throw markServerUnavailableIfNeeded(error);
   }
@@ -77,7 +126,11 @@ export async function fetchPlayerState(seed, playerId) {
     );
 
     localServerUnavailable = false;
-    return parseJsonResponse(response);
+    const payload = await parseJsonResponse(response);
+    return {
+      ...payload,
+      player: normalizePlayerProfileUrls(payload.player),
+    };
   } catch (error) {
     throw markServerUnavailableIfNeeded(error);
   }
@@ -118,6 +171,30 @@ export async function savePlayerState(seed, playerId, playerState) {
 
     localServerUnavailable = false;
     return parseJsonResponse(response);
+  } catch (error) {
+    throw markServerUnavailableIfNeeded(error);
+  }
+}
+
+export async function uploadProfileImage(seed, playerId, imageDataUrl) {
+  try {
+    const response = await fetch(
+      `${API_BASE_URL}/api/profile-image?seed=${encodeURIComponent(seed)}&playerId=${encodeURIComponent(playerId)}`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ imageDataUrl }),
+      }
+    );
+
+    localServerUnavailable = false;
+    const payload = await parseJsonResponse(response);
+    return {
+      ...payload,
+      imageUrl: resolveAssetUrl(payload.imageUrl),
+    };
   } catch (error) {
     throw markServerUnavailableIfNeeded(error);
   }

@@ -101,6 +101,7 @@ export function serializeGameState(state, baselineState) {
       name: territory.name,
       color: territory.color,
       faction: territory.faction,
+      avatarImageUrl: territory.avatarImageUrl ?? '',
       capitalStarId: territory.capitalStarId ?? null,
       stars: Array.from(territory.stars),
     })),

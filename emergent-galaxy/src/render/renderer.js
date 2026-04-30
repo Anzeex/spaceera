@@ -415,6 +415,129 @@ function getVisibleTerritoryStarColor(rgb) {
   return `rgb(${boosted.r}, ${boosted.g}, ${boosted.b})`;
 }
 
+function getStarburstSeed(starId) {
+  const text = String(starId ?? '');
+  let hash = 2166136261;
+
+  for (let i = 0; i < text.length; i++) {
+    hash ^= text.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+
+  return hash >>> 0;
+}
+
+function seededUnit(seed, salt) {
+  let value = seed + Math.imul(salt + 1, 374761393);
+  value = Math.imul(value ^ (value >>> 16), 2246822519);
+  value = Math.imul(value ^ (value >>> 13), 3266489917);
+  return ((value ^ (value >>> 16)) >>> 0) / 4294967295;
+}
+
+function drawStarburst(ctx, x, y, radius, rgb, starId, opacityMultiplier = 1) {
+  const safeOpacity = Math.max(0, Math.min(1, opacityMultiplier)) * 0.82;
+  if (safeOpacity <= 0) {
+    return;
+  }
+
+  const seed = getStarburstSeed(starId);
+  const armCount = 5 + Math.floor(seededUnit(seed, 0) * 6);
+  const rotation = seededUnit(seed, 1) * Math.PI * 2;
+  const scale = 1.18 + seededUnit(seed, 2) * 0.98;
+  const glowPower = 0.72 + seededUnit(seed, 3) * 0.52;
+  const glowRadius = Math.max(18, radius * (14 + seededUnit(seed, 4) * 10) * scale);
+  const baseSpike = Math.max(18, radius * (14 + seededUnit(seed, 5) * 12) * scale);
+  const coreGap = Math.max(1.7, radius * 1.15);
+
+  const drawArm = (angle, length, width, opacity) => {
+    const cos = Math.cos(angle);
+    const sin = Math.sin(angle);
+    const innerX = cos * coreGap;
+    const innerY = sin * coreGap;
+    const outerX = cos * length;
+    const outerY = sin * length;
+
+    ctx.beginPath();
+    ctx.moveTo(x + innerX, y + innerY);
+    ctx.lineTo(x + outerX, y + outerY);
+    ctx.strokeStyle = `rgba(${rgb.r}, ${Math.min(255, rgb.g + 65)}, ${Math.min(255, rgb.b + 85)}, ${opacity * safeOpacity * glowPower})`;
+    ctx.lineWidth = width;
+    ctx.stroke();
+  };
+
+  ctx.save();
+  ctx.globalCompositeOperation = 'screen';
+  ctx.lineCap = 'round';
+
+  const glow = ctx.createRadialGradient(x, y, 0, x, y, glowRadius);
+  glow.addColorStop(0, `rgba(255, 255, 255, ${0.56 * safeOpacity * glowPower})`);
+  glow.addColorStop(0.18, `rgba(${rgb.r}, ${Math.min(255, rgb.g + 80)}, ${Math.min(255, rgb.b + 95)}, ${0.38 * safeOpacity * glowPower})`);
+  glow.addColorStop(0.58, `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${0.12 * safeOpacity * glowPower})`);
+  glow.addColorStop(1, `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0)`);
+  ctx.fillStyle = glow;
+  ctx.beginPath();
+  ctx.arc(x, y, glowRadius, 0, Math.PI * 2);
+  ctx.fill();
+
+  for (let i = 0; i < armCount; i++) {
+    const jitter = (seededUnit(seed, 20 + i) - 0.5) * 0.28;
+    const angle = rotation + (i / armCount) * Math.PI * 2 + jitter;
+    const length = baseSpike * (0.58 + seededUnit(seed, 40 + i) * 0.82);
+    const width = Math.max(0.9, radius * (0.46 + seededUnit(seed, 60 + i) * 0.82));
+    const opacity = 0.2 + seededUnit(seed, 80 + i) * 0.3;
+
+    drawArm(angle, length, width, opacity);
+    drawArm(angle + Math.PI, length * (0.45 + seededUnit(seed, 100 + i) * 0.5), width * 0.72, opacity * 0.72);
+  }
+
+  for (let i = 0; i < Math.min(4, armCount); i++) {
+    const angle = rotation + (i / Math.min(4, armCount)) * Math.PI * 2 + seededUnit(seed, 130 + i) * 0.18;
+    drawArm(angle, baseSpike * (0.72 + seededUnit(seed, 150 + i) * 0.34), Math.max(0.65, radius * 0.28), 0.54);
+    drawArm(angle + Math.PI, baseSpike * (0.4 + seededUnit(seed, 170 + i) * 0.28), Math.max(0.55, radius * 0.2), 0.34);
+  }
+
+  ctx.fillStyle = `rgba(${rgb.r}, ${Math.min(255, rgb.g + 90)}, ${Math.min(255, rgb.b + 100)}, ${0.22 * safeOpacity * glowPower})`;
+  ctx.beginPath();
+  ctx.arc(x, y, Math.max(2.2, radius * 2.35), 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.strokeStyle = `rgba(255, 255, 255, ${0.52 * safeOpacity})`;
+  ctx.lineWidth = Math.max(0.7, radius * 0.24);
+  ctx.beginPath();
+  ctx.arc(x, y, Math.max(1.4, radius * 1.7), 0, Math.PI * 2);
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+function drawCapitalGlow(ctx, x, y, radius, rgb, opacityMultiplier = 1) {
+  const safeOpacity = Math.max(0, Math.min(1, opacityMultiplier));
+  if (safeOpacity <= 0) {
+    return;
+  }
+
+  const glowRadius = Math.max(26, radius);
+  const gradient = ctx.createRadialGradient(x, y, 0, x, y, glowRadius);
+  gradient.addColorStop(0, `rgba(255, 244, 202, ${0.42 * safeOpacity})`);
+  gradient.addColorStop(0.2, `rgba(${rgb.r}, ${Math.min(255, rgb.g + 70)}, ${Math.min(255, rgb.b + 80)}, ${0.28 * safeOpacity})`);
+  gradient.addColorStop(0.58, `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${0.12 * safeOpacity})`);
+  gradient.addColorStop(1, `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0)`);
+
+  ctx.save();
+  ctx.globalCompositeOperation = 'screen';
+  ctx.fillStyle = gradient;
+  ctx.beginPath();
+  ctx.arc(x, y, glowRadius, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.strokeStyle = `rgba(255, 244, 202, ${0.16 * safeOpacity})`;
+  ctx.lineWidth = Math.max(1, glowRadius * 0.035);
+  ctx.beginPath();
+  ctx.arc(x, y, glowRadius * 0.38, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.restore();
+}
+
 function drawOwnedTerritoryMass(ctx, camera, viewport, loopsByTerritoryId, smoothedLoopsByTerritoryId, territoryRgbById, state) {
   if (state.territories.size === 0) return;
 
@@ -639,7 +762,7 @@ function drawInfoBox(ctx, x, y, width, height, radius = 8) {
   ctx.closePath();
 }
 
-function drawCapitalCrown(ctx, x, y, size) {
+function drawCapitalCrown(ctx, x, y, size, opacityMultiplier = 1) {
   const width = Math.max(8, size);
   const height = width * 0.7;
   const baseY = y - width * 1.15;
@@ -647,8 +770,10 @@ function drawCapitalCrown(ctx, x, y, size) {
   const right = x + width / 2;
   const baseTop = baseY + height * 0.55;
   const tipInset = width * 0.18;
+  const safeOpacity = Math.max(0, Math.min(1, opacityMultiplier));
 
   ctx.save();
+  ctx.globalAlpha = safeOpacity;
   ctx.beginPath();
   ctx.moveTo(left, baseTop);
   ctx.lineTo(left + tipInset, baseY + height * 0.15);
@@ -660,15 +785,24 @@ function drawCapitalCrown(ctx, x, y, size) {
   ctx.closePath();
 
   ctx.fillStyle = '#ffd166';
-  ctx.shadowColor = 'rgba(255, 209, 102, 0.45)';
-  ctx.shadowBlur = width * 0.55;
+  ctx.shadowColor = 'rgba(255, 222, 132, 0.78)';
+  ctx.shadowBlur = width * 0.9;
   ctx.fill();
 
   ctx.shadowBlur = 0;
-  ctx.strokeStyle = 'rgba(255, 244, 200, 0.95)';
-  ctx.lineWidth = Math.max(1, width * 0.08);
+  ctx.strokeStyle = 'rgba(255, 250, 218, 1)';
+  ctx.lineWidth = Math.max(1.2, width * 0.1);
   ctx.lineJoin = 'round';
   ctx.stroke();
+
+  ctx.globalCompositeOperation = 'screen';
+  ctx.strokeStyle = 'rgba(255, 244, 200, 0.65)';
+  ctx.shadowColor = 'rgba(255, 209, 102, 0.9)';
+  ctx.shadowBlur = width * 0.75;
+  ctx.lineWidth = Math.max(1, width * 0.16);
+  ctx.stroke();
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.shadowBlur = 0;
 
   for (const point of [
     { x: left + tipInset, y: baseY + height * 0.15 },
@@ -678,6 +812,8 @@ function drawCapitalCrown(ctx, x, y, size) {
     ctx.beginPath();
     ctx.arc(point.x, point.y, Math.max(1.25, width * 0.08), 0, Math.PI * 2);
     ctx.fillStyle = '#fff3b0';
+    ctx.shadowColor = 'rgba(255, 243, 176, 0.95)';
+    ctx.shadowBlur = width * 0.45;
     ctx.fill();
   }
 
@@ -881,27 +1017,38 @@ export function createRenderer(state) {
       // Find which territory this star belongs to
       const starTerritory = starTerritoryByStarId.get(star.id) || null;
       const isCapital = starTerritory?.capitalStarId === star.id;
+      const starTerritoryRgb = starTerritory
+        ? territoryRgbById.get(starTerritory.id) ?? hexToRgb(starTerritory.color)
+        : null;
+
+      if (
+        isCapital &&
+        starTerritoryRgb
+      ) {
+        drawStarburst(ctx, p.x, p.y, r, starTerritoryRgb, star.id, 1);
+      }
 
       // Draw territory aura if star belongs to a territory
       if (starTerritory && shouldDrawTerritoryAuras) {
         ctx.beginPath();
         ctx.arc(p.x, p.y, r + 4, 0, Math.PI * 2);
-        const rgb =
-          territoryRgbById.get(starTerritory.id) ?? hexToRgb(starTerritory.color);
+        const rgb = starTerritoryRgb;
         ctx.fillStyle = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${0.12 * auraOpacityMultiplier})`;
         ctx.fill();
       }
 
+      if (isCapital && starTerritoryRgb && shouldDrawTerritoryAuras) {
+        drawCapitalGlow(ctx, p.x, p.y, Math.max(34, r * 11), starTerritoryRgb, auraOpacityMultiplier);
+      }
+
       if (isCapital && shouldDrawCapitalCrowns) {
-        drawCapitalCrown(ctx, p.x, p.y, Math.max(14, r * 4.4));
+        drawCapitalCrown(ctx, p.x, p.y, Math.max(14, r * 4.4), Math.max(0.45, auraOpacityMultiplier));
       }
 
       ctx.beginPath();
       if (selection.selectedStarId === star.id) {
         ctx.fillStyle = '#ffd166';
       } else if (starTerritory) {
-        const starTerritoryRgb =
-          territoryRgbById.get(starTerritory.id) ?? hexToRgb(starTerritory.color);
         ctx.fillStyle = getVisibleTerritoryStarColor(starTerritoryRgb);
       } else {
         ctx.fillStyle = '#ffffff';
@@ -911,7 +1058,7 @@ export function createRenderer(state) {
       ctx.fill();
     }
 
-    if (selected) {
+    if (selected && !state.useReactSystemPanel) {
       const sp = worldToScreen(camera, viewport, selected.x, selected.y);
       const selectedPoolResources = state.playerState?.systemPools?.[selected.id]?.resources ?? {};
       const selectedPoolCapacity = state.playerState?.systemPoolCapacities?.[selected.id] ?? 0;

@@ -17,15 +17,139 @@ import {
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const dataDir = path.join(__dirname, 'data');
+const uploadsDir = path.join(__dirname, 'uploads', 'profile-images');
 const port = Number(process.env.PORT || 8787);
 
 async function ensureDataDir() {
   await mkdir(dataDir, { recursive: true });
 }
 
+async function ensureUploadsDir() {
+  await mkdir(uploadsDir, { recursive: true });
+}
+
 function getStatePath(seed) {
   const safeSeed = String(seed || 'default').replace(/[^a-zA-Z0-9-_]/g, '_');
   return path.join(dataDir, `${safeSeed}.json`);
+}
+
+function sanitizeFileSegment(value, fallback = 'default') {
+  const sanitized = String(value || fallback).replace(/[^a-zA-Z0-9-_]/g, '_');
+  return sanitized || fallback;
+}
+
+function getProfileImageFilename(seed, playerId) {
+  return `${sanitizeFileSegment(seed)}-${sanitizeFileSegment(playerId)}.png`;
+}
+
+function getProfileImagePath(seed, playerId) {
+  return path.join(uploadsDir, getProfileImageFilename(seed, playerId));
+}
+
+function getProfileImageUrl(seed, playerId) {
+  return `/uploads/profile-images/${getProfileImageFilename(seed, playerId)}`;
+}
+
+function isDataImageUrl(value) {
+  return typeof value === 'string' && value.startsWith('data:image/');
+}
+
+function sanitizeAvatarUrl(value) {
+  return isDataImageUrl(value) ? '' : value ?? '';
+}
+
+const REMOVED_RESOURCE_KEYS = new Set(['Gas', 'Water']);
+const REMOVED_INFRASTRUCTURE_KEYS = new Set(['gasExtraction', 'waterExtraction']);
+
+function sanitizeResourceMap(resourceMap) {
+  const nextResources = {};
+
+  for (const [key, value] of Object.entries(resourceMap ?? {})) {
+    if (REMOVED_RESOURCE_KEYS.has(key)) {
+      continue;
+    }
+    nextResources[key] = value;
+  }
+
+  return nextResources;
+}
+
+function sanitizeInfrastructureMap(infrastructureMap) {
+  const nextInfrastructure = {};
+
+  for (const [key, value] of Object.entries(infrastructureMap ?? {})) {
+    if (REMOVED_INFRASTRUCTURE_KEYS.has(key)) {
+      continue;
+    }
+    nextInfrastructure[key] = value;
+  }
+
+  return nextInfrastructure;
+}
+
+function sanitizeStoredDocument(documentState) {
+  const nextState = documentState?.state
+    ? {
+        ...documentState.state,
+        territories: (documentState.state.territories ?? []).map((territory) => ({
+          ...territory,
+          avatarImageUrl: sanitizeAvatarUrl(territory.avatarImageUrl),
+        })),
+        starOverrides: Object.fromEntries(
+          Object.entries(documentState.state.starOverrides ?? {}).map(([starId, starOverride]) => [
+            starId,
+            {
+              ...starOverride,
+              planets: Object.fromEntries(
+                Object.entries(starOverride?.planets ?? {}).map(([planetId, planetOverride]) => [
+                  planetId,
+                  {
+                    ...planetOverride,
+                    infrastructure: sanitizeInfrastructureMap(planetOverride?.infrastructure),
+                  },
+                ])
+              ),
+            },
+          ])
+        ),
+      }
+    : null;
+
+  const nextPlayers = Object.fromEntries(
+    Object.entries(documentState?.players ?? {}).map(([playerId, playerRecord]) => [
+      playerId,
+      {
+        ...playerRecord,
+        profile: {
+          ...(playerRecord?.profile ?? {}),
+          avatarImageUrl: sanitizeAvatarUrl(playerRecord?.profile?.avatarImageUrl),
+        },
+        economy: {
+          ...(playerRecord?.economy ?? {}),
+          resources: sanitizeResourceMap(playerRecord?.economy?.resources),
+          hourlyProduction: sanitizeResourceMap(playerRecord?.economy?.hourlyProduction),
+        },
+        logistics: {
+          ...(playerRecord?.logistics ?? {}),
+          systemPools: Object.fromEntries(
+            Object.entries(playerRecord?.logistics?.systemPools ?? {}).map(([starId, poolEntry]) => [
+              starId,
+              {
+                ...poolEntry,
+                resources: sanitizeResourceMap(poolEntry?.resources ?? poolEntry),
+              },
+            ])
+          ),
+        },
+      },
+    ])
+  );
+
+  return {
+    state: nextState,
+    players: nextPlayers,
+    updatedAt: documentState?.updatedAt ?? null,
+  };
 }
 
 async function readJsonBody(request) {
@@ -42,11 +166,11 @@ async function loadState(seed) {
   try {
     const raw = await readFile(getStatePath(seed), 'utf8');
     const parsed = JSON.parse(raw);
-    return {
+    return sanitizeStoredDocument({
       state: parsed.state ?? null,
       players: parsed.players ?? {},
       updatedAt: parsed.updatedAt ?? null,
-    };
+    });
   } catch (error) {
     if (error.code === 'ENOENT') {
       return { state: null, players: {}, updatedAt: null };
@@ -58,11 +182,12 @@ async function loadState(seed) {
 
 async function saveStateDocument(seed, documentState) {
   await ensureDataDir();
+  const sanitizedDocument = sanitizeStoredDocument(documentState);
   await writeFile(
     getStatePath(seed),
     JSON.stringify({
-      state: documentState.state ?? null,
-      players: documentState.players ?? {},
+      state: sanitizedDocument.state ?? null,
+      players: sanitizedDocument.players ?? {},
       updatedAt: new Date().toISOString(),
     }, null, 2),
     'utf8'
@@ -84,6 +209,15 @@ function sendJson(response, statusCode, payload) {
   response.end(JSON.stringify(payload));
 }
 
+function sendFile(response, statusCode, contentType, payload) {
+  response.writeHead(statusCode, {
+    'Content-Type': contentType,
+    'Cache-Control': 'no-store',
+    'Access-Control-Allow-Origin': '*',
+  });
+  response.end(payload);
+}
+
 const server = createServer(async (request, response) => {
   const url = new URL(request.url, `http://${request.headers.host}`);
 
@@ -92,7 +226,18 @@ const server = createServer(async (request, response) => {
     return;
   }
 
-  if (url.pathname !== '/api/galaxy-state' && url.pathname !== '/api/player-state') {
+  if (request.method === 'GET' && url.pathname.startsWith('/uploads/profile-images/')) {
+    try {
+      const requestedName = path.basename(url.pathname);
+      const fileBuffer = await readFile(path.join(uploadsDir, requestedName));
+      sendFile(response, 200, 'image/png', fileBuffer);
+    } catch (error) {
+      sendJson(response, 404, { error: 'Not found' });
+    }
+    return;
+  }
+
+  if (url.pathname !== '/api/galaxy-state' && url.pathname !== '/api/player-state' && url.pathname !== '/api/profile-image') {
     sendJson(response, 404, { error: 'Not found' });
     return;
   }
@@ -100,6 +245,36 @@ const server = createServer(async (request, response) => {
   const seed = url.searchParams.get('seed') || 'default';
 
   try {
+    if (url.pathname === '/api/profile-image') {
+      const playerId = url.searchParams.get('playerId');
+      if (!playerId) {
+        sendJson(response, 400, { error: 'Missing playerId' });
+        return;
+      }
+
+      if (request.method !== 'POST') {
+        sendJson(response, 405, { error: 'Method not allowed' });
+        return;
+      }
+
+      const body = await readJsonBody(request);
+      const imageDataUrl = body?.imageDataUrl;
+      const matched = typeof imageDataUrl === 'string'
+        ? imageDataUrl.match(/^data:image\/png;base64,(.+)$/)
+        : null;
+
+      if (!matched) {
+        sendJson(response, 400, { error: 'Expected PNG imageDataUrl' });
+        return;
+      }
+
+      await ensureUploadsDir();
+      const imageBuffer = Buffer.from(matched[1], 'base64');
+      await writeFile(getProfileImagePath(seed, playerId), imageBuffer);
+      sendJson(response, 200, { imageUrl: getProfileImageUrl(seed, playerId) });
+      return;
+    }
+
     if (url.pathname === '/api/player-state') {
       const playerId = url.searchParams.get('playerId');
       if (!playerId) {
@@ -218,5 +393,6 @@ const server = createServer(async (request, response) => {
 
 server.listen(port, async () => {
   await ensureDataDir();
+  await ensureUploadsDir();
   console.log(`Galaxy state server listening on http://localhost:${port}`);
 });

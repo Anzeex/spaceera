@@ -19,6 +19,8 @@ import {
   cloneItemInventory,
   cloneSystemItemInventories,
   createEmptyItemInventory,
+  getItemDefinition,
+  MINIMUM_ITEM_CRAFT_TIME_RATIO,
 } from '../src/core/itemDefinitions.js';
 import {
   applyRuntimeStateToPlayerRecord,
@@ -44,23 +46,19 @@ const RESOURCE_UPDATE_PRESETS = {
     ms: MINUTE_MS,
   },
 };
-const ACTIVE_RESOURCE_UPDATE_PRESET = RESOURCE_UPDATE_PRESETS.hour;
-// Switch back to minute updates by changing the line above to:
-// const ACTIVE_RESOURCE_UPDATE_PRESET = RESOURCE_UPDATE_PRESETS.minute;
+const ACTIVE_RESOURCE_UPDATE_PRESET = RESOURCE_UPDATE_PRESETS.minute;
+// Future live cadence can switch to hourly periods by changing the line above to:
+// const ACTIVE_RESOURCE_UPDATE_PRESET = RESOURCE_UPDATE_PRESETS.hour;
 
 const RESOURCE_KEYS = [
   'Credits',
   'Metals',
-  'Gas',
   'Food',
   'Rare Earth Elements',
   'Uranium',
-  'Water',
 ];
 const RESOURCE_INFRASTRUCTURE_MAP = {
   Food: 'farming',
-  Water: 'waterExtraction',
-  Gas: 'gasExtraction',
 };
 const baselineGalaxyCache = new Map();
 const baselineStateCache = new Map();
@@ -74,10 +72,11 @@ function getPopulationCreditsForPlanet(planet) {
 }
 
 function cloneResources(source = {}) {
-  return {
-    ...createEmptyResources(),
-    ...source,
-  };
+  const resources = createEmptyResources();
+  for (const resource of RESOURCE_KEYS) {
+    resources[resource] = Number(source?.[resource]) || 0;
+  }
+  return resources;
 }
 
 function createEmptySystemPool() {
@@ -387,6 +386,128 @@ function calculatePeriodProductionForPlayer(
   return periodProduction;
 }
 
+function getTotalIndustryInfrastructure(ownedStars) {
+  return ownedStars.reduce(
+    (sum, star) =>
+      sum +
+      (star.planets ?? []).reduce(
+        (planetSum, planet) => planetSum + getEffectiveInfrastructureLevel(planet, 'industrial'),
+        0
+      ),
+    0
+  );
+}
+
+function getProductionCostForQueueEntry(entry) {
+  return Math.max(
+    0,
+    Number(
+      entry?.productionCost ??
+        entry?.requiredIndustryPeriods ??
+        entry?.requiredIndustryHours ??
+        getItemDefinition(entry?.itemId)?.productionCost
+    ) || 0
+  );
+}
+
+function getMinimumCraftPeriods(productionCost) {
+  return Math.max(
+    1,
+    Math.ceil(Math.max(1, Number(productionCost) || 1) * MINIMUM_ITEM_CRAFT_TIME_RATIO)
+  );
+}
+
+function calculateProductionAllocation(queue, industryLevel) {
+  let remainingProduction = Math.max(0, Number(industryLevel) || 0);
+  return queue.map((entry) => {
+    const productionCost = getProductionCostForQueueEntry(entry);
+    const completedProductionCost = Math.min(
+      productionCost,
+      Math.max(
+        0,
+        Number(entry.completedProductionCost ?? productionCost - (entry.remainingProductionCost ?? productionCost)) || 0
+      )
+    );
+    const remainingProductionCost = Math.max(
+      0,
+      Number(entry.remainingProductionCost ?? productionCost - completedProductionCost) || 0
+    );
+    const maxProductionForItem = productionCost / getMinimumCraftPeriods(productionCost);
+    const allocatedProduction = Math.min(
+      remainingProduction,
+      maxProductionForItem,
+      remainingProductionCost
+    );
+    remainingProduction = Math.max(0, remainingProduction - allocatedProduction);
+
+    return {
+      entry,
+      productionCost,
+      completedProductionCost,
+      remainingProductionCost,
+      allocatedProduction,
+    };
+  });
+}
+
+function advanceProductionQueue(playerState, completedPeriods, industryLevel) {
+  let productionQueue = (playerState.productionQueue ?? []).map((entry) => ({
+    ...entry,
+    productionCost: getProductionCostForQueueEntry(entry),
+    completedProductionCost: Math.min(
+      getProductionCostForQueueEntry(entry),
+      Math.max(
+        0,
+        Number(
+          entry.completedProductionCost ??
+            getProductionCostForQueueEntry(entry) - (entry.remainingProductionCost ?? getProductionCostForQueueEntry(entry))
+        ) || 0
+      )
+    ),
+    remainingProductionCost: Math.max(
+      0,
+      Number(
+        entry.remainingProductionCost ??
+          getProductionCostForQueueEntry(entry) - (entry.completedProductionCost ?? 0)
+      ) || 0
+    ),
+  }));
+  const items = cloneItemInventory(playerState.items);
+
+  for (let periodIndex = 0; periodIndex < completedPeriods; periodIndex++) {
+    const allocation = calculateProductionAllocation(productionQueue, industryLevel);
+    if (allocation.every((entry) => entry.allocatedProduction <= 0)) {
+      break;
+    }
+
+    productionQueue = allocation
+      .map(({ entry, allocatedProduction }) => ({
+        ...entry,
+        completedProductionCost: Math.min(
+          Number(entry.productionCost) || 0,
+          (Number(entry.completedProductionCost) || 0) + allocatedProduction
+        ),
+        remainingProductionCost: Math.max(
+          0,
+          (Number(entry.remainingProductionCost) || 0) - allocatedProduction
+        ),
+      }))
+      .filter((entry) => {
+        if (entry.remainingProductionCost > 0) {
+          return true;
+        }
+
+        items[entry.itemId] = (Number(items[entry.itemId]) || 0) + 1;
+        return false;
+      });
+  }
+
+  return {
+    items,
+    productionQueue,
+  };
+}
+
 function collectSystemPoolResources(playerState, starId) {
   const poolEntry = playerState.systemPools?.[starId];
   if (!poolEntry) {
@@ -417,6 +538,13 @@ export function createInitialPlayerState(playerId, nowMs) {
     },
     inventory: {
       items: createEmptyItemInventory(),
+    },
+    progression: {
+      level: 1,
+      xp: 0,
+      currentLevelXp: 0,
+      nextLevelXp: 100,
+      gems: 0,
     },
     logistics: {
       systemPools: {},
@@ -480,12 +608,18 @@ export function updatePlayerResources({ seed, storedState, playerId, existingPla
     ...cloneResources(basePlayerState.resources),
   };
   nextResources.Credits += getDirectPopulationCreditsForOwnedStars(ownedStars, completedHours);
+  const productionState = advanceProductionQueue(
+    basePlayerState,
+    completedHours,
+    getTotalIndustryInfrastructure(ownedStars)
+  );
 
   const nextRuntimeState = {
     ...basePlayerState,
     playerId,
-    items: cloneItemInventory(basePlayerState.items),
+    items: productionState.items,
     resources: nextResources,
+    productionQueue: productionState.productionQueue,
     hourlyProduction: periodProduction,
     systemPools,
     systemItemInventories,

@@ -3,11 +3,9 @@ import { createEmptyItemInventory, cloneItemInventory, cloneSystemItemInventorie
 const RESOURCE_KEYS = [
   'Credits',
   'Metals',
-  'Gas',
   'Food',
   'Rare Earth Elements',
   'Uranium',
-  'Water',
 ];
 
 function createEmptyResources() {
@@ -15,10 +13,11 @@ function createEmptyResources() {
 }
 
 function cloneResources(source = {}) {
-  return {
-    ...createEmptyResources(),
-    ...source,
-  };
+  const resources = createEmptyResources();
+  for (const resource of RESOURCE_KEYS) {
+    resources[resource] = Number(source?.[resource]) || 0;
+  }
+  return resources;
 }
 
 function cloneSystemPools(systemPools = {}) {
@@ -43,8 +42,13 @@ function cloneProductionQueue(productionQueue = []) {
         id: entry.id,
         itemId: entry.itemId,
         queuedAt: entry.queuedAt,
-        requiredIndustryPeriods:
-          Number(entry.requiredIndustryPeriods ?? entry.requiredIndustryHours) || 0,
+        productionCost:
+          Number(entry.productionCost ?? entry.requiredIndustryPeriods ?? entry.requiredIndustryHours) || 0,
+        completedProductionCost: Math.max(0, Number(entry.completedProductionCost) || 0),
+        remainingProductionCost:
+          entry.remainingProductionCost == null
+            ? Number(entry.productionCost ?? entry.requiredIndustryPeriods ?? entry.requiredIndustryHours) || 0
+            : Math.max(0, Number(entry.remainingProductionCost) || 0),
         industryAtQueue: Number(entry.industryAtQueue) || 0,
         estimatedPeriods:
           entry.estimatedPeriods == null && entry.estimatedHours == null
@@ -70,20 +74,44 @@ function normalizeTerritoryRecord(playerId, territory = null, profile = {}) {
   };
 }
 
+function normalizeProgressionRecord(source = {}) {
+  const level = Math.max(1, Math.floor(Number(source.level) || 1));
+  const nextLevelXp = Math.max(1, Math.floor(Number(source.nextLevelXp ?? source.xpToNextLevel) || level * 100));
+  const xp = Math.max(0, Math.floor(Number(source.xp ?? source.experience) || 0));
+  const currentLevelXp = Math.max(
+    0,
+    Math.min(
+      nextLevelXp,
+      Math.floor(Number(source.currentLevelXp ?? source.levelXp ?? (xp % nextLevelXp)) || 0)
+    )
+  );
+
+  return {
+    level,
+    xp,
+    currentLevelXp,
+    nextLevelXp,
+    gems: Math.max(0, Math.floor(Number(source.gems ?? source.premiumCurrency) || 0)),
+  };
+}
+
 export function createPlayerRecord(playerId, nowMs = Date.now(), overrides = {}) {
   const defaultName = overrides.profile?.name ?? overrides.name ?? playerId;
   const profile = {
     name: defaultName,
     faction: overrides.profile?.faction ?? overrides.faction ?? defaultName,
     color: overrides.profile?.color ?? overrides.color ?? '#4ecdc4',
+    avatarImageUrl: overrides.profile?.avatarImageUrl ?? overrides.profileImageUrl ?? '',
   };
   const territory = normalizeTerritoryRecord(playerId, overrides.territory ?? null, profile);
+  const progression = normalizeProgressionRecord(overrides.progression ?? overrides);
   const timestamp = new Date(nowMs).toISOString();
 
   return {
     id: playerId,
     profile,
     territory,
+    progression,
     inventory: {
       items: cloneItemInventory(overrides.inventory?.items),
     },
@@ -97,7 +125,7 @@ export function createPlayerRecord(playerId, nowMs = Date.now(), overrides = {})
       resources: cloneResources(overrides.economy?.resources),
       hourlyProduction: cloneResources(overrides.economy?.hourlyProduction),
       completedHours: Math.max(0, Math.floor(Number(overrides.economy?.completedHours) || 0)),
-      resourceUpdateInterval: overrides.economy?.resourceUpdateInterval ?? 'hour',
+      resourceUpdateInterval: overrides.economy?.resourceUpdateInterval ?? 'minute',
       lastResourceUpdate: overrides.economy?.lastResourceUpdate ?? timestamp,
     },
     status: {
@@ -127,6 +155,7 @@ export function normalizePlayerRecord(playerLike, playerId, nowMs = Date.now()) 
     profile: {
       name: playerLike.playerName ?? playerLike.playerId ?? playerId,
       faction: playerLike.playerName ?? playerLike.playerId ?? playerId,
+      avatarImageUrl: playerLike.profile?.avatarImageUrl ?? playerLike.profileImageUrl ?? '',
     },
     territory: playerLike.territory ?? null,
     inventory: {
@@ -144,6 +173,13 @@ export function normalizePlayerRecord(playerLike, playerId, nowMs = Date.now()) 
       completedHours: playerLike.completedHours,
       resourceUpdateInterval: playerLike.resourceUpdateInterval,
       lastResourceUpdate: playerLike.lastResourceUpdate,
+    },
+    progression: playerLike.progression ?? {
+      level: playerLike.level,
+      xp: playerLike.xp ?? playerLike.experience,
+      currentLevelXp: playerLike.currentLevelXp ?? playerLike.levelXp,
+      nextLevelXp: playerLike.nextLevelXp ?? playerLike.xpToNextLevel,
+      gems: playerLike.gems ?? playerLike.premiumCurrency,
     },
     status: {
       energyOutput: playerLike.energyOutput,
@@ -174,6 +210,12 @@ export function playerRecordToRuntimeState(playerRecord) {
       : null,
     resources: cloneResources(playerRecord.economy.resources),
     items: cloneItemInventory(playerRecord.inventory.items),
+    level: playerRecord.progression.level,
+    xp: playerRecord.progression.xp,
+    currentLevelXp: playerRecord.progression.currentLevelXp,
+    nextLevelXp: playerRecord.progression.nextLevelXp,
+    gems: playerRecord.progression.gems,
+    profileImageUrl: playerRecord.profile.avatarImageUrl ?? '',
     hourlyProduction: cloneResources(playerRecord.economy.hourlyProduction),
     systemPools: cloneSystemPools(playerRecord.logistics.systemPools),
     systemItemInventories: cloneSystemItemInventories(playerRecord.logistics.systemItemInventories),
@@ -202,6 +244,20 @@ export function applyRuntimeStateToPlayerRecord(playerRecord, runtimeState, nowM
     ),
     inventory: {
       items: cloneItemInventory(runtimeState?.items ?? nextRecord.inventory.items),
+    },
+    progression: normalizeProgressionRecord({
+      ...nextRecord.progression,
+      level: runtimeState?.level ?? nextRecord.progression.level,
+      xp: runtimeState?.xp ?? runtimeState?.experience ?? nextRecord.progression.xp,
+      currentLevelXp:
+        runtimeState?.currentLevelXp ?? runtimeState?.levelXp ?? nextRecord.progression.currentLevelXp,
+      nextLevelXp:
+        runtimeState?.nextLevelXp ?? runtimeState?.xpToNextLevel ?? nextRecord.progression.nextLevelXp,
+      gems: runtimeState?.gems ?? runtimeState?.premiumCurrency ?? nextRecord.progression.gems,
+    }),
+    profile: {
+      ...nextRecord.profile,
+      avatarImageUrl: runtimeState?.profileImageUrl ?? nextRecord.profile.avatarImageUrl ?? '',
     },
     logistics: {
       systemPools: cloneSystemPools(runtimeState?.systemPools ?? nextRecord.logistics.systemPools),
