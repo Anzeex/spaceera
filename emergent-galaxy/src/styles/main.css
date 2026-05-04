@@ -89,7 +89,7 @@ canvas {
   right: 0;
   bottom: 0;
   z-index: 25;
-  width: clamp(340px, 18vw, 420px);
+  width: clamp(310px, 17vw, 400px);
   max-width: 100vw;
   opacity: 0;
   pointer-events: none;
@@ -199,6 +199,7 @@ canvas {
   margin: 0 0 14px;
   padding: 12px 18px;
   overflow: hidden;
+  border-top: 1px solid rgba(148, 163, 184, 0.16);
   border-bottom: 1px solid var(--ui-border-strong);
   background: linear-gradient(180deg, rgba(8, 13, 27, 0.42), rgba(5, 8, 22, 0.36));
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.03);
@@ -213,7 +214,7 @@ canvas {
     linear-gradient(90deg, rgba(5, 8, 22, 0.68) 0%, rgba(5, 8, 22, 0.5) 38%, rgba(5, 8, 22, 0.3) 100%),
     var(--player-summary-banner-image);
   background-size: cover;
-  background-position: center;
+  background-position: center bottom;
   opacity: 0.84;
   pointer-events: none;
 }
@@ -466,21 +467,110 @@ canvas {
   margin-bottom: 10px;
 }
 
-.production-controls select,
-.production-controls button {
+.production-controls > button {
   border-radius: 14px;
   border: 1px solid var(--ui-border-strong);
 }
 
-.production-controls select {
+.production-dropdown {
+  position: relative;
   flex: 1;
   min-width: 0;
-  padding: 10px 12px;
-  color: var(--ui-text);
-  background: rgba(255,255,255,0.04);
 }
 
-.production-controls button {
+.production-dropdown__button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  min-width: 0;
+  min-height: 40px;
+  padding: 7px 10px;
+  color: var(--ui-text);
+  background: rgba(255,255,255,0.04);
+  cursor: pointer;
+  font-weight: 800;
+  text-align: left;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.02);
+}
+
+.production-dropdown__button:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
+.production-dropdown__selected,
+.production-dropdown__option-main {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.production-dropdown__selected span,
+.production-dropdown__option-main span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.production-dropdown small {
+  color: var(--ui-text-soft);
+  font-size: 10px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+}
+
+.production-dropdown__button strong,
+.production-dropdown__option strong {
+  color: var(--ui-accent-strong);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.production-dropdown__menu {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 50;
+  display: grid;
+  gap: 4px;
+  max-height: 320px;
+  overflow-y: auto;
+  padding: 5px;
+  border: 1px solid var(--ui-border);
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(9, 14, 28, 0.96), rgba(6, 10, 22, 0.96));
+  box-shadow: 0 14px 30px rgba(0,0,0,0.34), inset 0 1px 0 rgba(255,255,255,0.02);
+  backdrop-filter: blur(16px);
+}
+
+.production-dropdown__option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  min-width: 0;
+  padding: 8px 10px;
+  color: var(--ui-text);
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  border-color: transparent;
+  border-radius: 10px;
+}
+
+.production-dropdown__option:hover,
+.production-dropdown__option--active {
+  background: rgba(255,255,255,0.055);
+  border-color: var(--ui-border);
+}
+
+.production-controls > button {
   padding: 9px 12px;
   color: #07111f;
   background: linear-gradient(135deg, #8ea0b8, #a8b0c4);
@@ -720,6 +810,109 @@ canvas {
   grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
   gap: 7px;
   margin-top: 8px;
+}
+
+.planet-preview-shell {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--ui-border);
+}
+
+.planet-preview {
+  display: grid;
+  place-items: center;
+  min-height: 194px;
+  position: relative;
+  border: 1px solid var(--ui-border);
+  border-radius: 20px;
+  background:
+    radial-gradient(circle at 18% 28%, rgba(255, 255, 255, 0.9) 0 1px, transparent 1.5px),
+    radial-gradient(circle at 72% 18%, rgba(255, 255, 255, 0.7) 0 1px, transparent 1.5px),
+    radial-gradient(circle at 82% 62%, rgba(255, 255, 255, 0.85) 0 1px, transparent 1.5px),
+    radial-gradient(circle at 26% 76%, rgba(255, 255, 255, 0.6) 0 1px, transparent 1.5px),
+    radial-gradient(circle at 58% 52%, rgba(255, 255, 255, 0.55) 0 1px, transparent 1.5px),
+    radial-gradient(circle at 44% 16%, rgba(255, 255, 255, 0.45) 0 1px, transparent 1.5px),
+    radial-gradient(circle at 12% 58%, rgba(255, 255, 255, 0.82) 0 1px, transparent 1.5px),
+    radial-gradient(circle at 34% 44%, rgba(255, 255, 255, 0.58) 0 1px, transparent 1.5px),
+    radial-gradient(circle at 67% 74%, rgba(255, 255, 255, 0.74) 0 1px, transparent 1.5px),
+    radial-gradient(circle at 88% 36%, rgba(255, 255, 255, 0.5) 0 1px, transparent 1.5px),
+    radial-gradient(circle at 53% 84%, rgba(255, 255, 255, 0.68) 0 1px, transparent 1.5px),
+    radial-gradient(circle at 21% 12%, rgba(255, 255, 255, 0.5) 0 1px, transparent 1.5px),
+    radial-gradient(circle at 76% 8%, rgba(255, 255, 255, 0.62) 0 1px, transparent 1.5px),
+    radial-gradient(circle at 8% 86%, rgba(255, 255, 255, 0.72) 0 1px, transparent 1.5px),
+    radial-gradient(circle at 92% 84%, rgba(255, 255, 255, 0.52) 0 1px, transparent 1.5px),
+    radial-gradient(circle at 6% 35%, rgba(255, 255, 255, 0.46) 0 1px, transparent 1.5px),
+    radial-gradient(circle at 15% 68%, rgba(255, 255, 255, 0.58) 0 1px, transparent 1.5px),
+    radial-gradient(circle at 31% 22%, rgba(255, 255, 255, 0.72) 0 1px, transparent 1.5px),
+    radial-gradient(circle at 39% 67%, rgba(255, 255, 255, 0.52) 0 1px, transparent 1.5px),
+    radial-gradient(circle at 49% 32%, rgba(255, 255, 255, 0.66) 0 1px, transparent 1.5px),
+    radial-gradient(circle at 63% 27%, rgba(255, 255, 255, 0.42) 0 1px, transparent 1.5px),
+    radial-gradient(circle at 70% 88%, rgba(255, 255, 255, 0.62) 0 1px, transparent 1.5px),
+    radial-gradient(circle at 84% 48%, rgba(255, 255, 255, 0.7) 0 1px, transparent 1.5px),
+    radial-gradient(circle at 96% 17%, rgba(255, 255, 255, 0.48) 0 1px, transparent 1.5px),
+    radial-gradient(circle at 96% 68%, rgba(255, 255, 255, 0.6) 0 1px, transparent 1.5px),
+    linear-gradient(180deg, rgba(7, 11, 24, 0.96), rgba(3, 6, 16, 0.98));
+  overflow: hidden;
+}
+
+.planet-preview__viewport {
+  position: relative;
+  width: min(var(--planet-preview-display-size, 196px), 100%);
+  aspect-ratio: 1;
+  overflow: hidden;
+}
+
+.planet-preview__canvas,
+.planet-preview__strip {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  image-rendering: pixelated;
+  background: transparent;
+  opacity: 0;
+  transition: opacity 900ms ease;
+}
+
+.planet-preview__canvas--ready {
+  opacity: 1;
+}
+
+.planet-preview__strip {
+  width: calc(100% * var(--planet-preview-frame-count, 144));
+  max-width: none;
+  transform: translate3d(0, 0, 0);
+  animation: planet-preview-strip-spin 20s steps(144) infinite;
+  will-change: transform;
+}
+
+.planet-preview__strip--ready {
+  opacity: 1;
+}
+
+@keyframes planet-preview-strip-spin {
+  to {
+    transform: translate3d(-100%, 0, 0);
+  }
+}
+
+.planet-preview__loading {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.03), transparent);
+  animation: planet-preview-sheen 1.2s linear infinite;
+  pointer-events: none;
+}
+
+@keyframes planet-preview-sheen {
+  from {
+    transform: translateX(-30%);
+  }
+  to {
+    transform: translateX(30%);
+  }
 }
 
 .planet-pill {

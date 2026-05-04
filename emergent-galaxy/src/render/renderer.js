@@ -366,7 +366,9 @@ function buildTerritoryRenderData(edgeMap, state) {
       smoothedLoopsByTerritoryId.set(territoryId, {
         0: [],
         1: [],
+        2: [],
         3: [],
+        5: [],
       });
       continue;
     }
@@ -377,7 +379,9 @@ function buildTerritoryRenderData(edgeMap, state) {
     smoothedLoopsByTerritoryId.set(territoryId, {
       0: loops,
       1: loops.map((loop) => smoothClosedPolygon(loop, 1)),
+      2: loops.map((loop) => smoothClosedPolygon(loop, 2)),
       3: loops.map((loop) => smoothClosedPolygon(loop, 3)),
+      5: loops.map((loop) => smoothClosedPolygon(loop, 5)),
     });
   }
 
@@ -637,7 +641,7 @@ function getTerritoryRenderQuality(zoom, state) {
 
   if (zoom < 0.28) {
     return {
-      smoothingIterations: 1,
+      smoothingIterations: 2,
       shadowBlur: 8,
       outerBorderWidth: 6,
       topBorderWidth: 1.5,
@@ -649,7 +653,7 @@ function getTerritoryRenderQuality(zoom, state) {
   }
 
   return {
-    smoothingIterations: 3,
+    smoothingIterations: 5,
     shadowBlur: 22,
     outerBorderWidth: 10,
     topBorderWidth: 2.5,

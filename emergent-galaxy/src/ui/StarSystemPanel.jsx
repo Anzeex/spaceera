@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { getCapitalBonusMultiplier } from '../core/capitalBonuses.js';
 import { formatInfrastructureCost, MAX_INFRASTRUCTURE_LEVEL } from '../core/infrastructureCosts.js';
 import { getPopulationCreditsForPlanet } from '../core/resourceEconomy.js';
+import { PlanetPreview } from './PlanetPreview.jsx';
 import {
   calculatePlanetPopulationCap,
   calculatePlanetPopulationGrowth,
@@ -97,6 +98,8 @@ export function StarSystemPanel({
   star,
   territory,
   playerState,
+  ownerProfileImageUrl,
+  selectedPlanetId: controlledSelectedPlanetId,
   currentTerritoryId,
   hasPendingInfrastructureChanges,
   infrastructureStatusMessage,
@@ -116,8 +119,8 @@ export function StarSystemPanel({
   const [selectedPlanetId, setSelectedPlanetId] = useState(null);
 
   useEffect(() => {
-    setSelectedPlanetId(null);
-  }, [star?.id]);
+    setSelectedPlanetId(controlledSelectedPlanetId ?? null);
+  }, [controlledSelectedPlanetId, star?.id]);
 
   const selectedPlanet = useMemo(() => {
     if (!star?.planets?.length) return null;
@@ -137,8 +140,9 @@ export function StarSystemPanel({
   const poolUsed = getWeightedResourceAmount(poolResources);
   const canCollect = isOwnedByCurrentTerritory && poolUsed > 0;
   const canSetCapital = isOwnedByCurrentTerritory && !isCapital;
-  const ownerProfileImageUrl =
-    territory?.avatarImageUrl
+  const resolvedOwnerProfileImageUrl =
+    ownerProfileImageUrl
+    ?? territory?.avatarImageUrl
     ?? (isOwnedByCurrentTerritory ? playerState?.profileImageUrl ?? '' : '');
   const starPopulationGrowth = calculateStarPopulationGrowth(star, capitalGrowthMultiplier);
   const starPeriodsToFill = estimateStarDisplayPeriodsToFill(star, 100000, capitalGrowthMultiplier);
@@ -189,7 +193,7 @@ export function StarSystemPanel({
               <strong>{star.owner}</strong>
               <span
                 className="system-owner__avatar"
-                style={ownerProfileImageUrl
+                style={resolvedOwnerProfileImageUrl
                   ? undefined
                   : {
                       background: territory?.color
@@ -197,10 +201,10 @@ export function StarSystemPanel({
                         : 'linear-gradient(135deg, #1e293b, #93a4bd)',
                     }}
               >
-                {ownerProfileImageUrl ? (
+                {resolvedOwnerProfileImageUrl ? (
                   <img
                     className="system-owner__avatar-image"
-                    src={ownerProfileImageUrl}
+                    src={resolvedOwnerProfileImageUrl}
                     alt={`${star.owner} profile`}
                   />
                 ) : (String(star.owner ?? '?').trim().charAt(0).toUpperCase() || '?')}
@@ -255,6 +259,12 @@ export function StarSystemPanel({
           ))}
         </div>
       </section>
+
+      {selectedPlanet ? (
+        <section className="planet-preview-shell">
+          <PlanetPreview planet={selectedPlanet} />
+        </section>
+      ) : null}
 
       {selectedPlanet ? (
         <section className="planet-detail">

@@ -37,6 +37,7 @@ export function attachCameraControls(state) {
   canvas.addEventListener('pointerdown', (e) => {
     drag.active = true;
     drag.moved = false;
+    state.suppressCanvasClick = false;
     drag.lastX = e.clientX;
     drag.lastY = e.clientY;
     canvas.setPointerCapture(e.pointerId);
@@ -67,6 +68,7 @@ export function attachCameraControls(state) {
 
   canvas.addEventListener('pointerup', (e) => {
     drag.active = false;
+    state.suppressCanvasClick = drag.moved;
     setCameraMoving(false);
     canvas.releasePointerCapture(e.pointerId);
     state.invalidateRender?.();
@@ -74,6 +76,7 @@ export function attachCameraControls(state) {
 
   canvas.addEventListener('pointercancel', () => {
     drag.active = false;
+    state.suppressCanvasClick = false;
     setCameraMoving(false);
     state.invalidateRender?.();
   });

@@ -1,7 +1,7 @@
 import React, { useId, useState } from 'react';
 import { StarSystemPanel } from './StarSystemPanel.jsx';
 
-const BOTTOM_BANNER_URL = '/bottom-banner.png';
+const PROFILE_BANNER_URL = '/top-banner.png';
 const MAX_PROFILE_IMAGE_BYTES = 100 * 1024;
 
 function dataUrlByteLength(dataUrl) {
@@ -136,7 +136,7 @@ function PlayerSummaryCard({ playerState, playerSummary, onProfileImageUpload, c
     <section
       className="player-summary"
       aria-label="Player summary"
-      style={{ '--player-summary-banner-image': `url(${BOTTOM_BANNER_URL})` }}
+      style={{ '--player-summary-banner-image': `url(${PROFILE_BANNER_URL})` }}
     >
       <div className="player-summary__avatar-wrap">
         <div
@@ -264,6 +264,12 @@ function ProductionView({
   productionInfoText,
   productionEntries,
 }) {
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const selectedItem =
+    itemDefinitions.find((item) => item.id === selectedProductionItemId) ??
+    itemDefinitions[0] ??
+    null;
+
   if (!playerState) {
     return <div className="menu-empty">Log in to use production.</div>;
   }
@@ -273,16 +279,53 @@ function ProductionView({
       <section className="menu-section">
         <div className="menu-section__title">Production Queue</div>
         <div className="production-controls">
-          <select
-            value={selectedProductionItemId ?? ''}
-            onChange={(event) => onSelectedProductionItemIdChange?.(event.target.value)}
-          >
-            {itemDefinitions.map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.name} ({compactNumber(playerState?.items?.[item.id] ?? 0)})
-              </option>
-            ))}
-          </select>
+          <div className="production-dropdown">
+            <button
+              type="button"
+              className="production-dropdown__button"
+              onClick={() => setIsDropdownOpen((isOpen) => !isOpen)}
+              disabled={!selectedItem}
+              aria-haspopup="listbox"
+              aria-expanded={isDropdownOpen}
+            >
+              {selectedItem ? (
+                <>
+                  <span className="production-dropdown__selected">
+                    {renderItemIcon(selectedItem, 22)}
+                    <span>{selectedItem.name}</span>
+                    <small>{compactNumber(playerState?.items?.[selectedItem.id] ?? 0)}</small>
+                  </span>
+                  <strong>{compactNumber(selectedItem.productionCost)} PC</strong>
+                </>
+              ) : (
+                <span>No craftable items</span>
+              )}
+            </button>
+            {isDropdownOpen ? (
+              <div className="production-dropdown__menu" role="listbox">
+                {itemDefinitions.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    className={`production-dropdown__option${item.id === selectedItem?.id ? ' production-dropdown__option--active' : ''}`}
+                    onClick={() => {
+                      onSelectedProductionItemIdChange?.(item.id);
+                      setIsDropdownOpen(false);
+                    }}
+                    role="option"
+                    aria-selected={item.id === selectedItem?.id}
+                  >
+                    <span className="production-dropdown__option-main">
+                      {renderItemIcon(item, 22)}
+                      <span>{item.name}</span>
+                      <small>{compactNumber(playerState?.items?.[item.id] ?? 0)}</small>
+                    </span>
+                    <strong>{compactNumber(item.productionCost)} PC</strong>
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </div>
           <button type="button" onClick={onAddProduction}>Add</button>
         </div>
         <div className="menu-subtle">{productionInfoText}</div>
@@ -437,6 +480,50 @@ function ObjectivesView({ playerState, playerSummary }) {
   );
 }
 
+function ShipDesignerView({ playerState }) {
+  const ships = playerState?.ships ?? playerState?.fleet?.ships ?? [];
+
+  if (!playerState) {
+    return <div className="menu-empty">Log in to design ships.</div>;
+  }
+
+  return (
+    <div className="menu-stack">
+      <section className="menu-section">
+        <div className="menu-section__title">Ship Designer</div>
+        <div className="menu-subtle">
+          This panel is ready for the ship builder flow. Next step is to create blueprints here and send saved designs into production.
+        </div>
+      </section>
+
+      <section className="menu-section">
+        <div className="menu-section__title">Current Fleet</div>
+        {ships.length ? (
+          <div className="menu-list">
+            {ships.map((ship, index) => (
+              <div key={ship.id ?? `${ship.name ?? ship.type}-${index}`} className="menu-row">
+                <span>{ship.name ?? ship.type ?? 'Ship'}</span>
+                <strong>{compactNumber(ship.count ?? 1)}</strong>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="menu-empty">No ships yet.</div>
+        )}
+      </section>
+
+      <section className="menu-section">
+        <div className="menu-section__title">Planned Flow</div>
+        <div className="menu-list">
+          <div className="menu-row"><span>Create blueprint</span><strong>Pending</strong></div>
+          <div className="menu-row"><span>Save prefab</span><strong>Pending</strong></div>
+          <div className="menu-row"><span>Produce design</span><strong>Pending</strong></div>
+        </div>
+      </section>
+    </div>
+  );
+}
+
 export function RightSideMenu(props) {
   const {
     isOpen,
@@ -444,6 +531,8 @@ export function RightSideMenu(props) {
     onClose,
     selectedStar,
     selectedTerritory,
+    selectedOwnerProfileImageUrl,
+    selectedPlanetId,
     currentTerritoryId,
     playerState,
     playerSummary,
@@ -522,6 +611,14 @@ export function RightSideMenu(props) {
         />
       );
       break;
+    case 'ship-designer':
+      title = 'Ship Designer';
+      content = (
+        <ShipDesignerView
+          playerState={playerState}
+        />
+      );
+      break;
     case 'market':
       title = 'Market';
       content = <div className="menu-empty">Market is not available yet.</div>;
@@ -539,6 +636,8 @@ export function RightSideMenu(props) {
           star={selectedStar}
           territory={selectedTerritory}
           playerState={playerState}
+          ownerProfileImageUrl={selectedOwnerProfileImageUrl}
+          selectedPlanetId={selectedPlanetId}
           currentTerritoryId={currentTerritoryId}
           hasPendingInfrastructureChanges={hasPendingInfrastructureChanges}
           infrastructureStatusMessage={infrastructureStatusMessage}

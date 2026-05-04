@@ -61,7 +61,8 @@ const RESOURCE_UPDATE_INTERVALS_MS = {
   hour: 60 * 60 * 1000,
   minute: 60 * 1000,
 };
-const TOP_BANNER_URL = '/top-banner.png';
+const PERFORMANCE_GRAPH_REDRAW_INTERVAL_MS = 250;
+const PROFILE_BANNER_URL = '/top-banner.png';
 
 export function createGame(container, galaxyOptions = {}) {
   const persistentSeed = galaxyOptions.seed ?? MULTIPLAYER_GALAXY_SEED;
@@ -272,16 +273,16 @@ export function createGame(container, galaxyOptions = {}) {
   profilePanel.style.boxSizing = 'border-box';
   profilePanel.style.padding = '12px 14px';
   profilePanel.style.backgroundImage =
-    `linear-gradient(180deg, rgba(8, 13, 27, 0.78), rgba(5, 8, 22, 0.72)), url(${TOP_BANNER_URL})`;
+    `linear-gradient(180deg, rgba(8, 13, 27, 0.78), rgba(5, 8, 22, 0.72)), url(${PROFILE_BANNER_URL})`;
   profilePanel.style.backgroundSize = 'cover';
-  profilePanel.style.backgroundPosition = 'center';
+  profilePanel.style.backgroundPosition = 'center top';
   profilePanel.style.backgroundRepeat = 'no-repeat';
   profilePanel.style.borderLeft = '1px solid rgba(148,163,184,0.18)';
   profilePanel.style.borderBottom = '0';
   profilePanel.style.borderRadius = '0';
   profilePanel.style.boxShadow = '-18px 0 42px rgba(0,0,0,0.24)';
   profilePanel.style.color = '#e8efff';
-  profilePanel.style.fontSize = '12px';
+  profilePanel.style.fontSize = '13px';
   profilePanel.style.backdropFilter = 'blur(16px)';
   container.appendChild(profilePanel);
 
@@ -298,8 +299,8 @@ export function createGame(container, galaxyOptions = {}) {
   profileAvatar.style.position = 'relative';
   profileAvatar.style.alignItems = 'center';
   profileAvatar.style.justifyContent = 'center';
-  profileAvatar.style.width = '36px';
-  profileAvatar.style.height = '36px';
+  profileAvatar.style.width = '38px';
+  profileAvatar.style.height = '38px';
   profileAvatar.style.borderRadius = '999px';
   profileAvatar.style.background = 'linear-gradient(135deg, #93a4bd, #7c8faa)';
   profileAvatar.style.color = '#07111f';
@@ -318,6 +319,7 @@ export function createGame(container, galaxyOptions = {}) {
   profileAvatarText.textContent = 'P';
   profileAvatarText.style.position = 'relative';
   profileAvatarText.style.zIndex = '1';
+  profileAvatarText.style.fontSize = '14px';
   profileAvatarText.style.pointerEvents = 'none';
   profileAvatar.appendChild(profileAvatarText);
 
@@ -354,8 +356,8 @@ export function createGame(container, galaxyOptions = {}) {
   profileLevelRing.style.display = 'flex';
   profileLevelRing.style.alignItems = 'center';
   profileLevelRing.style.justifyContent = 'center';
-  profileLevelRing.style.width = '42px';
-  profileLevelRing.style.height = '42px';
+  profileLevelRing.style.width = '44px';
+  profileLevelRing.style.height = '44px';
   profileLevelRing.style.borderRadius = '999px';
   profileLevelRing.style.flex = '0 0 auto';
   profileLevelRing.style.background = 'conic-gradient(#93a4bd 0deg, rgba(255,255,255,0.1) 0deg)';
@@ -373,7 +375,7 @@ export function createGame(container, galaxyOptions = {}) {
   profileLevelNode.style.background = 'rgba(8, 13, 27, 0.96)';
   profileLevelNode.style.color = '#e8efff';
   profileLevelNode.style.fontWeight = '900';
-  profileLevelNode.style.fontSize = '14px';
+  profileLevelNode.style.fontSize = '15px';
   profileLevelNode.style.fontVariantNumeric = 'tabular-nums';
   profileLevelRing.appendChild(profileLevelNode);
 
@@ -401,7 +403,7 @@ export function createGame(container, galaxyOptions = {}) {
   profileCreditsNode.style.whiteSpace = 'nowrap';
   profileCreditsNode.style.overflow = 'hidden';
   profileCreditsNode.style.textOverflow = 'ellipsis';
-  profileCreditsNode.style.fontSize = '12px';
+  profileCreditsNode.style.fontSize = '13px';
   profileCreditsNode.style.fontWeight = '800';
   profileCreditsNode.style.width = '100%';
   profileCreditsNode.style.minWidth = '0';
@@ -420,7 +422,7 @@ export function createGame(container, galaxyOptions = {}) {
   profileGemsNode.style.whiteSpace = 'nowrap';
   profileGemsNode.style.overflow = 'hidden';
   profileGemsNode.style.textOverflow = 'ellipsis';
-  profileGemsNode.style.fontSize = '10px';
+  profileGemsNode.style.fontSize = '11px';
   profileGemsNode.style.fontWeight = '800';
   profileGemsNode.style.width = '100%';
   profileGemsNode.style.minWidth = '0';
@@ -446,7 +448,7 @@ export function createGame(container, galaxyOptions = {}) {
     const resourceIconNode = document.createElement('span');
     resourceIconNode.textContent = resource.icon;
     resourceIconNode.style.color = resource.color;
-    resourceIconNode.style.fontSize = '10px';
+    resourceIconNode.style.fontSize = '11px';
     resourceIconNode.style.fontWeight = '800';
     resourceIconNode.style.lineHeight = '1';
 
@@ -454,7 +456,7 @@ export function createGame(container, galaxyOptions = {}) {
     resourceAmountNode.textContent = '0';
     resourceAmountNode.style.color = '#e8efff';
     resourceAmountNode.style.fontVariantNumeric = 'tabular-nums';
-    resourceAmountNode.style.fontSize = '10px';
+    resourceAmountNode.style.fontSize = '11px';
     resourceAmountNode.style.fontWeight = '800';
     resourceAmountNode.style.whiteSpace = 'nowrap';
 
@@ -467,17 +469,17 @@ export function createGame(container, galaxyOptions = {}) {
   const floatingEnergyBox = document.createElement('div');
   floatingEnergyBox.style.position = 'absolute';
   floatingEnergyBox.style.top = '100%';
-  floatingEnergyBox.style.right = '14px';
+  floatingEnergyBox.style.right = '30px';
   floatingEnergyBox.style.transform = 'translateY(-50%)';
   floatingEnergyBox.style.zIndex = '34';
   floatingEnergyBox.style.display = 'flex';
   floatingEnergyBox.style.alignItems = 'center';
   floatingEnergyBox.style.gap = '6px';
-  floatingEnergyBox.style.width = '46%';
-  floatingEnergyBox.style.minWidth = 'unset';
-  floatingEnergyBox.style.maxWidth = '190px';
-  floatingEnergyBox.style.aspectRatio = '8 / 1';
-  floatingEnergyBox.style.padding = '2px 8px';
+  floatingEnergyBox.style.width = 'fit-content';
+  floatingEnergyBox.style.minWidth = '0';
+  floatingEnergyBox.style.maxWidth = 'none';
+  floatingEnergyBox.style.aspectRatio = 'auto';
+  floatingEnergyBox.style.padding = '2px 6px 2px 8px';
   floatingEnergyBox.style.background = 'linear-gradient(180deg, rgba(16, 23, 38, 0.82), rgba(7, 12, 24, 0.78))';
   floatingEnergyBox.style.border = '1px solid rgba(158, 176, 204, 0.18)';
   floatingEnergyBox.style.borderRadius = '4px';
@@ -494,7 +496,7 @@ export function createGame(container, galaxyOptions = {}) {
   profileEnergyIconNode.style.width = '16px';
   profileEnergyIconNode.style.height = '16px';
   profileEnergyIconNode.style.color = '#d7e1f2';
-  profileEnergyIconNode.style.fontSize = '10px';
+  profileEnergyIconNode.style.fontSize = '11px';
   profileEnergyIconNode.style.fontWeight = '800';
   profileEnergyIconNode.style.lineHeight = '1';
   profileEnergyIconNode.style.flex = '0 0 auto';
@@ -504,15 +506,16 @@ export function createGame(container, galaxyOptions = {}) {
   profileEnergyUsageNode.textContent = '0';
   profileEnergyUsageNode.style.color = 'rgba(232,239,255,0.88)';
   profileEnergyUsageNode.style.fontVariantNumeric = 'tabular-nums';
-  profileEnergyUsageNode.style.fontSize = '10px';
+  profileEnergyUsageNode.style.fontSize = '11px';
   profileEnergyUsageNode.style.fontWeight = '800';
   profileEnergyUsageNode.style.whiteSpace = 'nowrap';
   floatingEnergyBox.appendChild(profileEnergyUsageNode);
 
   const profileEnergyBarTrack = document.createElement('div');
   profileEnergyBarTrack.style.position = 'relative';
-  profileEnergyBarTrack.style.flex = '1 1 auto';
-  profileEnergyBarTrack.style.minWidth = '72px';
+  profileEnergyBarTrack.style.flex = '0 0 56px';
+  profileEnergyBarTrack.style.minWidth = '56px';
+  profileEnergyBarTrack.style.maxWidth = '56px';
   profileEnergyBarTrack.style.height = '3px';
   profileEnergyBarTrack.style.borderRadius = '0';
   profileEnergyBarTrack.style.background = 'rgba(255,255,255,0.12)';
@@ -533,7 +536,7 @@ export function createGame(container, galaxyOptions = {}) {
   profileEnergyMaxNode.textContent = '0';
   profileEnergyMaxNode.style.color = 'rgba(190, 202, 224, 0.84)';
   profileEnergyMaxNode.style.fontVariantNumeric = 'tabular-nums';
-  profileEnergyMaxNode.style.fontSize = '9px';
+  profileEnergyMaxNode.style.fontSize = '10px';
   profileEnergyMaxNode.style.fontWeight = '800';
   profileEnergyMaxNode.style.whiteSpace = 'nowrap';
   floatingEnergyBox.appendChild(profileEnergyMaxNode);
@@ -562,7 +565,7 @@ export function createGame(container, galaxyOptions = {}) {
   objectivesButton.style.border = '1px solid rgba(148,163,184,0.18)';
   objectivesButton.style.borderRadius = '14px';
   objectivesButton.style.cursor = 'pointer';
-  objectivesButton.style.fontSize = '15px';
+  objectivesButton.style.fontSize = '16px';
   objectivesButton.style.fontWeight = '800';
   objectivesButton.style.lineHeight = '1';
   objectivesButton.style.flex = '0 0 auto';
@@ -585,7 +588,7 @@ export function createGame(container, galaxyOptions = {}) {
   notificationButton.style.border = '1px solid rgba(148,163,184,0.18)';
   notificationButton.style.borderRadius = '14px';
   notificationButton.style.cursor = 'pointer';
-  notificationButton.style.fontSize = '15px';
+  notificationButton.style.fontSize = '16px';
   notificationButton.style.lineHeight = '1';
   notificationButton.style.flex = '0 0 auto';
   topActionGroup.appendChild(notificationButton);
@@ -651,6 +654,9 @@ export function createGame(container, galaxyOptions = {}) {
 
   const productionButton = createProfilePanelButton('Production', '⚙');
   panelNavBar.appendChild(productionButton);
+
+  const shipDesignerButton = createProfilePanelButton('Ships', 'S');
+  panelNavBar.appendChild(shipDesignerButton);
 
   const marketButton = createProfilePanelButton('Market', '$');
   panelNavBar.appendChild(marketButton);
@@ -747,6 +753,9 @@ export function createGame(container, galaxyOptions = {}) {
   productionSection.appendChild(productionControls);
 
   let selectedProductionItemId = ITEM_DEFINITIONS[0]?.id ?? null;
+  let rightSideMenuHasRendered = false;
+  let rightSideMenuPendingAfterMotion = false;
+  let lastPerformanceGraphDrawAt = 0;
 
   const productionDropdown = document.createElement('div');
   productionDropdown.style.position = 'relative';
@@ -1109,13 +1118,18 @@ export function createGame(container, galaxyOptions = {}) {
     currentTerritoryId: null,
     territoryRevision: 0,
     territoryBrushSize: 1,
+    selectedPlanetId: null,
+    isApplyingDeepLink: false,
     showResourceDebug: false,
     showPerformanceGraph: true,
     performanceMode: false,
     isCameraMoving: false,
     showPopulationTiming: false,
     playerState: null,
+    suppressCanvasClick: false,
     cachedPlayerStates: new Map(),
+    loadingOwnerProfileIds: new Set(),
+    attemptedOwnerProfileIds: new Set(),
     viewedProfileState: null,
     viewedProfileLoading: false,
     viewedProfileErrorMessage: '',
@@ -1150,6 +1164,10 @@ export function createGame(container, galaxyOptions = {}) {
 
   state.onCameraMovementChanged = () => {
     renderer.resize();
+    if (!state.isCameraMoving && rightSideMenuPendingAfterMotion) {
+      rightSideMenuPendingAfterMotion = false;
+      renderRightSideMenu({ force: true });
+    }
   };
 
   resourceDebugCheckbox.addEventListener('change', () => {
@@ -1692,6 +1710,114 @@ export function createGame(container, galaxyOptions = {}) {
     return null;
   }
 
+  const LINKABLE_PANEL_NAMES = new Set([
+    'inventory',
+    'profile',
+    'skills',
+    'production',
+    'ship-designer',
+    'market',
+    'alliance',
+    'objectives',
+    'system',
+  ]);
+
+  function getDeepLinkParams() {
+    const hash = window.location.hash.startsWith('#')
+      ? window.location.hash.slice(1)
+      : window.location.hash;
+    return new URLSearchParams(hash);
+  }
+
+  function writeDeepLink({ replace = false } = {}) {
+    if (state.isApplyingDeepLink) {
+      return;
+    }
+
+    const isOpen = rightPanel.dataset.open === 'true';
+    const activePanel = rightPanel.dataset.panel ?? 'inventory';
+    const params = new URLSearchParams();
+
+    if (isOpen && LINKABLE_PANEL_NAMES.has(activePanel)) {
+      params.set('panel', activePanel);
+      if (activePanel === 'profile') {
+        const viewedPlayerId = state.viewedProfileState?.playerId ?? state.currentPlayerId ?? '';
+        if (viewedPlayerId) {
+          params.set('player', viewedPlayerId);
+        }
+      }
+      if (activePanel === 'system' && state.selection.selectedStarId) {
+        params.set('star', state.selection.selectedStarId);
+        if (state.selectedPlanetId) {
+          params.set('planet', state.selectedPlanetId);
+        }
+      }
+    }
+
+    const nextUrl = params.toString()
+      ? `${window.location.pathname}${window.location.search}#${params.toString()}`
+      : `${window.location.pathname}${window.location.search}`;
+
+    if (replace) {
+      window.history.replaceState(null, '', nextUrl);
+    } else {
+      window.history.pushState(null, '', nextUrl);
+    }
+  }
+
+  function applyDeepLink() {
+    const params = getDeepLinkParams();
+    const panelName = params.get('panel');
+
+    if (!panelName || !LINKABLE_PANEL_NAMES.has(panelName)) {
+      if (!window.location.hash && rightPanel.dataset.open === 'true') {
+        state.isApplyingDeepLink = true;
+        setRightPanelOpen(false);
+        state.isApplyingDeepLink = false;
+        state.invalidateRender();
+      }
+      return false;
+    }
+
+    state.isApplyingDeepLink = true;
+
+    if (panelName === 'system') {
+      const starId = params.get('star');
+      const star = starId ? state.starsById.get(starId) : null;
+
+      if (star) {
+        state.selection.selectedStarId = star.id;
+        const planetId = params.get('planet');
+        state.selectedPlanetId = star.planets?.some((planet) => planet.id === planetId) ? planetId : null;
+        rightPanel.dataset.panel = 'system';
+        setRightPanelOpen(true);
+        void ensureCurrentPlayerStateLoaded();
+      }
+    } else if (panelName === 'profile') {
+      const linkedPlayerId = params.get('player')?.trim() || state.currentPlayerId;
+
+      if (linkedPlayerId && linkedPlayerId !== state.currentPlayerId) {
+        const linkedTerritory = getProfileLinkTerritory(linkedPlayerId);
+        void openViewedProfile(linkedTerritory);
+      } else {
+        clearViewedProfile();
+        rightPanel.dataset.panel = 'profile';
+        setRightPanelOpen(true);
+      }
+    } else {
+      state.selectedPlanetId = null;
+      if (rightPanel.dataset.panel === 'system') {
+        abandonPendingInfrastructureChanges();
+      }
+      rightPanel.dataset.panel = panelName;
+      setRightPanelOpen(true);
+    }
+
+    state.isApplyingDeepLink = false;
+    state.invalidateRender();
+    return true;
+  }
+
   function getProductionViewModel() {
     const queue = state.playerState?.productionQueue ?? [];
     const industryLevel = getTotalIndustryInfrastructure();
@@ -1778,19 +1904,110 @@ export function createGame(container, galaxyOptions = {}) {
         energyOutput: targetPlayerState?.energyOutput ?? 0,
         activeEnergyConsumption: targetPlayerState?.activeEnergyConsumption ?? 0,
         inactiveInfrastructureCount: targetPlayerState?.inactiveInfrastructureCount ?? 0,
-      };
+    };
+  }
+
+  function getTerritoryProfileImageUrl(territory) {
+    if (!territory?.id) {
+      return '';
     }
+
+    if (territory.id === state.currentPlayerId) {
+      return state.playerState?.profileImageUrl
+        ?? state.playerState?.territory?.avatarImageUrl
+        ?? territory.avatarImageUrl
+        ?? '';
+    }
+
+    const cachedProfile = state.cachedPlayerStates.get(territory.id);
+    return cachedProfile?.profileImageUrl
+      ?? cachedProfile?.territory?.avatarImageUrl
+      ?? territory.avatarImageUrl
+      ?? '';
+  }
+
+  function getProfileLinkTerritory(playerId) {
+    const existingTerritory = state.territories.get(playerId);
+    if (existingTerritory) {
+      return existingTerritory;
+    }
+
+    const cachedProfile = state.cachedPlayerStates.get(playerId);
+    const cachedTerritory = cachedProfile?.territory;
+    const name = cachedTerritory?.name ?? cachedProfile?.playerName ?? playerId;
+
+    return {
+      id: playerId,
+      name,
+      color: normalizeTerritoryColor(cachedTerritory?.color, getDefaultPlayerColor(playerId)),
+      faction: cachedTerritory?.faction ?? name,
+      avatarImageUrl: cachedProfile?.profileImageUrl ?? cachedTerritory?.avatarImageUrl ?? '',
+      capitalStarId: cachedTerritory?.capitalStarId ?? null,
+      stars: new Set(cachedTerritory?.stars ?? []),
+    };
+  }
+
+  async function preloadTerritoryProfileImage(territory) {
+    if (
+      !territory?.id
+      || territory.id === state.currentPlayerId
+      || state.loadingOwnerProfileIds.has(territory.id)
+      || state.attemptedOwnerProfileIds.has(territory.id)
+    ) {
+      return;
+    }
+
+    const cachedProfile = state.cachedPlayerStates.get(territory.id);
+    if (cachedProfile?.profileImageUrl || cachedProfile?.territory?.avatarImageUrl) {
+      return;
+    }
+
+    state.loadingOwnerProfileIds.add(territory.id);
+    state.attemptedOwnerProfileIds.add(territory.id);
+    try {
+      const response = await sync.fetchPlayerState(territory.id);
+      const profileImageUrl = response.player?.profileImageUrl ?? response.player?.territory?.avatarImageUrl ?? '';
+      const fetchedPlayerState = {
+        ...response.player,
+        playerName: territory.name ?? response.player.playerId,
+        profileImageUrl,
+        territory: {
+          ...getRuntimeTerritoryRecord(territory),
+          avatarImageUrl: profileImageUrl || territory.avatarImageUrl || '',
+        },
+      };
+      state.cachedPlayerStates.set(territory.id, structuredClone(fetchedPlayerState));
+      if (profileImageUrl) {
+        territory.avatarImageUrl = profileImageUrl;
+      }
+      state.invalidateRender();
+    } catch (error) {
+      // Owner avatars are nice-to-have; keep the system panel usable if the profile server is unavailable.
+    } finally {
+      state.loadingOwnerProfileIds.delete(territory.id);
+    }
+  }
 
   function getPlayerSummaryViewModel() {
       return getPlayerSummaryViewModelForPlayerState(state.playerState, state.currentPlayerId);
     }
 
-    function renderRightSideMenu() {
+    function renderRightSideMenu({ force = false } = {}) {
+      if (!force && state.isCameraMoving && rightSideMenuHasRendered) {
+        rightSideMenuPendingAfterMotion = true;
+        return;
+      }
+
       const selectedStar = state.starsById?.get(state.selection.selectedStarId) ?? null;
       const selectedTerritory = selectedStar
         ? findTerritoryByStarId(selectedStar.id)?.territory ?? null
         : null;
     const productionView = getProductionViewModel();
+    const selectedOwnerProfileImageUrl = getTerritoryProfileImageUrl(selectedTerritory);
+
+    if (selectedTerritory) {
+      void preloadTerritoryProfileImage(selectedTerritory);
+    }
 
     rightPanelRoot.render(
       React.createElement(RightSideMenu, {
@@ -1844,6 +2061,8 @@ export function createGame(container, galaxyOptions = {}) {
         productionEntries: state.playerState ? productionView.entries : [],
         selectedStar,
         selectedTerritory,
+        selectedOwnerProfileImageUrl,
+        selectedPlanetId: state.selectedPlanetId,
         currentTerritoryId: state.currentTerritoryId,
         hasPendingInfrastructureChanges: state.hasPendingInfrastructureChanges,
         infrastructureStatusMessage: state.infrastructureStatusMessage,
@@ -1856,8 +2075,10 @@ export function createGame(container, galaxyOptions = {}) {
         onSaveInfrastructureChanges: () => {
           void state.onSaveInfrastructureChanges?.();
         },
-          onSelectPlanet: () => {
+          onSelectPlanet: (planetId) => {
             abandonPendingInfrastructureChanges();
+            state.selectedPlanetId = planetId;
+            writeDeepLink({ replace: true });
           },
           onInspectTerritoryProfile: (territory) => {
             void openViewedProfile(territory);
@@ -1865,14 +2086,18 @@ export function createGame(container, galaxyOptions = {}) {
           onCloseSelectedSystem: () => {
             abandonPendingInfrastructureChanges();
             state.selection.selectedStarId = null;
+            state.selectedPlanetId = null;
             if (rightPanel.dataset.panel === 'system') {
               rightPanel.dataset.panel = 'inventory';
           }
+          writeDeepLink({ replace: true });
           state.invalidateRender();
         },
         onClose: () => setRightPanelOpen(false),
       })
     );
+    rightSideMenuHasRendered = true;
+    rightSideMenuPendingAfterMotion = false;
   }
 
   function findClosestStarsToStar(centerStar, count) {
@@ -2542,6 +2767,11 @@ export function createGame(container, galaxyOptions = {}) {
     renderRightSideMenu();
   }
 
+  function renderShipDesignerPanel() {
+    rightPanel.dataset.panel = 'ship-designer';
+    renderRightSideMenu();
+  }
+
   function renderMarketPanel() {
     rightPanel.dataset.panel = 'market';
     renderRightSideMenu();
@@ -2678,6 +2908,9 @@ export function createGame(container, galaxyOptions = {}) {
         case 'production':
           renderProductionPanel();
           break;
+      case 'ship-designer':
+        renderShipDesignerPanel();
+        break;
       case 'system':
         renderRightSideMenu();
         break;
@@ -2709,10 +2942,12 @@ export function createGame(container, galaxyOptions = {}) {
     rightPanel.style.transform = isOpen ? 'translateX(0)' : 'translateX(100%)';
     setPanelButtonActive(inventoryButton, isOpen && rightPanel.dataset.panel === 'inventory');
     setPanelButtonActive(productionButton, isOpen && rightPanel.dataset.panel === 'production');
+    setPanelButtonActive(shipDesignerButton, isOpen && rightPanel.dataset.panel === 'ship-designer');
     setPanelButtonActive(marketButton, isOpen && rightPanel.dataset.panel === 'market');
     setPanelButtonActive(allianceButton, isOpen && rightPanel.dataset.panel === 'alliance');
     setPanelButtonActive(objectivesButton, isOpen && rightPanel.dataset.panel === 'objectives');
     renderRightSideMenu();
+    writeDeepLink({ replace: !isOpen });
   }
 
   function toggleRightPanel(panelName) {
@@ -3227,7 +3462,10 @@ export function createGame(container, galaxyOptions = {}) {
       state.performanceHistory.shift();
     }
 
-    drawPerformanceGraph();
+    if (state.showPerformanceGraph && now - lastPerformanceGraphDrawAt >= PERFORMANCE_GRAPH_REDRAW_INTERVAL_MS) {
+      lastPerformanceGraphDrawAt = now;
+      drawPerformanceGraph();
+    }
   }
 
   function samplePerformanceGraphFrame() {
@@ -3252,8 +3490,12 @@ export function createGame(container, galaxyOptions = {}) {
       state.performanceHistory.shift();
     }
 
+    lastPerformanceGraphDrawAt = now;
     drawPerformanceGraph();
-    state.performanceGraphFrameId = requestAnimationFrame(samplePerformanceGraphFrame);
+    state.performanceGraphFrameId = window.setTimeout(
+      samplePerformanceGraphFrame,
+      PERFORMANCE_GRAPH_REDRAW_INTERVAL_MS
+    );
   }
 
   function getRecentPerformanceSamples(referenceTimestamp, windowMs = 1000) {
@@ -3271,12 +3513,15 @@ export function createGame(container, galaxyOptions = {}) {
     }
 
     state.lastFrameTimestamp = performance.now();
-    state.performanceGraphFrameId = requestAnimationFrame(samplePerformanceGraphFrame);
+    state.performanceGraphFrameId = window.setTimeout(
+      samplePerformanceGraphFrame,
+      PERFORMANCE_GRAPH_REDRAW_INTERVAL_MS
+    );
   }
 
   function stopPerformanceGraphLoop() {
     if (state.performanceGraphFrameId !== null) {
-      cancelAnimationFrame(state.performanceGraphFrameId);
+      window.clearTimeout(state.performanceGraphFrameId);
       state.performanceGraphFrameId = null;
     }
   }
@@ -3551,6 +3796,11 @@ export function createGame(container, galaxyOptions = {}) {
     toggleRightPanel('production');
   });
 
+  shipDesignerButton.addEventListener('click', () => {
+    setProfileDropdownOpen(false);
+    toggleRightPanel('ship-designer');
+  });
+
   marketButton.addEventListener('click', () => {
     setProfileDropdownOpen(false);
     toggleRightPanel('market');
@@ -3611,6 +3861,11 @@ export function createGame(container, galaxyOptions = {}) {
   const renderer = createRenderer(state);
 
   canvas.addEventListener('click', (event) => {
+    if (state.suppressCanvasClick) {
+      state.suppressCanvasClick = false;
+      return;
+    }
+
     const rect = canvas.getBoundingClientRect();
     const screenX = event.clientX - rect.left;
     const screenY = event.clientY - rect.top;
@@ -3674,6 +3929,7 @@ export function createGame(container, galaxyOptions = {}) {
             abandonPendingInfrastructureChanges();
           }
           state.selection.selectedStarId = closest.id;
+          state.selectedPlanetId = null;
           rightPanel.dataset.panel = 'system';
           setRightPanelOpen(true);
           void ensureCurrentPlayerStateLoaded();
@@ -3684,6 +3940,8 @@ export function createGame(container, galaxyOptions = {}) {
       if (!state.territoryMode) {
         abandonPendingInfrastructureChanges();
         state.selection.selectedStarId = null;
+        state.selectedPlanetId = null;
+        writeDeepLink({ replace: true });
         state.invalidateRender();
       }
     }
@@ -3764,10 +4022,13 @@ export function createGame(container, galaxyOptions = {}) {
         startPerformanceGraphLoop();
       }
       renderTopResourceBar();
+      applyDeepLink();
       renderer.resize();
       loop.start();
       loop.invalidate();
       window.addEventListener('resize', renderer.resize);
+      window.addEventListener('hashchange', applyDeepLink);
+      window.addEventListener('popstate', applyDeepLink);
     },
   };
 }
