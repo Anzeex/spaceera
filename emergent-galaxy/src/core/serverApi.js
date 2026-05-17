@@ -119,6 +119,22 @@ export async function resetServerGalaxyState(seed) {
   }
 }
 
+export async function resetServerGalaxyMapState(seed) {
+  try {
+    const response = await fetch(
+      `${API_BASE_URL}/api/galaxy-state?seed=${encodeURIComponent(seed)}&scope=galaxy`,
+      {
+        method: 'DELETE',
+      }
+    );
+
+    localServerUnavailable = false;
+    return parseJsonResponse(response);
+  } catch (error) {
+    throw markServerUnavailableIfNeeded(error);
+  }
+}
+
 export async function fetchPlayerState(seed, playerId) {
   try {
     const response = await fetch(

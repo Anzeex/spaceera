@@ -16,9 +16,13 @@ import {
   clearInfrastructurePowerState,
   getEffectiveInfrastructureLevel,
 } from './energy.js';
-import { RESOURCE_STANDARD_PRICES } from './economyConfig.js';
+import {
+  BASE_PLAYER_RESOURCE_PRODUCTION_PER_PERIOD,
+  RESOURCE_STANDARD_PRICES,
+} from './economyConfig.js';
 import {
   getItemDefinition,
+  getItemStorageSize,
   ITEM_DEFINITIONS,
   MINIMUM_ITEM_CRAFT_TIME_RATIO,
 } from './itemDefinitions.js';
@@ -37,6 +41,7 @@ import {
 } from './population.js';
 import { getWeightedResourceAmount } from './systemPools.js';
 import { createSpatialGrid } from '../utils/spatialGrid.js';
+import { calculateShipRuntime, getShipHullDefinition } from './shipClass.js';
 import {
   addResourcesToSystemPool,
   calculateSystemPoolCapacitiesForStars,
@@ -51,18 +56,54 @@ import {
 } from './resourceEconomy.js';
 
 const RESOURCE_DISPLAY = [
-  { key: 'Metals', icon: 'M', color: '#a8b5c7' },
-  { key: 'Food', icon: 'F', color: '#86efac' },
-  { key: 'Rare Earth Elements', icon: 'R', color: '#c4b5fd' },
-  { key: 'Uranium', icon: 'U', color: '#bef264' },
+  { key: 'Metals', icon: 'M', color: '#a8b5c7', iconPath: '/icons/metal.png' },
+  { key: 'Food', icon: 'F', color: '#86efac', iconPath: '/icons/food.png' },
+  { key: 'Rare Earth Elements', icon: 'R', color: '#c4b5fd', iconPath: '/icons/rare.png' },
+  { key: 'Uranium', icon: 'U', color: '#bef264', iconPath: '/icons/uranium.png' },
 ];
-const RESOURCE_KEYS = RESOURCE_DISPLAY.map((resource) => resource.key);
+const RESOURCE_KEYS = ['Credits', ...RESOURCE_DISPLAY.map((resource) => resource.key)];
 const RESOURCE_UPDATE_INTERVALS_MS = {
   hour: 60 * 60 * 1000,
   minute: 60 * 1000,
 };
+const BASE_PRODUCTION_OFFLINE_PERIOD_CAP = 10;
 const PERFORMANCE_GRAPH_REDRAW_INTERVAL_MS = 250;
 const PROFILE_BANNER_URL = '/top-banner.png';
+
+function applyResourceIconStyles(node, resource, size = 16, mode = 'badge') {
+  node.textContent = resource.iconPath ? '' : resource.icon;
+  node.style.display = 'inline-flex';
+  node.style.alignItems = 'center';
+  node.style.justifyContent = 'center';
+  node.style.width = `${size}px`;
+  node.style.height = `${size}px`;
+  node.style.flex = '0 0 auto';
+
+  if (resource.iconPath) {
+    node.style.backgroundImage = `url(${resource.iconPath})`;
+    node.style.backgroundPosition = 'center';
+    node.style.backgroundRepeat = 'no-repeat';
+    node.style.backgroundSize = `${Math.max(12, size - 2)}px ${Math.max(12, size - 2)}px`;
+    node.style.color = 'transparent';
+  } else {
+    node.style.backgroundImage = '';
+    node.style.color = resource.color;
+  }
+
+  if (mode === 'badge') {
+    node.style.borderRadius = '999px';
+    node.style.backgroundColor = resource.iconPath ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.08)';
+    node.style.fontWeight = '800';
+    node.style.fontSize = `${Math.max(11, size - 4)}px`;
+    node.style.lineHeight = '1';
+  } else {
+    node.style.borderRadius = '0';
+    node.style.backgroundColor = 'transparent';
+    node.style.fontWeight = '800';
+    node.style.fontSize = `${Math.max(11, size - 3)}px`;
+    node.style.lineHeight = '1';
+  }
+}
 
 export function createGame(container, galaxyOptions = {}) {
   const persistentSeed = galaxyOptions.seed ?? MULTIPLAYER_GALAXY_SEED;
@@ -134,17 +175,7 @@ export function createGame(container, galaxyOptions = {}) {
     amountRow.style.gap = '7px';
 
     const icon = document.createElement('span');
-    icon.textContent = resource.icon;
-    icon.style.display = 'inline-flex';
-    icon.style.alignItems = 'center';
-    icon.style.justifyContent = 'center';
-    icon.style.width = '16px';
-    icon.style.height = '16px';
-    icon.style.borderRadius = '999px';
-    icon.style.background = 'rgba(255,255,255,0.08)';
-    icon.style.color = resource.color;
-    icon.style.fontSize = '10px';
-    icon.style.fontWeight = '700';
+    applyResourceIconStyles(icon, resource, 16, 'badge');
     icon.style.border = `1px solid ${resource.color}44`;
     icon.style.boxShadow = `0 0 12px ${resource.color}22`;
 
@@ -446,11 +477,7 @@ export function createGame(container, galaxyOptions = {}) {
     resourceNode.style.gridRow = index % 2 === 0 ? '1' : '2';
 
     const resourceIconNode = document.createElement('span');
-    resourceIconNode.textContent = resource.icon;
-    resourceIconNode.style.color = resource.color;
-    resourceIconNode.style.fontSize = '11px';
-    resourceIconNode.style.fontWeight = '800';
-    resourceIconNode.style.lineHeight = '1';
+    applyResourceIconStyles(resourceIconNode, resource, 11, 'inline');
 
     const resourceAmountNode = document.createElement('span');
     resourceAmountNode.textContent = '0';
@@ -469,7 +496,7 @@ export function createGame(container, galaxyOptions = {}) {
   const floatingEnergyBox = document.createElement('div');
   floatingEnergyBox.style.position = 'absolute';
   floatingEnergyBox.style.top = '100%';
-  floatingEnergyBox.style.right = '30px';
+  floatingEnergyBox.style.right = '48px';
   floatingEnergyBox.style.transform = 'translateY(-50%)';
   floatingEnergyBox.style.zIndex = '34';
   floatingEnergyBox.style.display = 'flex';
@@ -601,10 +628,10 @@ export function createGame(container, galaxyOptions = {}) {
   panelNavBar.style.display = 'flex';
   panelNavBar.style.alignItems = 'stretch';
   panelNavBar.style.justifyContent = 'space-between';
-  panelNavBar.style.gap = '8px';
+  panelNavBar.style.gap = '10px';
   panelNavBar.style.width = sidePanelWidth;
   panelNavBar.style.boxSizing = 'border-box';
-  panelNavBar.style.padding = '12px 14px';
+  panelNavBar.style.padding = '8px 14px';
   panelNavBar.style.background = 'linear-gradient(180deg, rgba(8, 13, 27, 0.68), rgba(5, 8, 22, 0.68))';
   panelNavBar.style.borderLeft = '1px solid rgba(148,163,184,0.18)';
   panelNavBar.style.borderTop = '1px solid rgba(148,163,184,0.1)';
@@ -612,10 +639,61 @@ export function createGame(container, galaxyOptions = {}) {
   panelNavBar.style.backdropFilter = 'blur(16px)';
   container.appendChild(panelNavBar);
 
+  const panelNavItems = document.createElement('div');
+  panelNavItems.style.display = 'flex';
+  panelNavItems.style.alignItems = 'stretch';
+  panelNavItems.style.justifyContent = 'space-between';
+  panelNavItems.style.gap = '8px';
+  panelNavItems.style.flex = '1 1 auto';
+  panelNavItems.style.minWidth = '0';
+  panelNavBar.appendChild(panelNavItems);
+
+  const panelNavControls = document.createElement('div');
+  panelNavControls.style.position = 'absolute';
+  panelNavControls.style.right = '14px';
+  panelNavControls.style.bottom = '52px';
+  panelNavControls.style.zIndex = '36';
+  panelNavControls.style.display = 'none';
+  panelNavControls.style.alignItems = 'center';
+  panelNavControls.style.justifyContent = 'flex-end';
+  panelNavControls.style.gap = '8px';
+  panelNavControls.style.padding = '2px 7px';
+  panelNavControls.style.borderRadius = '7px';
+  panelNavControls.style.background = 'rgba(3, 7, 18, 0.36)';
+  panelNavControls.style.border = '1px solid rgba(148,163,184,0.16)';
+  panelNavControls.style.backdropFilter = 'blur(12px)';
+  panelNavControls.style.boxShadow = '0 12px 28px rgba(0,0,0,0.28)';
+  panelNavControls.style.pointerEvents = 'auto';
+  container.appendChild(panelNavControls);
+
+  function setBottomNavVisual(button, isActive = false) {
+    const isHovered = button.dataset.hovered === 'true';
+    button.dataset.active = isActive ? 'true' : 'false';
+    button.style.background = 'transparent';
+    button.style.border = '0';
+    button.style.boxShadow = 'none';
+    button.style.color = isActive || isHovered ? '#ffffff' : 'rgba(232,239,255,0.68)';
+    button.style.opacity = button.disabled ? '0.3' : isActive || isHovered ? '1' : '0.78';
+  }
+
+  function attachBottomNavHover(button) {
+    button.addEventListener('mouseenter', () => {
+      button.dataset.hovered = 'true';
+      setBottomNavVisual(button, button.dataset.active === 'true');
+    });
+    button.addEventListener('mouseleave', () => {
+      button.dataset.hovered = 'false';
+      setBottomNavVisual(button, button.dataset.active === 'true');
+    });
+  }
+
   function createProfilePanelButton(label, icon) {
     const button = document.createElement('button');
     button.title = label;
     button.setAttribute('aria-label', label);
+    button.dataset.bottomNav = 'true';
+    button.dataset.active = 'false';
+    button.dataset.hovered = 'false';
     button.style.display = 'flex';
     button.style.flexDirection = 'column';
     button.style.alignItems = 'center';
@@ -624,21 +702,22 @@ export function createGame(container, galaxyOptions = {}) {
     button.style.flex = '1 1 0';
     button.style.minWidth = '0';
     button.style.padding = '4px 0 2px';
-    button.style.background = 'rgba(255,255,255,0.05)';
-    button.style.color = '#e8efff';
-    button.style.border = '1px solid rgba(148,163,184,0.16)';
-    button.style.borderRadius = '14px';
+    button.style.background = 'transparent';
+    button.style.color = 'rgba(232,239,255,0.68)';
+    button.style.border = '0';
+    button.style.borderRadius = '0';
     button.style.cursor = 'pointer';
+    button.style.transition = 'opacity 140ms ease, color 140ms ease';
 
     const iconNode = document.createElement('span');
     iconNode.textContent = icon;
-    iconNode.style.fontSize = '16px';
+    iconNode.style.fontSize = '19px';
     iconNode.style.fontWeight = '800';
     iconNode.style.lineHeight = '1';
 
     const labelNode = document.createElement('span');
     labelNode.textContent = label;
-    labelNode.style.fontSize = '10px';
+    labelNode.style.fontSize = '10.5px';
     labelNode.style.fontWeight = '700';
     labelNode.style.lineHeight = '1';
     labelNode.style.whiteSpace = 'nowrap';
@@ -646,23 +725,60 @@ export function createGame(container, galaxyOptions = {}) {
 
     button.appendChild(iconNode);
     button.appendChild(labelNode);
+    attachBottomNavHover(button);
+    setBottomNavVisual(button, false);
     return button;
   }
 
   const inventoryButton = createProfilePanelButton('Inventory', '▦');
-  panelNavBar.appendChild(inventoryButton);
+  panelNavItems.appendChild(inventoryButton);
 
   const productionButton = createProfilePanelButton('Production', '⚙');
-  panelNavBar.appendChild(productionButton);
+  panelNavItems.appendChild(productionButton);
 
   const shipDesignerButton = createProfilePanelButton('Ships', 'S');
-  panelNavBar.appendChild(shipDesignerButton);
+  panelNavItems.appendChild(shipDesignerButton);
 
   const marketButton = createProfilePanelButton('Market', '$');
-  panelNavBar.appendChild(marketButton);
+  panelNavItems.appendChild(marketButton);
 
   const allianceButton = createProfilePanelButton('Alliance', '◆');
-  panelNavBar.appendChild(allianceButton);
+  panelNavItems.appendChild(allianceButton);
+
+  function createPanelControlButton(label, icon) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.title = label;
+    button.setAttribute('aria-label', label);
+    button.dataset.bottomNav = 'true';
+    button.dataset.active = 'false';
+    button.dataset.hovered = 'false';
+    button.style.display = 'inline-flex';
+    button.style.alignItems = 'center';
+    button.style.justifyContent = 'center';
+    button.style.width = '22px';
+    button.style.height = '26px';
+    button.style.padding = '0';
+    button.style.background = 'transparent';
+    button.style.border = '0';
+    button.style.borderRadius = '0';
+    button.style.color = 'rgba(232,239,255,0.78)';
+    button.style.cursor = 'pointer';
+    button.style.fontSize = '22px';
+    button.style.fontWeight = '400';
+    button.style.lineHeight = '1';
+    button.style.transition = 'opacity 140ms ease, color 140ms ease';
+    button.textContent = icon;
+    attachBottomNavHover(button);
+    setBottomNavVisual(button, false);
+    return button;
+  }
+
+  const panelBackButton = createPanelControlButton('Back', '‹');
+  panelNavControls.appendChild(panelBackButton);
+
+  const panelCloseButton = createPanelControlButton('Close', '×');
+  panelNavControls.appendChild(panelCloseButton);
 
   const rightPanel = document.createElement('div');
   rightPanel.style.position = 'absolute';
@@ -965,7 +1081,9 @@ export function createGame(container, galaxyOptions = {}) {
   const performanceStats = document.createElement('div');
   performanceStats.style.fontSize = '11px';
   performanceStats.style.marginBottom = '6px';
-  performanceStats.textContent = 'FPS: -- | Frame: -- ms | Load: --';
+  performanceStats.style.lineHeight = '1.35';
+  performanceStats.style.whiteSpace = 'pre-line';
+  performanceStats.textContent = 'FPS: -- | Frame: -- ms | Load: --\nLoading: -- s';
   performancePanel.appendChild(performanceStats);
 
   const performanceCanvas = document.createElement('canvas');
@@ -1006,7 +1124,9 @@ export function createGame(container, galaxyOptions = {}) {
   settingsPanel.style.border = '1px solid rgba(148,163,184,0.18)';
   settingsPanel.style.borderRadius = '18px';
   settingsPanel.style.padding = '12px';
-  settingsPanel.style.minWidth = '150px';
+  settingsPanel.style.width = '260px';
+  settingsPanel.style.maxHeight = 'min(78vh, 760px)';
+  settingsPanel.style.overflowY = 'auto';
   settingsPanel.style.display = 'none';
   settingsPanel.style.marginBottom = '8px';
   settingsPanel.style.boxShadow = '0 18px 42px rgba(0,0,0,0.28)';
@@ -1056,6 +1176,21 @@ export function createGame(container, galaxyOptions = {}) {
   performanceModeLabel.appendChild(performanceModeCheckbox);
   performanceModeLabel.appendChild(document.createTextNode('Performance Mode'));
   settingsPanel.appendChild(performanceModeLabel);
+
+  const blurTerritoriesLabel = document.createElement('label');
+  blurTerritoriesLabel.style.display = 'block';
+  blurTerritoriesLabel.style.color = 'white';
+  blurTerritoriesLabel.style.marginBottom = '8px';
+  blurTerritoriesLabel.style.cursor = 'pointer';
+
+  const blurTerritoriesCheckbox = document.createElement('input');
+  blurTerritoriesCheckbox.type = 'checkbox';
+  blurTerritoriesCheckbox.checked = false;
+  blurTerritoriesCheckbox.style.marginRight = '6px';
+
+  blurTerritoriesLabel.appendChild(blurTerritoriesCheckbox);
+  blurTerritoriesLabel.appendChild(document.createTextNode('Blur Territories'));
+  settingsPanel.appendChild(blurTerritoriesLabel);
 
   const populationTimingLabel = document.createElement('label');
   populationTimingLabel.style.display = 'block';
@@ -1124,6 +1259,7 @@ export function createGame(container, galaxyOptions = {}) {
     showPerformanceGraph: true,
     performanceMode: false,
     isCameraMoving: false,
+    showBlurTerritories: false,
     showPopulationTiming: false,
     playerState: null,
     suppressCanvasClick: false,
@@ -1136,6 +1272,7 @@ export function createGame(container, galaxyOptions = {}) {
     performanceHistory: [],
     lastFrameTimestamp: null,
     performanceGraphFrameId: null,
+    loadingTimeMs: null,
     hasPendingInfrastructureChanges: false,
     hasPendingTerritoryChanges: false,
     infrastructureBaselineByPlanetId: new Map(),
@@ -1145,11 +1282,21 @@ export function createGame(container, galaxyOptions = {}) {
     onCollectStarResources: null,
     onSetCapitalStar: null,
     onCameraMovementChanged: null,
+    onMoveMissionCalculateRoute: null,
+    onMoveMissionCommitMove: null,
+    onMoveMissionCancel: null,
+    onMoveMissionOpenFleet: null,
+    handleMoveMissionPointerDown: null,
+    handleMoveMissionPointerMove: null,
+    handleMoveMissionPointerUp: null,
+    handleMoveMissionPointerCancel: null,
     getInfrastructureBuildCost: null,
     canAffordInfrastructureUpgrade: null,
     getSerializablePlayerState: null,
     getSerializableGalaxyState: null,
     useReactSystemPanel: true,
+    moveMission: null,
+    moveMissions: [],
     invalidateRender: () => {},
   };
   const baselineState = captureBaselineState(state.galaxy);
@@ -1190,6 +1337,11 @@ export function createGame(container, galaxyOptions = {}) {
   performanceModeCheckbox.addEventListener('change', () => {
     state.performanceMode = performanceModeCheckbox.checked;
     renderer.resize();
+    state.invalidateRender();
+  });
+
+  blurTerritoriesCheckbox.addEventListener('change', () => {
+    state.showBlurTerritories = blurTerritoriesCheckbox.checked;
     state.invalidateRender();
   });
 
@@ -1426,8 +1578,11 @@ export function createGame(container, galaxyOptions = {}) {
       return;
     }
 
+    const territoryRevisionAtSaveStart = state.territoryRevision;
     await sync.pushState();
-    state.hasPendingTerritoryChanges = false;
+    if (state.territoryRevision === territoryRevisionAtSaveStart) {
+      state.hasPendingTerritoryChanges = false;
+    }
 
     if (state.currentPlayerId && state.playerState) {
       state.cachedPlayerStates.set(state.currentPlayerId, structuredClone(state.playerState));
@@ -1721,6 +1876,1349 @@ export function createGame(container, galaxyOptions = {}) {
     'objectives',
     'system',
   ]);
+  const SHIP_PANEL_VIEWS = new Set(['designer', 'fleet', 'mission']);
+
+  function getShipPanelView() {
+    const view = rightPanel.dataset.shipView ?? 'fleet';
+    return SHIP_PANEL_VIEWS.has(view) ? view : 'fleet';
+  }
+
+  function setShipPanelView(view) {
+    rightPanel.dataset.shipView = SHIP_PANEL_VIEWS.has(view) ? view : 'fleet';
+  }
+
+  function getShipPanelShipId() {
+    return rightPanel.dataset.shipId ?? '';
+  }
+
+  function setShipPanelShipId(shipId) {
+    if (shipId) {
+      rightPanel.dataset.shipId = shipId;
+      return;
+    }
+
+    delete rightPanel.dataset.shipId;
+  }
+
+  function getShipFleetModelKey(ship) {
+    return String(ship?.templateId ?? ship?.id ?? ship?.name ?? ship?.type ?? '');
+  }
+
+  function getShipFleetPosition(ship) {
+    return ship?.position ?? ship?.starId ?? null;
+  }
+
+  function isSameFleetPosition(left, right) {
+    if (left == null || right == null) {
+      return left == null && right == null;
+    }
+
+    return String(left) === String(right);
+  }
+
+  function setHighlightedFleetShip(ship) {
+    const modelKey = getShipFleetModelKey(ship);
+    if (!modelKey) {
+      delete rightPanel.dataset.fleetHighlightModelKey;
+      delete rightPanel.dataset.fleetHighlightPosition;
+      delete rightPanel.dataset.fleetHighlightMoveMissionId;
+      return;
+    }
+
+    rightPanel.dataset.fleetHighlightModelKey = modelKey;
+    rightPanel.dataset.fleetHighlightPosition = getShipFleetPosition(ship) ?? '__unknown__';
+    if (ship?.moveMissionId) {
+      rightPanel.dataset.fleetHighlightMoveMissionId = ship.moveMissionId;
+    } else {
+      delete rightPanel.dataset.fleetHighlightMoveMissionId;
+    }
+  }
+
+  function getHighlightedFleetShip() {
+    const modelKey = rightPanel.dataset.fleetHighlightModelKey;
+    if (!modelKey) {
+      return null;
+    }
+
+    const storedPosition = rightPanel.dataset.fleetHighlightPosition;
+    return {
+      modelKey,
+      position: storedPosition === '__unknown__' ? null : storedPosition ?? null,
+      moveMissionId: rightPanel.dataset.fleetHighlightMoveMissionId ?? null,
+    };
+  }
+
+  function getStarDistance(left, right) {
+    const dx = (left?.x ?? 0) - (right?.x ?? 0);
+    const dy = (left?.y ?? 0) - (right?.y ?? 0);
+    return Math.hypot(dx, dy);
+  }
+
+  function formatMoveDistance(lightYears) {
+    const value = Math.max(0, Number(lightYears) || 0);
+    if (value >= 10000) {
+      return `${Math.round(value).toLocaleString('en-US')} ly`;
+    }
+
+    if (value >= 1000) {
+      return `${Math.round(value / 10) * 10} ly`;
+    }
+
+    return `${Math.max(1, Math.round(value))} ly`;
+  }
+
+  function formatMoveTravelDays(days) {
+    const value = Math.max(0, Number(days) || 0);
+    if (value >= 365) {
+      const years = value / 365;
+      return `${years >= 10 ? Math.round(years) : years.toFixed(1)} years`;
+    }
+
+    if (value >= 2) {
+      return `${Math.round(value)} days`;
+    }
+
+    return `${Math.max(1, Math.round(value * 24))} hours`;
+  }
+
+  function formatMoveRealDuration(durationMs) {
+    const seconds = Math.max(1, Math.round((Number(durationMs) || 0) / 1000));
+    if (seconds >= 3600) {
+      const hours = Math.floor(seconds / 3600);
+      const minutes = Math.round((seconds % 3600) / 60);
+      return minutes > 0 ? `${hours}h ${minutes}m real time` : `${hours}h real time`;
+    }
+
+    if (seconds >= 60) {
+      return `${Math.round(seconds / 60)}m real time`;
+    }
+
+    return `${seconds}s real time`;
+  }
+
+  const moveRouteNeighborCache = new Map();
+  const moveRouteCache = new Map();
+  const moveRouteEdgeClearCache = new Map();
+  const MAX_DIRECT_MOVE_ROUTE_DISTANCE = 900;
+  const MAX_REFINED_MOVE_ROUTE_STARS = 512;
+  const MAX_MOVE_ROUTE_REFINEMENT_DEPTH = 24;
+  const GALAXY_RADIUS_LIGHT_YEARS = 50000;
+  const GALAXY_RADIUS_WORLD_UNITS = 18000;
+  const LIGHT_YEARS_PER_WORLD_UNIT = GALAXY_RADIUS_LIGHT_YEARS / GALAXY_RADIUS_WORLD_UNITS;
+  const BASE_MOVE_LIGHT_YEARS_PER_DAY = 12;
+  const MOVE_LIGHT_YEARS_PER_DAY_PER_SPEED = 7;
+  const MOVE_REAL_MS_PER_TRAVEL_DAY = 1000;
+  const MIN_MOVE_TRAVEL_DURATION_MS = 1200;
+
+  function pushRouteHeap(heap, node) {
+    heap.push(node);
+    let index = heap.length - 1;
+
+    while (index > 0) {
+      const parentIndex = Math.floor((index - 1) / 2);
+      if (heap[parentIndex].score <= node.score) {
+        break;
+      }
+
+      heap[index] = heap[parentIndex];
+      index = parentIndex;
+    }
+
+    heap[index] = node;
+  }
+
+  function popRouteHeap(heap) {
+    if (!heap.length) {
+      return null;
+    }
+
+    const first = heap[0];
+    const last = heap.pop();
+    if (heap.length && last) {
+      let index = 0;
+
+      while (true) {
+        const leftIndex = index * 2 + 1;
+        const rightIndex = leftIndex + 1;
+        if (leftIndex >= heap.length) {
+          break;
+        }
+
+        const smallerChildIndex =
+          rightIndex < heap.length && heap[rightIndex].score < heap[leftIndex].score
+            ? rightIndex
+            : leftIndex;
+
+        if (heap[smallerChildIndex].score >= last.score) {
+          break;
+        }
+
+        heap[index] = heap[smallerChildIndex];
+        index = smallerChildIndex;
+      }
+
+      heap[index] = last;
+    }
+
+    return first;
+  }
+
+  function getMoveRouteEdgeKey(leftStarId, rightStarId) {
+    return String(leftStarId) < String(rightStarId)
+      ? `${leftStarId}|${rightStarId}`
+      : `${rightStarId}|${leftStarId}`;
+  }
+
+  function getMoveRouteRangeCandidates(minX, minY, maxX, maxY) {
+    if (state.starSpatialIndex) {
+      return state.starSpatialIndex.queryRange(minX, minY, maxX, maxY);
+    }
+
+    return state.galaxy?.stars ?? [];
+  }
+
+  function findMoveRouteIntermediateStar(fromStar, toStar, excludedIds = new Set()) {
+    if (!fromStar || !toStar) {
+      return null;
+    }
+
+    const dx = toStar.x - fromStar.x;
+    const dy = toStar.y - fromStar.y;
+    const segmentDistanceSq = dx * dx + dy * dy;
+    if (segmentDistanceSq <= 0) {
+      return null;
+    }
+
+    const centerX = (fromStar.x + toStar.x) / 2;
+    const centerY = (fromStar.y + toStar.y) / 2;
+    const radius = Math.sqrt(segmentDistanceSq) / 2;
+    const radiusSq = radius * radius;
+    const candidates = getMoveRouteRangeCandidates(centerX - radius, centerY - radius, centerX + radius, centerY + radius);
+    let bestStar = null;
+    let bestScore = Infinity;
+
+    for (const candidate of candidates) {
+      if (
+        candidate.id === fromStar.id ||
+        candidate.id === toStar.id ||
+        excludedIds.has(candidate.id)
+      ) {
+        continue;
+      }
+
+      const centerDx = candidate.x - centerX;
+      const centerDy = candidate.y - centerY;
+      if (centerDx * centerDx + centerDy * centerDy > radiusSq * 0.995) {
+        continue;
+      }
+
+      const projection = ((candidate.x - fromStar.x) * dx + (candidate.y - fromStar.y) * dy) / segmentDistanceSq;
+      if (projection <= 0.04 || projection >= 0.96) {
+        continue;
+      }
+
+      const projectedX = fromStar.x + dx * projection;
+      const projectedY = fromStar.y + dy * projection;
+      const perpendicularDx = candidate.x - projectedX;
+      const perpendicularDy = candidate.y - projectedY;
+      const perpendicularDistanceSq = perpendicularDx * perpendicularDx + perpendicularDy * perpendicularDy;
+      const fromDistanceSq = (candidate.x - fromStar.x) ** 2 + (candidate.y - fromStar.y) ** 2;
+      const toDistanceSq = (candidate.x - toStar.x) ** 2 + (candidate.y - toStar.y) ** 2;
+      const longestHopSq = Math.max(fromDistanceSq, toDistanceSq);
+
+      if (longestHopSq >= segmentDistanceSq * 0.98) {
+        continue;
+      }
+
+      const balancePenalty = Math.abs(0.5 - projection) * segmentDistanceSq * 0.08;
+      const score = longestHopSq + perpendicularDistanceSq * 0.35 + balancePenalty;
+      if (score < bestScore) {
+        bestScore = score;
+        bestStar = candidate;
+      }
+    }
+
+    return bestStar;
+  }
+
+  function isMoveRouteEdgeClear(fromStar, toStar) {
+    if (!fromStar || !toStar) {
+      return false;
+    }
+
+    const edgeKey = getMoveRouteEdgeKey(fromStar.id, toStar.id);
+    if (moveRouteEdgeClearCache.has(edgeKey)) {
+      return moveRouteEdgeClearCache.get(edgeKey);
+    }
+
+    const clear = !findMoveRouteIntermediateStar(
+      fromStar,
+      toStar,
+      new Set([fromStar.id, toStar.id])
+    );
+    moveRouteEdgeClearCache.set(edgeKey, clear);
+    return clear;
+  }
+
+  function pushUniqueRouteId(path, starId) {
+    if (!starId) {
+      return;
+    }
+
+    if (path[path.length - 1] !== starId) {
+      path.push(starId);
+    }
+  }
+
+  function appendRefinedMoveRouteSegment(path, fromStarId, toStarId, usedIds, depth = 0) {
+    if (path.length >= MAX_REFINED_MOVE_ROUTE_STARS) {
+      pushUniqueRouteId(path, toStarId);
+      usedIds.add(toStarId);
+      return;
+    }
+
+    const fromStar = state.starsById?.get(fromStarId);
+    const toStar = state.starsById?.get(toStarId);
+    if (!fromStar || !toStar || depth >= MAX_MOVE_ROUTE_REFINEMENT_DEPTH) {
+      pushUniqueRouteId(path, toStarId);
+      usedIds.add(toStarId);
+      return;
+    }
+
+    const excludedIds = new Set(usedIds);
+    excludedIds.add(fromStarId);
+    excludedIds.add(toStarId);
+    const intermediateStar = findMoveRouteIntermediateStar(fromStar, toStar, excludedIds);
+    if (!intermediateStar) {
+      pushUniqueRouteId(path, toStarId);
+      usedIds.add(toStarId);
+      return;
+    }
+
+    usedIds.add(intermediateStar.id);
+    appendRefinedMoveRouteSegment(path, fromStarId, intermediateStar.id, usedIds, depth + 1);
+    appendRefinedMoveRouteSegment(path, intermediateStar.id, toStarId, usedIds, depth + 1);
+  }
+
+  function refineMoveRoutePath(routeStarIds) {
+    const compactRoute = [];
+    for (const starId of routeStarIds ?? []) {
+      if (starId && compactRoute[compactRoute.length - 1] !== starId) {
+        compactRoute.push(starId);
+      }
+    }
+
+    if (compactRoute.length <= 2) {
+      const fromStar = state.starsById?.get(compactRoute[0]);
+      const toStar = state.starsById?.get(compactRoute[1]);
+      if (compactRoute.length < 2 || isMoveRouteEdgeClear(fromStar, toStar)) {
+        return compactRoute;
+      }
+    }
+
+    if (compactRoute.length <= 1) {
+      return compactRoute;
+    }
+
+    const refinedRoute = [compactRoute[0]];
+    const usedIds = new Set(compactRoute);
+
+    for (let index = 0; index < compactRoute.length - 1; index += 1) {
+      appendRefinedMoveRouteSegment(
+        refinedRoute,
+        compactRoute[index],
+        compactRoute[index + 1],
+        usedIds
+      );
+    }
+
+    return refinedRoute;
+  }
+
+  function getMoveRouteNeighbors(starId, nearestCount = 14) {
+    const cacheKey = `${nearestCount}:${starId}`;
+    if (moveRouteNeighborCache.has(cacheKey)) {
+      return moveRouteNeighborCache.get(cacheKey);
+    }
+
+    const star = state.starsById?.get(starId);
+    if (!star || !state.starSpatialIndex) {
+      return [];
+    }
+
+    let radius = 500;
+    let candidates = [];
+
+    while (radius <= 14000) {
+      candidates = state.starSpatialIndex.queryRange(
+        star.x - radius,
+        star.y - radius,
+        star.x + radius,
+        star.y + radius
+      ).filter((candidate) => candidate.id !== star.id);
+
+      if (candidates.length >= nearestCount) {
+        break;
+      }
+
+      radius *= 1.7;
+    }
+
+    const sortedCandidates = candidates
+      .map((candidate) => {
+        const dx = candidate.x - star.x;
+        const dy = candidate.y - star.y;
+        const distanceSq = dx * dx + dy * dy;
+        return {
+          id: candidate.id,
+          distance: Math.sqrt(distanceSq),
+          distanceSq,
+        };
+      })
+      .sort((left, right) => left.distanceSq - right.distanceSq);
+
+    const neighbors = [];
+    for (const candidate of sortedCandidates) {
+      const candidateStar = state.starsById?.get(candidate.id);
+      if (!isMoveRouteEdgeClear(star, candidateStar)) {
+        continue;
+      }
+
+      neighbors.push({ id: candidate.id, distance: candidate.distance });
+      if (neighbors.length >= nearestCount) {
+        break;
+      }
+    }
+
+    moveRouteNeighborCache.set(cacheKey, neighbors);
+    return neighbors;
+  }
+
+  function findNearestStarToWorldPoint(worldPoint) {
+    let nearestStar = null;
+    let nearestDistanceSq = Infinity;
+
+    for (const star of state.galaxy?.stars ?? []) {
+      const dx = star.x - worldPoint.x;
+      const dy = star.y - worldPoint.y;
+      const distanceSq = dx * dx + dy * dy;
+      if (distanceSq < nearestDistanceSq) {
+        nearestDistanceSq = distanceSq;
+        nearestStar = star;
+      }
+    }
+
+    return nearestStar;
+  }
+
+  function findNearestRouteStarToWorldPoint(worldPoint, excludedIds = new Set()) {
+    if (!worldPoint) {
+      return null;
+    }
+
+    let candidates = [];
+    let radius = 600;
+
+    if (state.starSpatialIndex) {
+      while (radius <= 18000) {
+        candidates = state.starSpatialIndex
+          .queryRange(worldPoint.x - radius, worldPoint.y - radius, worldPoint.x + radius, worldPoint.y + radius)
+          .filter((star) => !excludedIds.has(star.id));
+
+        if (candidates.length) {
+          break;
+        }
+
+        radius *= 1.8;
+      }
+    }
+
+    if (!candidates.length) {
+      candidates = (state.galaxy?.stars ?? []).filter((star) => !excludedIds.has(star.id));
+    }
+
+    let nearestStar = null;
+    let nearestDistanceSq = Infinity;
+    for (const star of candidates) {
+      const dx = star.x - worldPoint.x;
+      const dy = star.y - worldPoint.y;
+      const distanceSq = dx * dx + dy * dy;
+      if (distanceSq < nearestDistanceSq) {
+        nearestStar = star;
+        nearestDistanceSq = distanceSq;
+      }
+    }
+
+    return nearestStar;
+  }
+
+  function buildInterpolatedMoveRoute(startStarId, destinationStarId) {
+    const startStar = state.starsById?.get(startStarId);
+    const destinationStar = state.starsById?.get(destinationStarId);
+    if (!startStar || !destinationStar) {
+      return [];
+    }
+
+    const distance = getStarDistance(startStar, destinationStar);
+    const stepCount = Math.max(2, Math.min(240, Math.ceil(distance / 650)));
+    const path = [startStarId];
+    const pathIds = new Set(path);
+
+    for (let step = 1; step < stepCount; step += 1) {
+      const progress = step / stepCount;
+      const worldPoint = {
+        x: startStar.x + (destinationStar.x - startStar.x) * progress,
+        y: startStar.y + (destinationStar.y - startStar.y) * progress,
+      };
+      const routeStar = findNearestRouteStarToWorldPoint(worldPoint, new Set([...pathIds, destinationStarId]));
+      if (!routeStar || pathIds.has(routeStar.id) || routeStar.id === destinationStarId) {
+        continue;
+      }
+
+      path.push(routeStar.id);
+      pathIds.add(routeStar.id);
+    }
+
+    path.push(destinationStarId);
+    return path;
+  }
+
+  function runAStarRoute(startStarId, destinationStarId, nearestCount) {
+    const destinationStar = state.starsById.get(destinationStarId);
+    if (!destinationStar) {
+      return [];
+    }
+
+    if (!startStarId || !destinationStarId) {
+      return [];
+    }
+
+    if (startStarId === destinationStarId) {
+      return [startStarId];
+    }
+
+    const openHeap = [];
+    const cameFrom = new Map();
+    const gScore = new Map([[startStarId, 0]]);
+    const visited = new Set();
+    const maxIterations = Math.max(1, state.galaxy?.stars?.length ?? 1);
+    let iterations = 0;
+
+    pushRouteHeap(openHeap, {
+      id: startStarId,
+      score: getStarDistance(state.starsById.get(startStarId), destinationStar),
+    });
+
+    while (openHeap.length && iterations < maxIterations) {
+      iterations += 1;
+      const current = popRouteHeap(openHeap);
+      const currentId = current?.id;
+      if (!currentId || visited.has(currentId)) {
+        continue;
+      }
+
+      visited.add(currentId);
+
+      if (!currentId) {
+        break;
+      }
+
+      if (currentId === destinationStarId) {
+        const path = [currentId];
+        while (cameFrom.has(path[0])) {
+          path.unshift(cameFrom.get(path[0]));
+        }
+        return path;
+      }
+
+      for (const neighbor of getMoveRouteNeighbors(currentId, nearestCount)) {
+        if (visited.has(neighbor.id)) {
+          continue;
+        }
+
+        const tentativeGScore = (gScore.get(currentId) ?? Infinity) + neighbor.distance;
+        if (tentativeGScore >= (gScore.get(neighbor.id) ?? Infinity)) {
+          continue;
+        }
+
+        cameFrom.set(neighbor.id, currentId);
+        gScore.set(neighbor.id, tentativeGScore);
+        pushRouteHeap(openHeap, {
+          id: neighbor.id,
+          score: tentativeGScore + getStarDistance(state.starsById.get(neighbor.id), destinationStar),
+        });
+      }
+    }
+
+    return [];
+  }
+
+  function calculateAStarRoute(startStarId, destinationStarId) {
+    if (!startStarId || !destinationStarId) {
+      return [];
+    }
+
+    if (startStarId === destinationStarId) {
+      return [startStarId];
+    }
+
+    const routeCacheKey = `${startStarId}->${destinationStarId}`;
+    if (moveRouteCache.has(routeCacheKey)) {
+      return [...moveRouteCache.get(routeCacheKey)];
+    }
+
+    const startStar = state.starsById?.get(startStarId);
+    const destinationStar = state.starsById?.get(destinationStarId);
+    const directRouteDistance = getStarDistance(startStar, destinationStar);
+
+    for (const nearestCount of [14, 24, 40, 64, 96]) {
+      const path = runAStarRoute(startStarId, destinationStarId, nearestCount);
+      const refinedPath = refineMoveRoutePath(path);
+      const isLongDirectRoute = refinedPath.length === 2 && directRouteDistance > MAX_DIRECT_MOVE_ROUTE_DISTANCE;
+      if (refinedPath.length > 1 && !isLongDirectRoute) {
+        moveRouteCache.set(routeCacheKey, refinedPath);
+        return [...refinedPath];
+      }
+    }
+
+    const interpolatedPath = refineMoveRoutePath(buildInterpolatedMoveRoute(startStarId, destinationStarId));
+    moveRouteCache.set(routeCacheKey, interpolatedPath);
+    return [...interpolatedPath];
+  }
+
+  function getRouteDistanceWorldUnits(routeStarIds) {
+    const stars = (routeStarIds ?? []).map((id) => state.starsById?.get(id)).filter(Boolean);
+    let distance = 0;
+
+    for (let index = 0; index < stars.length - 1; index += 1) {
+      distance += getStarDistance(stars[index], stars[index + 1]);
+    }
+
+    return distance;
+  }
+
+  function getShipMoveSpeedRating(ship) {
+    const storedSpeed = Number(ship?.runtime?.speed);
+    if (Number.isFinite(storedSpeed) && storedSpeed > 0) {
+      return storedSpeed;
+    }
+
+    const traits = ship?.traits ?? {};
+    const hull = getShipHullDefinition(ship?.hullId) ?? null;
+    const runtime = calculateShipRuntime(traits, ship?.modules ?? [], {
+      hullWeight: hull?.hullWeight ?? 5,
+    });
+    const calculatedSpeed = Number(runtime.speed);
+    if (Number.isFinite(calculatedSpeed) && calculatedSpeed > 0) {
+      return calculatedSpeed;
+    }
+
+    return Math.max(1, Number(traits.thrust) || 1);
+  }
+
+  function calculateMoveTravelPlan(ship, routeStarIds) {
+    const distanceWorldUnits = getRouteDistanceWorldUnits(routeStarIds);
+    const distanceLightYears = distanceWorldUnits * LIGHT_YEARS_PER_WORLD_UNIT;
+    const speedRating = getShipMoveSpeedRating(ship);
+    const speedLightYearsPerDay = BASE_MOVE_LIGHT_YEARS_PER_DAY + speedRating * MOVE_LIGHT_YEARS_PER_DAY_PER_SPEED;
+    const travelDays = distanceLightYears / Math.max(1, speedLightYearsPerDay);
+    const realTravelDurationMs = Math.max(MIN_MOVE_TRAVEL_DURATION_MS, travelDays * MOVE_REAL_MS_PER_TRAVEL_DAY);
+
+    return {
+      distanceWorldUnits,
+      distanceLightYears,
+      speedRating,
+      speedLightYearsPerDay,
+      travelDays,
+      realTravelDurationMs,
+      travelSummary: {
+        distanceText: formatMoveDistance(distanceLightYears),
+        travelTimeText: formatMoveTravelDays(travelDays),
+        speedText: `${Math.round(speedLightYearsPerDay)} ly/day`,
+        realTimeText: formatMoveRealDuration(realTravelDurationMs),
+      },
+    };
+  }
+
+  let cameraFocusAnimationId = 0;
+
+  function focusCameraOnStar(star) {
+    if (!star) {
+      return;
+    }
+
+    cameraFocusAnimationId += 1;
+    const animationId = cameraFocusAnimationId;
+    const startedAt = performance.now();
+    const durationMs = 720;
+    const startX = state.camera.x;
+    const startY = state.camera.y;
+    const startZoom = state.camera.zoom;
+    const targetZoom = Math.min(state.camera.maxZoom, Math.max(startZoom * 1.16, startZoom + 0.07));
+
+    state.isCameraMoving = true;
+    state.onCameraMovementChanged?.(true);
+
+    function animateCamera(now) {
+      if (animationId !== cameraFocusAnimationId) {
+        return;
+      }
+
+      const t = Math.min(1, (now - startedAt) / durationMs);
+      const eased = 1 - Math.pow(1 - t, 3);
+      state.camera.x = startX + (star.x - startX) * eased;
+      state.camera.y = startY + (star.y - startY) * eased;
+      state.camera.zoom = startZoom + (targetZoom - startZoom) * eased;
+      state.invalidateRender();
+
+      if (t < 1) {
+        requestAnimationFrame(animateCamera);
+        return;
+      }
+
+      state.isCameraMoving = false;
+      state.onCameraMovementChanged?.(false);
+      state.invalidateRender();
+    }
+
+    requestAnimationFrame(animateCamera);
+  }
+
+  function applyMoveMissionShipMetadata(ship, metadata = {}) {
+    const nextShip = {
+      ...ship,
+      ...(metadata ?? {}),
+    };
+
+    if (nextShip.position !== 'Moving') {
+      delete nextShip.moveMissionId;
+      delete nextShip.moveOriginStarId;
+      delete nextShip.moveDestinationStarId;
+      delete nextShip.moveArrivesAtMs;
+    }
+
+    return nextShip;
+  }
+
+  function moveShipStackToPosition(ships, ship, destinationPosition, options = {}) {
+    const modelKey = getShipFleetModelKey(ship);
+    const originPosition = options.originPosition ?? getShipFleetPosition(ship);
+    const sourceMoveMissionId = Object.prototype.hasOwnProperty.call(options, 'sourceMoveMissionId')
+      ? options.sourceMoveMissionId
+      : ship?.moveMissionId ?? null;
+    const destinationMoveMissionId = options.destinationMoveMissionId ?? null;
+    const destinationMetadata = options.destinationMetadata ?? {};
+    const allowCreateFallback = options.allowCreateFallback !== false;
+    const moveCount = Math.max(1, Math.floor(Number(ship.count) || 1));
+    let remainingToMove = moveCount;
+    const nextShips = [];
+    let movedShip = null;
+    let movedCountTotal = 0;
+
+    for (const entry of ships ?? []) {
+      const entryMatches =
+        getShipFleetModelKey(entry) === modelKey &&
+        isSameFleetPosition(getShipFleetPosition(entry), originPosition) &&
+        (!sourceMoveMissionId || entry.moveMissionId === sourceMoveMissionId) &&
+        remainingToMove > 0;
+
+      if (!entryMatches) {
+        nextShips.push(entry);
+        continue;
+      }
+
+      const entryCount = Math.max(1, Math.floor(Number(entry.count) || 1));
+      const movedCount = Math.min(entryCount, remainingToMove);
+      remainingToMove -= movedCount;
+      movedCountTotal += movedCount;
+      movedShip = applyMoveMissionShipMetadata(
+        {
+          ...entry,
+          position: destinationPosition,
+          count: (Number(movedShip?.count) || 0) + movedCount,
+        },
+        {
+          ...destinationMetadata,
+          moveMissionId: destinationMoveMissionId ?? destinationMetadata.moveMissionId,
+        }
+      );
+
+      if (entryCount > movedCount) {
+        nextShips.push({
+          ...entry,
+          count: entryCount - movedCount,
+        });
+      }
+    }
+
+    if (!movedShip && allowCreateFallback) {
+      movedCountTotal = moveCount;
+      movedShip = applyMoveMissionShipMetadata(
+        {
+          ...ship,
+          position: destinationPosition,
+          count: moveCount,
+        },
+        {
+          ...destinationMetadata,
+          moveMissionId: destinationMoveMissionId ?? destinationMetadata.moveMissionId,
+        }
+      );
+    }
+
+    if (!movedShip) {
+      return { ships: nextShips, movedCount: 0 };
+    }
+
+    const existingDestinationShip = nextShips.find(
+      (entry) =>
+        getShipFleetModelKey(entry) === modelKey &&
+        isSameFleetPosition(getShipFleetPosition(entry), destinationPosition) &&
+        (!destinationMoveMissionId || entry.moveMissionId === destinationMoveMissionId)
+    );
+
+    if (existingDestinationShip) {
+      existingDestinationShip.count = Math.max(1, Math.floor(Number(existingDestinationShip.count) || 1)) + movedCountTotal;
+    } else {
+      nextShips.push(movedShip);
+    }
+
+    return { ships: nextShips, movedCount: movedCountTotal };
+  }
+
+  function moveShipInventoryToDestination(ship, destinationStarId, options = {}) {
+    if (!state.playerState || !ship || !destinationStarId) {
+      return;
+    }
+
+    const moveResult = moveShipStackToPosition(state.playerState.ships ?? [], ship, destinationStarId, {
+      originPosition: options.originPosition,
+      sourceMoveMissionId: options.sourceMoveMissionId,
+    });
+
+    state.playerState = {
+      ...state.playerState,
+      ships: moveResult.ships,
+    };
+    state.cachedPlayerStates.set(state.currentPlayerId, structuredClone(state.playerState));
+    void sync.pushState();
+  }
+
+  function startMoveMission(ship) {
+    const originStarId = getShipFleetPosition(ship);
+    const originStar = state.starsById?.get(originStarId);
+    if (!originStar) {
+      return;
+    }
+
+    state.moveMission = {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      active: true,
+      status: 'placing',
+      ship: structuredClone(ship),
+      missionShipId: getShipPanelShipId(),
+      originStarId,
+      markerWorld: { x: originStar.x, y: originStar.y },
+      destinationStarId: null,
+      routeStarIds: [],
+      routeRevealStartedAt: null,
+      travelSummary: null,
+      showDestinationDialog: false,
+      dragging: false,
+    };
+    setRightPanelOpen(false);
+    focusCameraOnStar(originStar);
+    state.invalidateRender();
+  }
+
+  function setMoveMissionDestinationFromWorld(worldPoint) {
+    if (!state.moveMission?.active) {
+      return;
+    }
+
+    const destinationStar = findClosestStarNearPoint(worldPoint, 90) ?? findNearestStarToWorldPoint(worldPoint);
+    if (!destinationStar) {
+      return;
+    }
+
+    state.moveMission = {
+      ...state.moveMission,
+      status: 'ready',
+      markerWorld: { x: destinationStar.x, y: destinationStar.y },
+      destinationStarId: destinationStar.id,
+      routeStarIds: [],
+      routeRevealStartedAt: null,
+      travelSummary: null,
+      showDestinationDialog: true,
+      dragging: false,
+    };
+    state.invalidateRender();
+  }
+
+  function calculateMoveMissionRoute() {
+    const moveMission = state.moveMission;
+    if (!moveMission?.active || !moveMission.destinationStarId) {
+      return;
+    }
+
+    const routeStarIds = calculateAStarRoute(moveMission.originStarId, moveMission.destinationStarId);
+    const travelPlan = calculateMoveTravelPlan(moveMission.ship, routeStarIds);
+
+    state.moveMission = {
+      ...moveMission,
+      ...travelPlan,
+      routeStarIds,
+      routeRevealStartedAt: performance.now(),
+      showDestinationDialog: true,
+    };
+    state.invalidateRender();
+  }
+
+  function cancelMoveMission() {
+    const missionShipId = state.moveMission?.missionShipId ?? '';
+    state.moveMission = null;
+    setShipPanelView('mission');
+    setShipPanelShipId(missionShipId);
+    rightPanel.dataset.panel = 'ship-designer';
+    setRightPanelOpen(true);
+    state.invalidateRender();
+  }
+
+  function interpolateRoutePoint(routeStarIds, progress) {
+    const stars = routeStarIds.map((id) => state.starsById.get(id)).filter(Boolean);
+    if (!stars.length) {
+      return null;
+    }
+
+    if (stars.length === 1) {
+      return { x: stars[0].x, y: stars[0].y };
+    }
+
+    const segments = [];
+    let totalDistance = 0;
+    for (let index = 0; index < stars.length - 1; index++) {
+      const distance = getStarDistance(stars[index], stars[index + 1]);
+      segments.push({ from: stars[index], to: stars[index + 1], distance });
+      totalDistance += distance;
+    }
+
+    let remainingDistance = totalDistance * Math.max(0, Math.min(1, progress));
+    for (const segment of segments) {
+      if (remainingDistance > segment.distance) {
+        remainingDistance -= segment.distance;
+        continue;
+      }
+
+      const localProgress = segment.distance > 0 ? remainingDistance / segment.distance : 1;
+      return {
+        x: segment.from.x + (segment.to.x - segment.from.x) * localProgress,
+        y: segment.from.y + (segment.to.y - segment.from.y) * localProgress,
+      };
+    }
+
+    const lastStar = stars[stars.length - 1];
+    return { x: lastStar.x, y: lastStar.y };
+  }
+
+  function createMovingShipRecord(ship, missionId, originStarId, destinationStarId, arrivesAtMs) {
+    return applyMoveMissionShipMetadata(
+      {
+        ...ship,
+        position: 'Moving',
+      },
+      {
+        moveMissionId: missionId,
+        moveOriginStarId: originStarId,
+        moveDestinationStarId: destinationStarId,
+        moveArrivesAtMs: arrivesAtMs,
+      }
+    );
+  }
+
+  function createMoveMissionRecord(moveMission, routeStarIds, travelPlan, startedAtMs, arrivesAtMs) {
+    const originStar = state.starsById?.get(moveMission.originStarId);
+    const movingShip = createMovingShipRecord(
+      moveMission.ship,
+      moveMission.id,
+      moveMission.originStarId,
+      moveMission.destinationStarId,
+      arrivesAtMs
+    );
+
+    return {
+      ...moveMission,
+      ...travelPlan,
+      active: true,
+      status: 'moving',
+      ship: movingShip,
+      markerWorld: originStar ? { x: originStar.x, y: originStar.y } : moveMission.markerWorld,
+      routeStarIds,
+      routeRevealStartedAt: null,
+      showDestinationDialog: false,
+      dragging: false,
+      travelStartedAtMs: startedAtMs,
+      travelArrivesAtMs: arrivesAtMs,
+    };
+  }
+
+  function cacheAndSyncPlayerState({ syncState = true } = {}) {
+    if (state.currentPlayerId && state.playerState) {
+      state.cachedPlayerStates.set(state.currentPlayerId, structuredClone(state.playerState));
+    }
+
+    if (syncState) {
+      void sync.pushState();
+    }
+  }
+
+  function getRenderedMoveMissions() {
+    return Array.isArray(state.moveMissions) ? state.moveMissions : [];
+  }
+
+  function upsertRenderedMoveMission(mission) {
+    if (!mission?.id) {
+      return;
+    }
+
+    const existingMissions = getRenderedMoveMissions();
+    const existingIndex = existingMissions.findIndex((entry) => entry.id === mission.id);
+    if (existingIndex >= 0) {
+      state.moveMissions = existingMissions.map((entry, index) => (
+        index === existingIndex ? { ...entry, ...mission } : entry
+      ));
+      return;
+    }
+
+    state.moveMissions = [...existingMissions, mission];
+  }
+
+  function removeRenderedMoveMission(missionId) {
+    if (!missionId) {
+      return;
+    }
+
+    state.moveMissions = getRenderedMoveMissions().filter((mission) => mission.id !== missionId);
+  }
+
+  function persistMoveMissionStart(mission) {
+    if (!state.playerState || !mission?.ship) {
+      return false;
+    }
+
+    const moveResult = moveShipStackToPosition(state.playerState.ships ?? [], mission.ship, 'Moving', {
+      originPosition: mission.originStarId,
+      sourceMoveMissionId: null,
+      destinationMoveMissionId: mission.id,
+      allowCreateFallback: false,
+      destinationMetadata: {
+        moveMissionId: mission.id,
+        moveOriginStarId: mission.originStarId,
+        moveDestinationStarId: mission.destinationStarId,
+        moveArrivesAtMs: mission.travelArrivesAtMs,
+      },
+    });
+    if (moveResult.movedCount <= 0) {
+      return false;
+    }
+
+    const persistedMission = {
+      ...mission,
+      ship: {
+        ...mission.ship,
+        count: moveResult.movedCount,
+      },
+    };
+    const nextMoveMissions = [
+      ...(state.playerState.activeMoveMissions ?? []).filter((entry) => entry.id !== persistedMission.id),
+      persistedMission,
+    ];
+
+    state.playerState = {
+      ...state.playerState,
+      ships: moveResult.ships,
+      activeMoveMissions: nextMoveMissions,
+    };
+    renderPlayerResources();
+    cacheAndSyncPlayerState();
+    return persistedMission;
+  }
+
+  function removeActiveMoveMission(missionId) {
+    if (!state.playerState || !missionId) {
+      return;
+    }
+
+    state.playerState = {
+      ...state.playerState,
+      activeMoveMissions: (state.playerState.activeMoveMissions ?? []).filter((mission) => mission.id !== missionId),
+    };
+  }
+
+  function completeMoveMission(mission, { syncState = true, showArrived = true } = {}) {
+    if (!mission?.destinationStarId) {
+      return;
+    }
+
+    if (state.playerState) {
+      const movingShip = createMovingShipRecord(
+        mission.ship,
+        mission.id,
+        mission.originStarId,
+        mission.destinationStarId,
+        mission.travelArrivesAtMs
+      );
+      let moveResult = moveShipStackToPosition(state.playerState.ships ?? [], movingShip, mission.destinationStarId, {
+        originPosition: 'Moving',
+        sourceMoveMissionId: mission.id,
+        allowCreateFallback: false,
+      });
+
+      if (moveResult.movedCount <= 0) {
+        moveResult = moveShipStackToPosition(state.playerState.ships ?? [], mission.ship, mission.destinationStarId, {
+          originPosition: mission.originStarId,
+          sourceMoveMissionId: null,
+          allowCreateFallback: false,
+        });
+      }
+
+      state.playerState = {
+        ...state.playerState,
+        ships: moveResult.ships,
+      };
+      removeActiveMoveMission(mission.id);
+      renderPlayerResources();
+      cacheAndSyncPlayerState({ syncState });
+    }
+
+    const destinationStar = state.starsById.get(mission.destinationStarId);
+    if (showArrived) {
+      const arrivedMission = {
+        ...mission,
+        status: 'arrived',
+        markerWorld: destinationStar ? { x: destinationStar.x, y: destinationStar.y } : mission.markerWorld,
+      };
+      upsertRenderedMoveMission(arrivedMission);
+      state.invalidateRender();
+
+      const completedAnimationId = arrivedMission.animationId;
+      window.setTimeout(() => {
+        const currentMission = getRenderedMoveMissions().find((entry) => entry.id === mission.id);
+        if (currentMission?.animationId === completedAnimationId) {
+          removeRenderedMoveMission(mission.id);
+          state.invalidateRender();
+        }
+      }, 1200);
+      return;
+    }
+
+    removeRenderedMoveMission(mission.id);
+    state.invalidateRender();
+  }
+
+  function normalizePersistedMoveMission(mission) {
+    if (!mission?.id || !mission.originStarId || !mission.destinationStarId) {
+      return null;
+    }
+
+    const routeStarIds = mission.routeStarIds?.length
+      ? mission.routeStarIds
+      : calculateAStarRoute(mission.originStarId, mission.destinationStarId);
+    const travelPlan = calculateMoveTravelPlan(mission.ship, routeStarIds);
+    const startedAtMs = Number(mission.travelStartedAtMs) || Date.now();
+    const durationMs = Math.max(
+      1,
+      Number(mission.realTravelDurationMs) ||
+        Number(mission.travelArrivesAtMs) - startedAtMs ||
+        travelPlan.realTravelDurationMs
+    );
+    const arrivesAtMs = Number(mission.travelArrivesAtMs) || startedAtMs + durationMs;
+    const progress = Math.min(1, Math.max(0, (Date.now() - startedAtMs) / durationMs));
+    const markerWorld = interpolateRoutePoint(routeStarIds, progress) ?? mission.markerWorld;
+
+    return {
+      ...mission,
+      ...travelPlan,
+      active: true,
+      status: 'moving',
+      routeStarIds,
+      markerWorld,
+      routeRevealStartedAt: null,
+      showDestinationDialog: false,
+      dragging: false,
+      realTravelDurationMs: durationMs,
+      travelStartedAtMs: startedAtMs,
+      travelArrivesAtMs: arrivesAtMs,
+    };
+  }
+
+  function runMoveMissionAnimation(mission) {
+    if (!mission?.id) {
+      return;
+    }
+
+    const animationId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    upsertRenderedMoveMission({
+      ...mission,
+      animationId,
+    });
+
+    function animateMove() {
+      const currentMission = getRenderedMoveMissions().find((entry) => entry.id === mission.id);
+      if (currentMission?.animationId !== animationId || currentMission?.id !== mission.id) {
+        return;
+      }
+
+      const durationMs = Math.max(1, Number(currentMission.realTravelDurationMs) || 1);
+      const startedAtMs = Number(currentMission.travelStartedAtMs) || Date.now();
+      const progress = Math.min(1, (Date.now() - startedAtMs) / durationMs);
+      const markerWorld = interpolateRoutePoint(currentMission.routeStarIds, progress);
+      if (markerWorld) {
+        upsertRenderedMoveMission({
+          ...currentMission,
+          markerWorld,
+        });
+      }
+      state.invalidateRender();
+
+      if (progress < 1) {
+        requestAnimationFrame(animateMove);
+        return;
+      }
+
+      completeMoveMission(getRenderedMoveMissions().find((entry) => entry.id === mission.id) ?? currentMission);
+    }
+
+    requestAnimationFrame(animateMove);
+  }
+
+  function ensureMoveMissionShipIsMarkedMoving(mission) {
+    if (!state.playerState || !mission?.ship) {
+      return { mission, changed: false };
+    }
+
+    const modelKey = getShipFleetModelKey(mission.ship);
+    const hasMovingStack = (state.playerState.ships ?? []).some(
+      (ship) =>
+        getShipFleetModelKey(ship) === modelKey &&
+        getShipFleetPosition(ship) === 'Moving' &&
+        ship.moveMissionId === mission.id
+    );
+
+    if (hasMovingStack) {
+      return { mission, changed: false };
+    }
+
+    const moveResult = moveShipStackToPosition(state.playerState.ships ?? [], mission.ship, 'Moving', {
+      originPosition: mission.originStarId,
+      sourceMoveMissionId: null,
+      destinationMoveMissionId: mission.id,
+      allowCreateFallback: false,
+      destinationMetadata: {
+        moveMissionId: mission.id,
+        moveOriginStarId: mission.originStarId,
+        moveDestinationStarId: mission.destinationStarId,
+        moveArrivesAtMs: mission.travelArrivesAtMs,
+      },
+    });
+
+    if (moveResult.movedCount <= 0) {
+      return { mission, changed: false };
+    }
+
+    const repairedMission = {
+      ...mission,
+      ship: {
+        ...mission.ship,
+        count: moveResult.movedCount,
+      },
+    };
+    state.playerState = {
+      ...state.playerState,
+      ships: moveResult.ships,
+    };
+
+    return { mission: repairedMission, changed: true };
+  }
+
+  function restorePersistedMoveMissions() {
+    if (!state.playerState) {
+      return;
+    }
+
+    const activeMissions = (state.playerState.activeMoveMissions ?? [])
+      .map((mission) => normalizePersistedMoveMission(mission))
+      .filter(Boolean);
+
+    if (!activeMissions.length) {
+      state.moveMissions = [];
+      return;
+    }
+
+    const nowMs = Date.now();
+    const pendingMissions = [];
+    let changedAny = false;
+
+    for (let mission of activeMissions) {
+      if (Number(mission.travelArrivesAtMs) <= nowMs) {
+        completeMoveMission(mission, { syncState: false, showArrived: false });
+        changedAny = true;
+      } else {
+        const repaired = ensureMoveMissionShipIsMarkedMoving(mission);
+        mission = repaired.mission;
+        changedAny = changedAny || repaired.changed;
+        pendingMissions.push(mission);
+      }
+    }
+
+    state.playerState = {
+      ...state.playerState,
+      activeMoveMissions: pendingMissions,
+    };
+
+    state.moveMissions = [];
+    for (const mission of pendingMissions) {
+      runMoveMissionAnimation(mission);
+    }
+
+    if (changedAny) {
+      renderPlayerResources();
+      cacheAndSyncPlayerState();
+    }
+  }
+
+  function commitMoveMission() {
+    const moveMission = state.moveMission;
+    if (!moveMission?.active || !moveMission.destinationStarId || moveMission.status === 'moving') {
+      return;
+    }
+
+    const routeStarIds = moveMission.routeStarIds?.length
+      ? moveMission.routeStarIds
+      : calculateAStarRoute(moveMission.originStarId, moveMission.destinationStarId);
+    const travelPlan = calculateMoveTravelPlan(moveMission.ship, routeStarIds);
+    const durationMs = travelPlan.realTravelDurationMs;
+    const startedAtMs = Date.now();
+    const arrivesAtMs = startedAtMs + durationMs;
+    const mission = createMoveMissionRecord(moveMission, routeStarIds, travelPlan, startedAtMs, arrivesAtMs);
+
+    const persistedMission = persistMoveMissionStart(mission);
+    if (!persistedMission) {
+      console.warn('Move mission could not start because the source ship stack was not found.', mission);
+      state.moveMission = {
+        ...moveMission,
+        routeStarIds,
+        ...travelPlan,
+        status: 'ready',
+        showDestinationDialog: true,
+        routeRevealStartedAt: null,
+      };
+      state.invalidateRender();
+      return;
+    }
+
+    state.moveMission = null;
+    runMoveMissionAnimation(persistedMission);
+  }
 
   function getDeepLinkParams() {
     const hash = window.location.hash.startsWith('#')
@@ -1750,6 +3248,12 @@ export function createGame(container, galaxyOptions = {}) {
         params.set('star', state.selection.selectedStarId);
         if (state.selectedPlanetId) {
           params.set('planet', state.selectedPlanetId);
+        }
+      }
+      if (activePanel === 'ship-designer') {
+        params.set('view', getShipPanelView());
+        if (getShipPanelView() === 'mission' && getShipPanelShipId()) {
+          params.set('ship', getShipPanelShipId());
         }
       }
     }
@@ -1809,6 +3313,10 @@ export function createGame(container, galaxyOptions = {}) {
       if (rightPanel.dataset.panel === 'system') {
         abandonPendingInfrastructureChanges();
       }
+      if (panelName === 'ship-designer') {
+        setShipPanelView(params.get('view') ?? 'fleet');
+        setShipPanelShipId(params.get('ship') ?? '');
+      }
       rightPanel.dataset.panel = panelName;
       setRightPanelOpen(true);
     }
@@ -1832,11 +3340,11 @@ export function createGame(container, galaxyOptions = {}) {
     return {
       infoText:
         `Available production: ${formatProductionRate(productionAllocation.unusedProduction)} / ` +
-        `${formatProductionRate(industryLevel)} PC/period` +
-        (usedProduction > 0 ? ` | In use: ${formatProductionRate(usedProduction)} PC/period` : ''),
+        `${formatProductionRate(industryLevel)} Industry/period` +
+        (usedProduction > 0 ? ` | In use: ${formatProductionRate(usedProduction)} Industry/period` : ''),
       entries: queue.map((entry, index) => {
         const allocation = productionAllocation.entries[index];
-        const item = allocation?.item ?? getItemDefinition(entry.itemId);
+        const item = getProductionEntryDisplayItem(entry, allocation?.item);
         const estimatedPeriods = Number.isFinite(allocation?.estimatedPeriods)
           ? formatDurationPeriods(allocation.estimatedPeriods)
           : 'Paused';
@@ -1872,8 +3380,9 @@ export function createGame(container, galaxyOptions = {}) {
       const territory = targetTerritoryId
         ? state.territories.get(targetTerritoryId)
         : null;
-      const ownedStars = territory
-        ? Array.from(territory.stars ?? [])
+      const ownedStarIds = territory?.stars ?? targetPlayerState?.territory?.stars ?? [];
+      const ownedStars = ownedStarIds
+        ? Array.from(ownedStarIds)
           .map((starId) => state.starsById.get(starId))
           .filter(Boolean)
       : [];
@@ -1901,6 +3410,7 @@ export function createGame(container, galaxyOptions = {}) {
         planetsTotal,
         planetsFull,
         readySystems,
+        productionPerPeriod: getTotalIndustryInfrastructureForStars(ownedStars),
         energyOutput: targetPlayerState?.energyOutput ?? 0,
         activeEnergyConsumption: targetPlayerState?.activeEnergyConsumption ?? 0,
         inactiveInfrastructureCount: targetPlayerState?.inactiveInfrastructureCount ?? 0,
@@ -2054,11 +3564,68 @@ export function createGame(container, galaxyOptions = {}) {
           selectedProductionItemId = itemId;
           state.invalidateRender();
         },
-        onAddProduction: () => {
-          void addSelectedItemToProductionQueue();
+        onAddProduction: (productionTarget) => {
+          void addSelectedItemToProductionQueue(productionTarget);
+        },
+        onRemoveProductionEntry: (entryId) => {
+          void removeProductionQueueEntry(entryId);
         },
         productionInfoText: state.playerState ? productionView.infoText : 'Log in to use production.',
         productionEntries: state.playerState ? productionView.entries : [],
+        shipTemplates: state.playerState?.shipTemplates ?? [],
+        shipView: getShipPanelView(),
+        shipId: getShipPanelShipId(),
+        highlightedFleetShip: getHighlightedFleetShip(),
+        onShipViewChange: (view, shipId = '') => {
+          const previousSnapshot = getRightPanelSnapshot();
+          if (
+            view === 'mission' &&
+            previousSnapshot.panel === 'ship-designer' &&
+            previousSnapshot.shipView !== 'mission'
+          ) {
+            pushRightPanelSnapshot(previousSnapshot);
+          }
+
+          setShipPanelView(view);
+          setShipPanelShipId(view === 'mission' ? shipId : '');
+          renderRightSideMenu();
+          writeDeepLink();
+        },
+        onMissionAction: (missionId, ship) => {
+          if (missionId === 'move-ship') {
+            startMoveMission(ship);
+          }
+        },
+        stars: state.galaxy?.stars ?? [],
+        onCreateShipTemplate: (template) => {
+          if (!state.playerState) {
+            return;
+          }
+
+          state.playerState = {
+            ...state.playerState,
+            shipTemplates: [
+              template,
+              ...(state.playerState.shipTemplates ?? []),
+            ],
+          };
+          state.cachedPlayerStates.set(state.currentPlayerId, structuredClone(state.playerState));
+          state.invalidateRender();
+          void sync.pushState();
+        },
+        onDeleteShipTemplate: (templateId) => {
+          if (!state.playerState) {
+            return;
+          }
+
+          state.playerState = {
+            ...state.playerState,
+            shipTemplates: (state.playerState.shipTemplates ?? []).filter((template) => template.id !== templateId),
+          };
+          state.cachedPlayerStates.set(state.currentPlayerId, structuredClone(state.playerState));
+          state.invalidateRender();
+          void sync.pushState();
+        },
         selectedStar,
         selectedTerritory,
         selectedOwnerProfileImageUrl,
@@ -2075,6 +3642,29 @@ export function createGame(container, galaxyOptions = {}) {
         onSaveInfrastructureChanges: () => {
           void state.onSaveInfrastructureChanges?.();
         },
+          onOpenFleetShip: (ship) => {
+            setHighlightedFleetShip(ship);
+            setShipPanelView('fleet');
+            setShipPanelShipId('');
+            openRightPanelWithHistory('ship-designer');
+            state.invalidateRender();
+          },
+          onOpenStarSystem: (starId) => {
+            const star = state.starsById?.get(starId);
+            if (!star) {
+              return;
+            }
+
+            abandonPendingInfrastructureChanges();
+            focusCameraOnStar(star);
+            pushRightPanelHistory('system');
+            state.selection.selectedStarId = star.id;
+            state.selectedPlanetId = null;
+            rightPanel.dataset.panel = 'system';
+            setRightPanelOpen(true);
+            writeDeepLink({ replace: true });
+            state.invalidateRender();
+          },
           onSelectPlanet: (planetId) => {
             abandonPendingInfrastructureChanges();
             state.selectedPlanetId = planetId;
@@ -2177,8 +3767,11 @@ export function createGame(container, galaxyOptions = {}) {
 
     const previousPlayerState = state.playerState;
     if (state.hasPendingTerritoryChanges || state.hasPendingInfrastructureChanges) {
+      const territoryRevisionAtSaveStart = state.territoryRevision;
       await sync.pushState();
-      state.hasPendingTerritoryChanges = false;
+      if (state.territoryRevision === territoryRevisionAtSaveStart) {
+        state.hasPendingTerritoryChanges = false;
+      }
       revertPendingInfrastructureChanges();
     }
     if (state.currentPlayerId && previousPlayerState?.playerId === state.currentPlayerId) {
@@ -2225,8 +3818,11 @@ export function createGame(container, galaxyOptions = {}) {
     state.invalidateRender();
 
     if (shouldSave) {
+      const territoryRevisionAtSaveStart = state.territoryRevision;
       await sync.pushState();
-      state.hasPendingTerritoryChanges = false;
+      if (state.territoryRevision === territoryRevisionAtSaveStart) {
+        state.hasPendingTerritoryChanges = false;
+      }
       if (state.playerState) {
         state.cachedPlayerStates.set(state.currentPlayerId, structuredClone(state.playerState));
       }
@@ -2291,6 +3887,210 @@ export function createGame(container, galaxyOptions = {}) {
     return `${suffixMatch[1]}<span style="color:rgba(255,255,255,0.78);font-size:0.96em;font-weight:850;">${suffixMatch[2]}</span>`;
   }
 
+  function formatElapsedResourceTime(durationMs) {
+    const totalMinutes = Math.max(0, Math.floor((Number(durationMs) || 0) / 60000));
+    if (totalMinutes < 1) {
+      return 'less than a minute';
+    }
+
+    const days = Math.floor(totalMinutes / 1440);
+    const hours = Math.floor((totalMinutes % 1440) / 60);
+    const minutes = totalMinutes % 60;
+    const parts = [];
+
+    if (days > 0) {
+      parts.push(`${days}d`);
+    }
+    if (hours > 0) {
+      parts.push(`${hours}h`);
+    }
+    if (minutes > 0 && parts.length < 2) {
+      parts.push(`${minutes}m`);
+    }
+
+    return parts.slice(0, 2).join(' ');
+  }
+
+  function getBaseProductionGain(periods) {
+    const cappedPeriods = Math.min(
+      BASE_PRODUCTION_OFFLINE_PERIOD_CAP,
+      Math.max(0, Math.floor(Number(periods) || 0))
+    );
+    return addBasePlayerResourceProduction(createEmptyResources(), cappedPeriods);
+  }
+
+  function appendResourceGainPill(parent, resource, amount) {
+    if (amount <= 0) {
+      return;
+    }
+
+    const pill = document.createElement('div');
+    pill.style.display = 'inline-flex';
+    pill.style.alignItems = 'center';
+    pill.style.gap = '4px';
+    pill.style.padding = '2px 5px';
+    pill.style.border = '1px solid rgba(148,163,184,0.14)';
+    pill.style.borderRadius = '4px';
+    pill.style.background = 'rgba(255,255,255,0.045)';
+    pill.style.color = '#e8efff';
+    pill.style.fontSize = '10px';
+    pill.style.fontWeight = '850';
+    pill.style.fontVariantNumeric = 'tabular-nums';
+
+    const icon = document.createElement('span');
+    if (resource.key === 'Credits') {
+      icon.textContent = '$';
+      icon.style.color = '#cbd5e1';
+      icon.style.fontWeight = '900';
+      icon.style.width = '10px';
+      icon.style.textAlign = 'center';
+    } else {
+      applyResourceIconStyles(icon, resource, 12, 'inline');
+    }
+
+    const value = document.createElement('span');
+    value.innerHTML = `+${renderCompactNumber(amount)}`;
+
+    pill.appendChild(icon);
+    pill.appendChild(value);
+    parent.appendChild(pill);
+  }
+
+  function showBaseProductionGainNotice({ periods, resources, elapsedMs = 0, offline = false }) {
+    const gainedEntries = [
+      { key: 'Credits' },
+      ...RESOURCE_DISPLAY,
+    ].filter((resource) => (Number(resources?.[resource.key]) || 0) > 0);
+
+    if (!gainedEntries.length) {
+      return;
+    }
+
+    if (!offline) {
+      const floatNumbers = document.createElement('div');
+      floatNumbers.style.position = 'absolute';
+      floatNumbers.style.top = '64px';
+      floatNumbers.style.right = '54px';
+      floatNumbers.style.zIndex = '76';
+      floatNumbers.style.display = 'flex';
+      floatNumbers.style.alignItems = 'center';
+      floatNumbers.style.gap = '7px';
+      floatNumbers.style.pointerEvents = 'none';
+      floatNumbers.style.color = '#86efac';
+      floatNumbers.style.fontSize = '11px';
+      floatNumbers.style.fontWeight = '900';
+      floatNumbers.style.fontVariantNumeric = 'tabular-nums';
+      floatNumbers.style.textShadow = '0 0 10px rgba(134,239,172,0.42), 0 1px 2px rgba(0,0,0,0.55)';
+      floatNumbers.style.opacity = '0';
+      floatNumbers.style.transform = 'translateY(4px)';
+      floatNumbers.style.transition = 'opacity 180ms ease, transform 900ms ease';
+
+      for (const resource of gainedEntries) {
+        const value = document.createElement('span');
+        value.textContent = `+${formatCompactNumber(resources[resource.key])}`;
+        floatNumbers.appendChild(value);
+      }
+
+      container.appendChild(floatNumbers);
+      requestAnimationFrame(() => {
+        floatNumbers.style.opacity = '1';
+        floatNumbers.style.transform = 'translateY(-8px)';
+      });
+      window.setTimeout(() => {
+        floatNumbers.style.opacity = '0';
+        floatNumbers.style.transform = 'translateY(-16px)';
+        window.setTimeout(() => floatNumbers.remove(), 260);
+      }, 900);
+      return;
+    }
+
+    const overlay = document.createElement('div');
+    overlay.style.position = 'absolute';
+    overlay.style.inset = '0';
+    overlay.style.zIndex = '90';
+    overlay.style.display = 'flex';
+    overlay.style.alignItems = 'center';
+    overlay.style.justifyContent = 'center';
+    overlay.style.padding = '20px';
+    overlay.style.boxSizing = 'border-box';
+    overlay.style.background = 'rgba(3, 7, 18, 0.42)';
+    overlay.style.backdropFilter = 'blur(3px)';
+    overlay.style.opacity = '0';
+    overlay.style.transition = 'opacity 180ms ease';
+
+    const notice = document.createElement('div');
+    notice.style.width = 'min(420px, calc(100vw - 40px))';
+    notice.style.boxSizing = 'border-box';
+    notice.style.padding = '16px 18px';
+    notice.style.background = 'linear-gradient(180deg, rgba(8,13,27,0.94), rgba(5,8,22,0.9))';
+    notice.style.border = '1px solid rgba(125,211,252,0.3)';
+    notice.style.borderRadius = '8px';
+    notice.style.boxShadow = '0 24px 70px rgba(0,0,0,0.42), inset 0 1px 0 rgba(255,255,255,0.06)';
+    notice.style.backdropFilter = 'blur(16px)';
+    notice.style.color = '#e8efff';
+    notice.style.fontSize = '12px';
+    notice.style.pointerEvents = 'auto';
+    notice.style.transform = 'translateY(8px) scale(0.985)';
+    notice.style.transition = 'transform 180ms ease';
+
+    const title = document.createElement('div');
+    title.textContent = 'Offline base production';
+    title.style.color = '#bae6fd';
+    title.style.fontSize = '15px';
+    title.style.fontWeight = '900';
+    notice.appendChild(title);
+
+    const body = document.createElement('div');
+    body.textContent =
+      `Away for ${formatElapsedResourceTime(elapsedMs)}. Awarded ${formatWholeNumber(Math.min(periods, BASE_PRODUCTION_OFFLINE_PERIOD_CAP))}/${BASE_PRODUCTION_OFFLINE_PERIOD_CAP} stored periods.`;
+    body.style.marginTop = '6px';
+    body.style.color = 'rgba(232,239,255,0.7)';
+    body.style.fontSize = '12px';
+    body.style.lineHeight = '1.45';
+    notice.appendChild(body);
+
+    const resourceRow = document.createElement('div');
+    resourceRow.style.display = 'grid';
+    resourceRow.style.gridTemplateColumns = 'repeat(2, minmax(0, 1fr))';
+    resourceRow.style.gap = '6px';
+    resourceRow.style.marginTop = '14px';
+    for (const resource of gainedEntries) {
+      appendResourceGainPill(resourceRow, resource, Number(resources[resource.key]) || 0);
+    }
+    notice.appendChild(resourceRow);
+
+    const closeButton = document.createElement('button');
+    closeButton.type = 'button';
+    closeButton.textContent = 'OK';
+    closeButton.style.display = 'inline-flex';
+    closeButton.style.alignItems = 'center';
+    closeButton.style.justifyContent = 'center';
+    closeButton.style.width = '100%';
+    closeButton.style.height = '30px';
+    closeButton.style.marginTop = '16px';
+    closeButton.style.border = '1px solid rgba(125,211,252,0.34)';
+    closeButton.style.borderRadius = '5px';
+    closeButton.style.background = 'rgba(125,211,252,0.13)';
+    closeButton.style.color = '#bae6fd';
+    closeButton.style.fontSize = '12px';
+    closeButton.style.fontWeight = '900';
+    closeButton.style.cursor = 'pointer';
+    notice.appendChild(closeButton);
+
+    const closeNotice = () => {
+      overlay.style.opacity = '0';
+      notice.style.transform = 'translateY(8px) scale(0.985)';
+      window.setTimeout(() => overlay.remove(), 200);
+    };
+    closeButton.addEventListener('click', closeNotice);
+    overlay.appendChild(notice);
+    container.appendChild(overlay);
+    requestAnimationFrame(() => {
+      overlay.style.opacity = '1';
+      notice.style.transform = 'translateY(0) scale(1)';
+    });
+  }
+
   function getPlayerLevelProgress(playerState) {
     if (!playerState) {
       return 0;
@@ -2349,6 +4149,16 @@ export function createGame(container, galaxyOptions = {}) {
     return costEntries || '<div>Free</div>';
   }
 
+  function escapeHtml(value) {
+    return String(value ?? '').replace(/[&<>"']/g, (character) => ({
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#39;',
+    }[character]));
+  }
+
   function renderItemIcon(item, size = 24) {
     const icon = item?.icon ?? {};
     const color = icon.color ?? '#93a4bd';
@@ -2357,7 +4167,7 @@ export function createGame(container, galaxyOptions = {}) {
 
     return `
       <span
-        title="${item?.name ?? 'Item'}"
+        title="${escapeHtml(item?.name ?? 'Item')}"
         style="
           display:inline-flex;
           align-items:center;
@@ -2374,7 +4184,7 @@ export function createGame(container, galaxyOptions = {}) {
           font-weight:900;
           line-height:1;
         "
-      >${symbol}</span>
+      >${escapeHtml(symbol)}</span>
     `;
   }
 
@@ -2382,7 +4192,7 @@ export function createGame(container, galaxyOptions = {}) {
     return `
       <span style="display:inline-flex;align-items:center;gap:8px;min-width:0;">
         ${renderItemIcon(item, iconSize)}
-        <span title="${item.description}" style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${item.name}</span>
+        <span title="${escapeHtml(item.description)}" style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(item.name)}</span>
       </span>
     `;
   }
@@ -2449,7 +4259,10 @@ export function createGame(container, galaxyOptions = {}) {
       .map((item) => `
         <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:6px 0;">
           ${renderItemNameWithIcon(item, 28)}
-          <strong style="font-variant-numeric:tabular-nums;">${formatWholeNumber(items[item.id])}</strong>
+          <span style="display:flex;flex-direction:column;align-items:flex-end;gap:1px;">
+            <strong style="font-variant-numeric:tabular-nums;">${formatWholeNumber(items[item.id])}</strong>
+            <small style="color:rgba(255,255,255,0.46);font-size:10px;">${formatWholeNumber(getItemStorageSize(item.id))} space</small>
+          </span>
         </div>
       `)
       .join('');
@@ -2469,7 +4282,7 @@ export function createGame(container, galaxyOptions = {}) {
             ${renderItemNameWithIcon(selectedItem, 22)}
             ${renderOwnedItemCount(selectedItem.id)}
           </span>
-          <strong>${formatWholeNumber(selectedItem.productionCost)} PC</strong>
+          <strong>${formatWholeNumber(selectedItem.productionCost)} Industry</strong>
         </span>
       `
       : 'No craftable items';
@@ -2496,7 +4309,7 @@ export function createGame(container, galaxyOptions = {}) {
               ${renderItemNameWithIcon(item, 26)}
               ${renderOwnedItemCount(item.id)}
             </span>
-            <span>${formatWholeNumber(item.productionCost)} PC</span>
+            <span>${formatWholeNumber(item.productionCost)} Industry</span>
           </div>
           <div style="display:flex;flex-direction:column;gap:2px;margin-top:6px;font-size:11px;color:rgba(255,255,255,0.76);">
             ${formatResourceCostVertical(item.resourceCost)}
@@ -2532,8 +4345,22 @@ export function createGame(container, galaxyOptions = {}) {
     return nextResources;
   }
 
+  function refundResourceCost(resources = {}, cost = {}) {
+    const nextResources = cloneResources(resources);
+    for (const resourceKey of RESOURCE_KEYS) {
+      nextResources[resourceKey] =
+        (Number(nextResources[resourceKey]) || 0) + (Number(cost[resourceKey]) || 0);
+    }
+
+    return nextResources;
+  }
+
   function getTotalIndustryInfrastructure() {
-    return getOwnedStarsForCurrentTerritory().reduce((sum, star) => {
+    return getTotalIndustryInfrastructureForStars(getOwnedStarsForCurrentTerritory());
+  }
+
+  function getTotalIndustryInfrastructureForStars(stars = []) {
+    return stars.reduce((sum, star) => {
       const starIndustry = (star.planets ?? []).reduce(
         (planetSum, planet) => planetSum + getEffectiveInfrastructureLevel(planet, 'industrial'),
         0
@@ -2554,6 +4381,75 @@ export function createGame(container, galaxyOptions = {}) {
     );
   }
 
+  function getProductionEntryDisplayItem(entry, item = getItemDefinition(entry?.itemId)) {
+    if (item) {
+      return item;
+    }
+
+    if (entry?.targetType !== 'ship-template') {
+      return null;
+    }
+
+    return {
+      id: entry.itemId ?? entry.id ?? 'ship-template',
+      name: entry.itemName ?? entry.shipTemplate?.name ?? 'Ship Template',
+      description: entry.shipTemplate?.hullName
+        ? `${entry.shipTemplate.hullName} ship template`
+        : 'Ship template',
+      icon: {
+        symbol: 'S',
+        color: '#ffd9c2',
+        background: 'linear-gradient(135deg, #4b2819, #c97442)',
+      },
+    };
+  }
+
+  function createShipInventoryEntryFromProduction(entry, defaultPosition = null) {
+    const template = entry.shipTemplate ?? {};
+    const templateId = template.id ?? entry.itemId ?? entry.id;
+    return {
+      id: templateId,
+      templateId,
+      name: template.name ?? entry.itemName ?? 'Ship Template',
+      hullId: template.hullId ?? null,
+      hullName: template.hullName ?? null,
+      modules: Array.isArray(template.modules)
+        ? template.modules.map((module) => ({ ...module }))
+        : [],
+      traits: { ...(template.traits ?? {}) },
+      runtime: { ...(template.runtime ?? {}) },
+      position: entry.position ?? defaultPosition ?? null,
+      count: 1,
+    };
+  }
+
+  function addCompletedShipToInventory(ships, entry, defaultPosition = null) {
+    const completedShip = createShipInventoryEntryFromProduction(entry, defaultPosition);
+    const nextShips = Array.isArray(ships)
+      ? ships.map((ship) => ({
+        ...ship,
+        modules: Array.isArray(ship.modules)
+          ? ship.modules.map((module) => ({ ...module }))
+          : [],
+        traits: { ...(ship.traits ?? {}) },
+        runtime: { ...(ship.runtime ?? {}) },
+        position: ship.position ?? defaultPosition ?? null,
+      }))
+      : [];
+    const existingShip = nextShips.find(
+      (ship) =>
+        (ship.templateId === completedShip.templateId || ship.id === completedShip.templateId) &&
+        (ship.position ?? null) === (completedShip.position ?? null)
+    );
+
+    if (existingShip) {
+      existingShip.count = (Number(existingShip.count) || 0) + 1;
+      return nextShips;
+    }
+
+    return [...nextShips, completedShip];
+  }
+
   function getMinimumCraftPeriods(productionCost) {
     return Math.max(
       1,
@@ -2564,7 +4460,7 @@ export function createGame(container, galaxyOptions = {}) {
   function calculateProductionAllocation(queue, industryLevel) {
     let remainingProduction = Math.max(0, Number(industryLevel) || 0);
     const entries = queue.map((entry) => {
-      const item = getItemDefinition(entry.itemId);
+      const item = getProductionEntryDisplayItem(entry);
       const productionCost = getProductionCostForEntry(entry, item);
       const completedProductionCost = Math.min(
         productionCost,
@@ -2620,7 +4516,27 @@ export function createGame(container, galaxyOptions = {}) {
     };
   }
 
-  function advanceProductionQueue(playerState, completedPeriods, industryLevel) {
+  function createShipTemplateProductionQueueEntry(productionTarget, industryLevel) {
+    const template = productionTarget.template;
+    const productionCost = Math.max(1, Number(productionTarget.productionCost) || 1);
+    const effectiveIndustry = Math.max(0, Number(industryLevel) || 0);
+    return {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      itemId: productionTarget.id,
+      targetType: 'ship-template',
+      itemName: template.name,
+      queuedAt: new Date().toISOString(),
+      productionCost,
+      completedProductionCost: 0,
+      remainingProductionCost: productionCost,
+      industryAtQueue: effectiveIndustry,
+      estimatedPeriods: null,
+      resourceCost: cloneResources(productionTarget.resourceCost),
+      shipTemplate: structuredClone(template),
+    };
+  }
+
+  function advanceProductionQueue(playerState, completedPeriods, industryLevel, defaultShipPosition = null) {
     let productionQueue = (playerState.productionQueue ?? []).map((entry) => ({
       ...entry,
       productionCost: getProductionCostForEntry(entry),
@@ -2643,7 +4559,35 @@ export function createGame(container, galaxyOptions = {}) {
       ),
     }));
     const items = { ...(playerState.items ?? {}) };
+    let ships = Array.isArray(playerState.ships)
+      ? playerState.ships.map((ship) => ({
+          ...ship,
+          traits: { ...(ship.traits ?? {}) },
+          position: ship.position ?? defaultShipPosition ?? null,
+        }))
+      : [];
     let changed = false;
+    const completeReadyEntries = () => {
+      productionQueue = productionQueue.flatMap((entry) => {
+        if (entry.remainingProductionCost > 0) {
+          const nextEntry = { ...entry };
+          delete nextEntry.storageBlocked;
+          return [nextEntry];
+        }
+
+      if (entry.targetType === 'ship-template') {
+        ships = addCompletedShipToInventory(ships, entry, defaultShipPosition);
+          changed = true;
+          return [];
+        }
+
+        items[entry.itemId] = (Number(items[entry.itemId]) || 0) + 1;
+        changed = true;
+        return [];
+      });
+    };
+
+    completeReadyEntries();
 
     for (let periodIndex = 0; periodIndex < completedPeriods; periodIndex++) {
       const allocation = calculateProductionAllocation(productionQueue, industryLevel);
@@ -2663,20 +4607,13 @@ export function createGame(container, galaxyOptions = {}) {
             (Number(entry.remainingProductionCost) || 0) - allocatedProduction
           ),
         }))
-        .filter((entry) => {
-          if (entry.remainingProductionCost > 0) {
-            return true;
-          }
-
-          items[entry.itemId] = (Number(items[entry.itemId]) || 0) + 1;
-          changed = true;
-          return false;
-        });
+      completeReadyEntries();
     }
 
     return {
       changed,
       items,
+      ships,
       productionQueue,
     };
   }
@@ -2694,8 +4631,8 @@ export function createGame(container, galaxyOptions = {}) {
     const usedProduction = Math.max(0, industryLevel - productionAllocation.unusedProduction);
     productionInfo.textContent =
       `Available production: ${formatProductionRate(productionAllocation.unusedProduction)} / ` +
-      `${formatProductionRate(industryLevel)} PC/period` +
-      (usedProduction > 0 ? ` | In use: ${formatProductionRate(usedProduction)} PC/period` : '');
+      `${formatProductionRate(industryLevel)} Industry/period` +
+      (usedProduction > 0 ? ` | In use: ${formatProductionRate(usedProduction)} Industry/period` : '');
 
     if (!state.playerState) {
       productionQueueList.textContent = 'Log in to use production.';
@@ -2717,7 +4654,7 @@ export function createGame(container, galaxyOptions = {}) {
     productionQueueList.innerHTML = queue
       .map((entry, index) => {
         const allocation = productionAllocation.entries[index];
-        const item = allocation?.item ?? getItemDefinition(entry.itemId);
+        const item = getProductionEntryDisplayItem(entry, allocation?.item);
         const estimatedPeriods = Number.isFinite(allocation?.estimatedPeriods)
           ? formatDurationPeriods(allocation.estimatedPeriods)
           : 'Paused';
@@ -2732,6 +4669,7 @@ export function createGame(container, galaxyOptions = {}) {
           ? Math.min(100, Math.max(0, (projectedProduction / productionCost) * 100))
           : 0;
         const isCrafting = (allocation?.allocatedProduction ?? 0) > 0;
+        const statusText = isCrafting ? estimatedPeriods : 'Waiting';
         const maxProductionForItem = productionCost / getMinimumCraftPeriods(productionCost);
         const efficiencyPercent = maxProductionForItem > 0
           ? Math.min(100, Math.max(0, ((allocation?.allocatedProduction ?? 0) / maxProductionForItem) * 100))
@@ -2743,7 +4681,7 @@ export function createGame(container, galaxyOptions = {}) {
                 <span style="color:rgba(255,255,255,0.52);font-size:11px;width:14px;text-align:right;">${index + 1}.</span>
                 ${item ? renderItemNameWithIcon(item, 22) : entry.itemId}
               </span>
-              <strong style="color:${isCrafting ? '#93a4bd' : 'rgba(255,255,255,0.58)'};">${isCrafting ? estimatedPeriods : 'Waiting'}</strong>
+              <strong style="color:${isCrafting ? '#93a4bd' : 'rgba(255,255,255,0.58)'};">${statusText}</strong>
             </div>
             <div style="height:8px;background:rgba(255,255,255,0.08);border-radius:999px;overflow:hidden;margin-top:7px;border:1px solid rgba(255,255,255,0.08);">
               <div style="height:100%;width:${progressPercent}%;background:linear-gradient(90deg,#7c8faa,#9da8bd);box-shadow:0 0 12px rgba(148,163,184,0.18);"></div>
@@ -2769,6 +4707,8 @@ export function createGame(container, galaxyOptions = {}) {
 
   function renderShipDesignerPanel() {
     rightPanel.dataset.panel = 'ship-designer';
+    setShipPanelView('fleet');
+    setShipPanelShipId('');
     renderRightSideMenu();
   }
 
@@ -2787,7 +4727,104 @@ export function createGame(container, galaxyOptions = {}) {
     renderRightSideMenu();
   }
 
+  const panelHistory = [];
+
+  function getRightPanelSnapshot() {
+    return {
+      panel: rightPanel.dataset.panel ?? 'inventory',
+      shipView: getShipPanelView(),
+      shipId: getShipPanelShipId(),
+      selectedStarId: state.selection.selectedStarId ?? null,
+      selectedPlanetId: state.selectedPlanetId ?? null,
+    };
+  }
+
+  function pushRightPanelHistory(nextPanel) {
+    if (rightPanel.dataset.open !== 'true') {
+      return;
+    }
+
+    const snapshot = getRightPanelSnapshot();
+    if (snapshot.panel === nextPanel) {
+      return;
+    }
+
+    panelHistory.push(snapshot);
+    if (panelHistory.length > 24) {
+      panelHistory.shift();
+    }
+  }
+
+  function pushRightPanelSnapshot(snapshot) {
+    if (rightPanel.dataset.open !== 'true' || !snapshot) {
+      return;
+    }
+
+    panelHistory.push(snapshot);
+    if (panelHistory.length > 24) {
+      panelHistory.shift();
+    }
+    updatePanelHistoryControls();
+  }
+
+  function updatePanelHistoryControls() {
+    panelNavControls.style.display = rightPanel.dataset.open === 'true' ? 'flex' : 'none';
+    panelBackButton.disabled = panelHistory.length === 0 || rightPanel.dataset.open !== 'true';
+    panelCloseButton.disabled = rightPanel.dataset.open !== 'true';
+    setBottomNavVisual(panelBackButton, false);
+    setBottomNavVisual(panelCloseButton, false);
+  }
+
+  function restoreRightPanelSnapshot(snapshot) {
+    if (!snapshot) {
+      return;
+    }
+
+    if ((rightPanel.dataset.panel ?? 'inventory') === 'system' && snapshot.panel !== 'system') {
+      abandonPendingInfrastructureChanges();
+    }
+
+    rightPanel.dataset.panel = snapshot.panel;
+    setShipPanelView(snapshot.shipView ?? 'fleet');
+    setShipPanelShipId(snapshot.shipId ?? '');
+    state.selection.selectedStarId = snapshot.panel === 'system' ? snapshot.selectedStarId : null;
+    state.selectedPlanetId = snapshot.panel === 'system' ? snapshot.selectedPlanetId : null;
+    setRightPanelOpen(true);
+    state.invalidateRender();
+  }
+
+  function goBackRightPanel() {
+    restoreRightPanelSnapshot(panelHistory.pop());
+  }
+
+  function openRightPanelWithHistory(panelName, { pushHistory = true } = {}) {
+    const activePanel = rightPanel.dataset.panel ?? 'inventory';
+    if (pushHistory) {
+      pushRightPanelHistory(panelName);
+    }
+
+    if (activePanel === 'system' && panelName !== 'system') {
+      abandonPendingInfrastructureChanges();
+    }
+
+    if (
+      panelName === 'ship-designer' &&
+      (activePanel !== 'ship-designer' || rightPanel.dataset.open !== 'true' || getShipPanelView() === 'mission')
+    ) {
+      setShipPanelView('fleet');
+      setShipPanelShipId('');
+    }
+
+    rightPanel.dataset.panel = panelName;
+    setRightPanelOpen(true);
+  }
+
   function setPanelButtonActive(button, isActive) {
+    if (button.dataset.bottomNav === 'true') {
+      setBottomNavVisual(button, isActive);
+      return;
+    }
+
     button.style.background = isActive ? 'rgba(148,163,184,0.18)' : 'rgba(255,255,255,0.05)';
     button.style.borderColor = isActive ? 'rgba(148,163,184,0.46)' : 'rgba(148,163,184,0.16)';
     button.style.color = '#e8efff';
@@ -2801,8 +4838,7 @@ export function createGame(container, galaxyOptions = {}) {
   }
 
     function openRightPanel(panelName) {
-      rightPanel.dataset.panel = panelName;
-      setRightPanelOpen(true);
+      openRightPanelWithHistory(panelName);
     }
 
     function clearViewedProfile() {
@@ -2905,6 +4941,9 @@ export function createGame(container, galaxyOptions = {}) {
         case 'profile':
           renderRightSideMenu();
           break;
+        case 'skills':
+          renderRightSideMenu();
+          break;
         case 'production':
           renderProductionPanel();
           break;
@@ -2946,6 +4985,7 @@ export function createGame(container, galaxyOptions = {}) {
     setPanelButtonActive(marketButton, isOpen && rightPanel.dataset.panel === 'market');
     setPanelButtonActive(allianceButton, isOpen && rightPanel.dataset.panel === 'alliance');
     setPanelButtonActive(objectivesButton, isOpen && rightPanel.dataset.panel === 'objectives');
+    updatePanelHistoryControls();
     renderRightSideMenu();
     writeDeepLink({ replace: !isOpen });
   }
@@ -2956,28 +4996,45 @@ export function createGame(container, galaxyOptions = {}) {
       abandonPendingInfrastructureChanges();
     }
     const shouldOpen = rightPanel.dataset.open !== 'true' || activePanel !== panelName;
+    if (shouldOpen && activePanel !== panelName) {
+      pushRightPanelHistory(panelName);
+    }
+    if (
+      panelName === 'ship-designer' &&
+      (activePanel !== 'ship-designer' || rightPanel.dataset.open !== 'true' || getShipPanelView() === 'mission')
+    ) {
+      setShipPanelView('fleet');
+      setShipPanelShipId('');
+    }
     rightPanel.dataset.panel = panelName;
     setRightPanelOpen(shouldOpen);
   }
 
-  async function addSelectedItemToProductionQueue() {
+  async function addSelectedItemToProductionQueue(productionTarget = null) {
     if (!state.playerState) {
       renderProductionPanel();
       return;
     }
 
-    const item = getItemDefinition(selectedProductionItemId);
-    if (!item) {
+    const item = productionTarget?.type === 'item'
+      ? getItemDefinition(productionTarget.itemId)
+      : getItemDefinition(selectedProductionItemId);
+    const isShipTemplate = productionTarget?.type === 'ship-template' && productionTarget.template;
+    const targetDefinition = isShipTemplate ? productionTarget : item;
+
+    if (!targetDefinition) {
       return;
     }
 
-    const resourceCost = cloneResources(item.resourceCost);
+    const resourceCost = cloneResources(targetDefinition.resourceCost);
     if (!canAffordResourceCost(state.playerState.resources, resourceCost)) {
       productionInfo.textContent = `Not enough resources. Need: ${formatResourceCost(resourceCost)}`;
       return;
     }
 
-    const queueEntry = createProductionQueueEntry(item, getTotalIndustryInfrastructure());
+    const queueEntry = isShipTemplate
+      ? createShipTemplateProductionQueueEntry(productionTarget, getTotalIndustryInfrastructure())
+      : createProductionQueueEntry(item, getTotalIndustryInfrastructure());
     state.playerState = {
       ...state.playerState,
       resources: spendResourceCost(state.playerState.resources, resourceCost),
@@ -2985,6 +5042,29 @@ export function createGame(container, galaxyOptions = {}) {
         ...(state.playerState.productionQueue ?? []),
         queueEntry,
       ],
+    };
+    state.cachedPlayerStates.set(state.currentPlayerId, structuredClone(state.playerState));
+    renderProductionPanel();
+    state.invalidateRender();
+    await sync.pushState();
+  }
+
+  async function removeProductionQueueEntry(entryId) {
+    if (!state.playerState || !entryId) {
+      renderProductionPanel();
+      return;
+    }
+
+    const existingQueue = state.playerState.productionQueue ?? [];
+    const entryToRemove = existingQueue.find((entry) => entry.id === entryId);
+    if (!entryToRemove) {
+      return;
+    }
+
+    state.playerState = {
+      ...state.playerState,
+      resources: refundResourceCost(state.playerState.resources, cloneResources(entryToRemove.resourceCost)),
+      productionQueue: existingQueue.filter((entry) => entry.id !== entryId),
     };
     state.cachedPlayerStates.set(state.currentPlayerId, structuredClone(state.playerState));
     renderProductionPanel();
@@ -3080,6 +5160,11 @@ export function createGame(container, galaxyOptions = {}) {
     return RESOURCE_UPDATE_INTERVALS_MS[playerState?.resourceUpdateInterval] ?? RESOURCE_UPDATE_INTERVALS_MS.minute;
   }
 
+  function addBasePlayerResourceProduction(resources, multiplier = 1) {
+    sumResources(resources, BASE_PLAYER_RESOURCE_PRODUCTION_PER_PERIOD, multiplier);
+    return resources;
+  }
+
   function getOwnedStarsForCurrentTerritory() {
     if (!state.currentTerritoryId) {
       return [];
@@ -3153,11 +5238,12 @@ export function createGame(container, galaxyOptions = {}) {
     }
 
     periodProduction.Credits += getDirectPopulationCreditsForOwnedStars(ownedStars);
+    addBasePlayerResourceProduction(periodProduction);
 
     return periodProduction;
   }
 
-  function settleLocalSystemPools(nowMs = Date.now()) {
+  function settleLocalSystemPools(nowMs = Date.now(), options = {}) {
     if (!state.playerState || !state.currentTerritoryId) {
       return false;
     }
@@ -3184,6 +5270,11 @@ export function createGame(container, galaxyOptions = {}) {
     const populationChanged = settleOwnedStarPopulations(ownedStars, completedIntervals, capitalStarId);
     const nextResources = cloneResources(state.playerState.resources);
     nextResources.Credits += getDirectPopulationCreditsForOwnedStars(ownedStars, completedIntervals);
+    const migratedBaseResourcePool = cloneResources(state.playerState.baseResourcePool);
+    sumResources(nextResources, migratedBaseResourcePool);
+    const baseProductionPeriods = Math.min(BASE_PRODUCTION_OFFLINE_PERIOD_CAP, completedIntervals);
+    const baseProductionGain = getBaseProductionGain(baseProductionPeriods);
+    sumResources(nextResources, baseProductionGain);
     for (let intervalIndex = 0; intervalIndex < completedIntervals; intervalIndex++) {
       for (const star of ownedStars) {
         const poolEntry = systemPools[star.id] ?? createEmptySystemPool();
@@ -3198,20 +5289,31 @@ export function createGame(container, galaxyOptions = {}) {
     const productionState = advanceProductionQueue(
       state.playerState,
       completedIntervals,
-      getTotalIndustryInfrastructure()
+      getTotalIndustryInfrastructure(),
+      state.territories.get(state.currentTerritoryId)?.capitalStarId ?? null
     );
 
     state.playerState = {
       ...state.playerState,
       resources: nextResources,
       items: productionState.items,
+      ships: productionState.ships,
       productionQueue: productionState.productionQueue,
       systemPools,
+      baseResourcePool: createEmptyResources(),
       systemPoolCapacities,
       hourlyProduction: calculateLocalPeriodProductionFromPools(systemPools, ownedStars),
       completedHours: (state.playerState.completedHours ?? 0) + completedIntervals,
       lastResourceUpdate: new Date(Math.floor(nowMs / intervalMs) * intervalMs).toISOString(),
     };
+
+    if (options.showBaseProductionGain && baseProductionPeriods > 0) {
+      showBaseProductionGainNotice({
+        periods: baseProductionPeriods,
+        resources: baseProductionGain,
+        offline: false,
+      });
+    }
 
     return populationChanged || productionState.changed || completedIntervals > 0;
   }
@@ -3319,6 +5421,15 @@ export function createGame(container, galaxyOptions = {}) {
     `;
   }
 
+  function formatLoadingTime(durationMs) {
+    if (!Number.isFinite(durationMs)) {
+      return '-- s';
+    }
+
+    const seconds = durationMs / 1000;
+    return `${seconds < 10 ? seconds.toFixed(2) : seconds.toFixed(1)} s`;
+  }
+
   function drawPerformanceGraph() {
     if (!state.showPerformanceGraph) {
       return;
@@ -3332,6 +5443,8 @@ export function createGame(container, galaxyOptions = {}) {
     ctx.fillStyle = '#081018';
     ctx.fillRect(0, 0, width, height);
 
+    const loadingText = formatLoadingTime(state.loadingTimeMs);
+
     ctx.strokeStyle = 'rgba(255,255,255,0.12)';
     ctx.lineWidth = 1;
     for (const y of [16, 33, 50]) {
@@ -3342,7 +5455,7 @@ export function createGame(container, galaxyOptions = {}) {
     }
 
     if (!samples.length) {
-      performanceStats.textContent = 'FPS: -- | Frame: -- ms | Load: --';
+      performanceStats.textContent = `FPS: -- | Frame: -- ms | Load: --\nLoading: ${loadingText}`;
       return;
     }
 
@@ -3374,7 +5487,7 @@ export function createGame(container, galaxyOptions = {}) {
     const loadPercent = Math.max(0, Math.min(loadRatio * 100, 999));
 
     performanceStats.textContent =
-      `FPS: ${averageFps.toFixed(1)} | Frame: ${averageFrameMs.toFixed(1)} ms | Load: ${loadPercent.toFixed(0)}%`;
+      `FPS: ${averageFps.toFixed(1)} | Frame: ${averageFrameMs.toFixed(1)} ms | Load: ${loadPercent.toFixed(0)}%\nLoading: ${loadingText}`;
 
     ctx.fillStyle = 'rgba(78, 205, 196, 0.14)';
     ctx.beginPath();
@@ -3447,6 +5560,10 @@ export function createGame(container, galaxyOptions = {}) {
 
   function recordPerformance(renderDurationMs) {
     const now = performance.now();
+    if (state.loadingTimeMs === null) {
+      state.loadingTimeMs = now;
+    }
+
     const frameIntervalMs = state.lastFrameTimestamp === null
       ? renderDurationMs
       : now - state.lastFrameTimestamp;
@@ -3543,11 +5660,23 @@ export function createGame(container, galaxyOptions = {}) {
         ...response.player,
         playerName: territory?.name ?? response.player.playerId,
       };
+      const completedPeriods = Math.max(0, Math.floor(Number(state.playerState.completedHours) || 0));
+      const baseProductionPeriods = Math.min(BASE_PRODUCTION_OFFLINE_PERIOD_CAP, completedPeriods);
+      const intervalMs = getPlayerIntervalMs(state.playerState);
+      restorePersistedMoveMissions();
       state.cachedPlayerStates.set(playerId, structuredClone(state.playerState));
       state.infrastructureStatusMessage = '';
       captureCommittedInfrastructureState();
       syncCurrentTerritoryEnergyState();
       renderPlayerResources();
+      if (baseProductionPeriods > 0) {
+        showBaseProductionGainNotice({
+          periods: completedPeriods,
+          resources: getBaseProductionGain(baseProductionPeriods),
+          elapsedMs: completedPeriods * intervalMs,
+          offline: true,
+        });
+      }
       startLocalResourceTicker();
       state.invalidateRender();
     } catch (error) {
@@ -3573,6 +5702,7 @@ export function createGame(container, galaxyOptions = {}) {
       ...structuredClone(cachedPlayerState),
       playerName: territory?.name ?? cachedPlayerState.playerName ?? cachedPlayerState.playerId,
     };
+    restorePersistedMoveMissions();
     state.infrastructureStatusMessage = '';
     syncCurrentTerritoryEnergyState();
     renderPlayerResources();
@@ -3722,11 +5852,28 @@ export function createGame(container, galaxyOptions = {}) {
       return;
     }
 
+    const territory = state.territories.get(state.currentPlayerId) ?? null;
+    if (territory && state.playerState) {
+      state.playerState = {
+        ...state.playerState,
+        territory: getRuntimeTerritoryRecord(territory),
+      };
+    }
+
     markTerritoryRenderDataDirty();
     markTerritoryChangesDirty();
     updateLocalPlayerProduction();
     renderPlayerResources();
     state.invalidateRender();
+
+    const territoryRevisionAtSaveStart = state.territoryRevision;
+    await sync.pushState();
+    if (state.territoryRevision === territoryRevisionAtSaveStart) {
+      state.hasPendingTerritoryChanges = false;
+    }
+    if (state.currentPlayerId && state.playerState) {
+      state.cachedPlayerStates.set(state.currentPlayerId, structuredClone(state.playerState));
+    }
   };
 
   function startLocalResourceTicker() {
@@ -3743,7 +5890,7 @@ export function createGame(container, galaxyOptions = {}) {
     localResourceTickTimeoutId = window.setTimeout(async () => {
       localResourceTickTimeoutId = null;
 
-      if (settleLocalSystemPools()) {
+      if (settleLocalSystemPools(Date.now(), { showBaseProductionGain: true })) {
         await sync.pushState();
         renderPlayerResources();
         state.invalidateRender();
@@ -3754,7 +5901,7 @@ export function createGame(container, galaxyOptions = {}) {
   }
 
   resetGalaxyButton.addEventListener('click', async () => {
-    if (await sync.resetRemoteState()) {
+    if (await sync.resetGalaxyMapState()) {
       window.location.reload();
     }
   });
@@ -3798,6 +5945,10 @@ export function createGame(container, galaxyOptions = {}) {
 
   shipDesignerButton.addEventListener('click', () => {
     setProfileDropdownOpen(false);
+    if (rightPanel.dataset.open !== 'true' || getShipPanelView() === 'mission') {
+      setShipPanelView('fleet');
+      setShipPanelShipId('');
+    }
     toggleRightPanel('ship-designer');
   });
 
@@ -3817,6 +5968,14 @@ export function createGame(container, galaxyOptions = {}) {
   });
 
   rightPanelCloseButton.addEventListener('click', () => {
+    setRightPanelOpen(false);
+  });
+
+  panelBackButton.addEventListener('click', () => {
+    goBackRightPanel();
+  });
+
+  panelCloseButton.addEventListener('click', () => {
     setRightPanelOpen(false);
   });
 
@@ -3874,6 +6033,10 @@ export function createGame(container, galaxyOptions = {}) {
       return;
     }
 
+    if (state.moveMission?.active) {
+      return;
+    }
+
     const worldPoint = screenToWorld(state.camera, { width: rect.width, height: rect.height }, screenX, screenY);
     const closest = findClosestStarNearPoint(worldPoint, 12, rect.width, rect.height);
 
@@ -3928,6 +6091,7 @@ export function createGame(container, galaxyOptions = {}) {
           if (state.selection.selectedStarId && state.selection.selectedStarId !== closest.id) {
             abandonPendingInfrastructureChanges();
           }
+          pushRightPanelHistory('system');
           state.selection.selectedStarId = closest.id;
           state.selectedPlanetId = null;
           rightPanel.dataset.panel = 'system';
@@ -3971,6 +6135,114 @@ export function createGame(container, galaxyOptions = {}) {
 
     return closest;
   }
+
+  state.onMoveMissionCalculateRoute = calculateMoveMissionRoute;
+  state.onMoveMissionCommitMove = commitMoveMission;
+  state.onMoveMissionCancel = cancelMoveMission;
+  state.onMoveMissionOpenFleet = (ship, missionId = null) => {
+    if (ship) {
+      setHighlightedFleetShip({
+        ...ship,
+        moveMissionId: missionId ?? ship.moveMissionId,
+      });
+    }
+    setShipPanelView('fleet');
+    setShipPanelShipId('');
+    openRightPanelWithHistory('ship-designer');
+    state.invalidateRender();
+  };
+  state.handleMoveMissionPointerDown = (event) => {
+    const moveMission = state.moveMission;
+    if (!moveMission?.active || moveMission.status === 'moving') {
+      return false;
+    }
+
+    const rect = canvas.getBoundingClientRect();
+    const screenX = event.clientX - rect.left;
+    const screenY = event.clientY - rect.top;
+    const markerWorld = moveMission.markerWorld;
+    const markerScreen = {
+      x: (markerWorld.x - state.camera.x) * state.camera.zoom + rect.width / 2,
+      y: (markerWorld.y - state.camera.y) * state.camera.zoom + rect.height / 2,
+    };
+    const dx = markerScreen.x - screenX;
+    const dy = markerScreen.y - screenY;
+
+    if (dx * dx + dy * dy > 24 * 24) {
+      return false;
+    }
+
+    state.moveMission = {
+      ...moveMission,
+      dragging: true,
+      status: 'placing',
+      routeStarIds: [],
+      routeRevealStartedAt: null,
+      travelSummary: null,
+      showDestinationDialog: false,
+      destinationStarId: null,
+    };
+    state.suppressCanvasClick = true;
+    canvas.setPointerCapture(event.pointerId);
+    state.invalidateRender();
+    return true;
+  };
+
+  state.handleMoveMissionPointerMove = (event) => {
+    if (!state.moveMission?.dragging) {
+      return false;
+    }
+
+    const rect = canvas.getBoundingClientRect();
+    const screenX = event.clientX - rect.left;
+    const screenY = event.clientY - rect.top;
+    const worldPoint = screenToWorld(state.camera, { width: rect.width, height: rect.height }, screenX, screenY);
+    state.moveMission = {
+      ...state.moveMission,
+      markerWorld: worldPoint,
+      routeStarIds: [],
+      routeRevealStartedAt: null,
+      travelSummary: null,
+      destinationStarId: null,
+      showDestinationDialog: false,
+    };
+    state.suppressCanvasClick = true;
+    state.invalidateRender();
+    return true;
+  };
+
+  state.handleMoveMissionPointerUp = (event) => {
+    if (!state.moveMission?.dragging) {
+      return false;
+    }
+
+    const rect = canvas.getBoundingClientRect();
+    const screenX = event.clientX - rect.left;
+    const screenY = event.clientY - rect.top;
+    const worldPoint = screenToWorld(state.camera, { width: rect.width, height: rect.height }, screenX, screenY);
+    setMoveMissionDestinationFromWorld(worldPoint);
+    state.suppressCanvasClick = true;
+    try {
+      canvas.releasePointerCapture(event.pointerId);
+    } catch {
+      // Pointer capture may already be released by the browser.
+    }
+    return true;
+  };
+
+  state.handleMoveMissionPointerCancel = () => {
+    if (!state.moveMission?.dragging) {
+      return false;
+    }
+
+    state.moveMission = {
+      ...state.moveMission,
+      dragging: false,
+    };
+    state.suppressCanvasClick = true;
+    state.invalidateRender();
+    return true;
+  };
 
   canvas.addEventListener('mousemove', (event) => {
     const rect = canvas.getBoundingClientRect();

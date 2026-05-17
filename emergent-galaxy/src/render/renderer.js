@@ -14,6 +14,23 @@ import {
   estimateStarDisplayPeriodsToNinety,
 } from '../core/population.js';
 
+function formatMoveCountdown(durationMs) {
+  const totalSeconds = Math.max(0, Math.ceil((Number(durationMs) || 0) / 1000));
+  if (totalSeconds >= 3600) {
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.ceil((totalSeconds % 3600) / 60);
+    return minutes > 0 ? `${hours}h ${minutes}m` : `${hours}h`;
+  }
+
+  if (totalSeconds >= 60) {
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    return seconds > 0 ? `${minutes}m ${seconds}s` : `${minutes}m`;
+  }
+
+  return `${totalSeconds}s`;
+}
+
 // ---------- Geometry helpers ----------
 
 function clipPolygonWithHalfPlane(polygon, a, b, c) {
@@ -394,6 +411,27 @@ function buildTerritoryRenderData(edgeMap, state) {
   };
 }
 
+function buildTerritoryMembershipData(state) {
+  const starTerritoryByStarId = new Map();
+  const territoryRgbById = new Map();
+  const ownedStarIds = new Set();
+
+  for (const [territoryId, territory] of state.territories.entries()) {
+    territoryRgbById.set(territoryId, hexToRgb(territory.color));
+
+    for (const starId of territory.stars) {
+      starTerritoryByStarId.set(starId, territory);
+      ownedStarIds.add(starId);
+    }
+  }
+
+  return {
+    starTerritoryByStarId,
+    territoryRgbById,
+    ownedStarIds,
+  };
+}
+
 function hexToRgb(hex) {
   const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
   return result ? {
@@ -419,8 +457,8 @@ function getVisibleTerritoryStarColor(rgb) {
   return `rgb(${boosted.r}, ${boosted.g}, ${boosted.b})`;
 }
 
-function getStarburstSeed(starId) {
-  const text = String(starId ?? '');
+function getStableSeed(value) {
+  const text = String(value ?? '');
   let hash = 2166136261;
 
   for (let i = 0; i < text.length; i++) {
@@ -429,6 +467,10 @@ function getStarburstSeed(starId) {
   }
 
   return hash >>> 0;
+}
+
+function getStarburstSeed(starId) {
+  return getStableSeed(starId);
 }
 
 function seededUnit(seed, salt) {
@@ -595,6 +637,38 @@ function drawOwnedTerritoryMass(ctx, camera, viewport, loopsByTerritoryId, smoot
   ctx.restore();
 }
 
+function drawTerritoryStarClouds(ctx, camera, viewport, visibleStars, starTerritoryByStarId, territoryRgbById, state) {
+  if (state.territories.size === 0 || starTerritoryByStarId.size === 0) return;
+
+  const motionBlend = state.performanceMode ? 1 : (state.motionVisualBlend ?? 0);
+  const opacity = Math.max(0.04, 0.12 * (1 - motionBlend * 0.5));
+  const radius = Math.max(18, Math.min(56, 26 / Math.max(0.25, camera.zoom)));
+
+  ctx.save();
+  ctx.globalCompositeOperation = 'screen';
+
+  for (const star of visibleStars) {
+    const territory = starTerritoryByStarId.get(star.id);
+    if (!territory) {
+      continue;
+    }
+
+    const rgb = territoryRgbById.get(territory.id) ?? hexToRgb(territory.color);
+    const p = worldToScreen(camera, viewport, star.x, star.y);
+    const gradient = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, radius);
+    gradient.addColorStop(0, `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${opacity})`);
+    gradient.addColorStop(0.72, `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${opacity * 0.38})`);
+    gradient.addColorStop(1, `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0)`);
+
+    ctx.fillStyle = gradient;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, radius, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  ctx.restore();
+}
+
 function getTerritoryRenderQuality(zoom, state) {
   const performanceMode = state.performanceMode ?? false;
   const motionBlend = state.motionVisualBlend ?? 0;
@@ -711,10 +785,10 @@ function getAdjacentStarPairs(starById, edgeMap) {
   return pairs;
 }
 
-function drawStarConnections(ctx, camera, viewport, adjacentPairs, hoveredStarId, ownedStarIds, state) {
+function drawStarConnections(ctx, camera, viewport, adjacentPairs, hoveredStarId, starTerritoryByStarId, state) {
   const motionBlend = state.performanceMode ? 1 : (state.motionVisualBlend ?? 0);
   const drawOwnedConnections =
-    !state.performanceMode && ownedStarIds.size > 0 && motionBlend < 0.98;
+    !state.performanceMode && starTerritoryByStarId.size > 0 && motionBlend < 0.98;
 
   if (!hoveredStarId && !drawOwnedConnections) {
     return;
@@ -733,9 +807,11 @@ function drawStarConnections(ctx, camera, viewport, adjacentPairs, hoveredStarId
       shouldDraw = true;
     }
     
-    // Draw if either star belongs to a territory
+    // Draw territory connections only inside a territory, never from an owned star out to unowned space.
     if (!shouldDraw && drawOwnedConnections) {
-      shouldDraw = ownedStarIds.has(star1.id) || ownedStarIds.has(star2.id);
+      const star1Territory = starTerritoryByStarId.get(star1.id);
+      const star2Territory = starTerritoryByStarId.get(star2.id);
+      shouldDraw = Boolean(star1Territory?.id && star1Territory.id === star2Territory?.id);
     }
 
     if (shouldDraw) {
@@ -824,8 +900,112 @@ function drawCapitalCrown(ctx, x, y, size, opacityMultiplier = 1) {
   ctx.restore();
 }
 
+function drawMissionShipIcon(ctx, x, y, radius = 15, status = 'placing') {
+  const accent = status === 'arrived' ? '#86efac' : status === 'moving' ? '#7dd3fc' : '#ffd9c2';
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.shadowColor = `${accent}aa`;
+  ctx.shadowBlur = 14;
+  ctx.fillStyle = 'rgba(5, 10, 22, 0.94)';
+  ctx.strokeStyle = accent;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(0, -radius);
+  ctx.lineTo(radius * 0.72, radius * 0.74);
+  ctx.lineTo(0, radius * 0.38);
+  ctx.lineTo(-radius * 0.72, radius * 0.74);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = accent;
+  ctx.beginPath();
+  ctx.arc(0, -radius * 0.08, Math.max(2.6, radius * 0.18), 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawMoveMissionRoute(ctx, camera, viewport, state, routeStarIds = [], revealProgress = 1) {
+  const routeStars = routeStarIds.map((id) => state.starsById?.get(id)).filter(Boolean);
+  if (routeStars.length < 2) {
+    return;
+  }
+
+  const screenPoints = routeStars.map((star) => worldToScreen(camera, viewport, star.x, star.y));
+  const segments = [];
+  let totalLength = 0;
+  for (let index = 0; index < screenPoints.length - 1; index++) {
+    const from = screenPoints[index];
+    const to = screenPoints[index + 1];
+    const length = Math.hypot(to.x - from.x, to.y - from.y);
+    segments.push({ from, to, length });
+    totalLength += length;
+  }
+
+  let remainingLength = totalLength * Math.max(0, Math.min(1, revealProgress));
+
+  ctx.save();
+  ctx.lineWidth = 3;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.strokeStyle = 'rgba(125, 211, 252, 0.88)';
+  ctx.shadowColor = 'rgba(125, 211, 252, 0.55)';
+  ctx.shadowBlur = 10;
+  ctx.beginPath();
+
+  if (segments.length) {
+    ctx.moveTo(segments[0].from.x, segments[0].from.y);
+    for (const segment of segments) {
+      if (remainingLength <= 0) {
+        break;
+      }
+
+      if (remainingLength >= segment.length) {
+        ctx.lineTo(segment.to.x, segment.to.y);
+        remainingLength -= segment.length;
+        continue;
+      }
+
+      const t = segment.length > 0 ? remainingLength / segment.length : 1;
+      ctx.lineTo(
+        segment.from.x + (segment.to.x - segment.from.x) * t,
+        segment.from.y + (segment.to.y - segment.from.y) * t
+      );
+      remainingLength = 0;
+      break;
+    }
+  }
+
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  const nodeRevealDistance = totalLength * Math.max(0, Math.min(1, revealProgress));
+  let cumulativeDistance = 0;
+  for (let index = 0; index < screenPoints.length; index++) {
+    const point = screenPoints[index];
+    if (index > 0) {
+      cumulativeDistance += segments[index - 1]?.length ?? 0;
+    }
+    if (cumulativeDistance > nodeRevealDistance + 0.5) {
+      break;
+    }
+
+    ctx.fillStyle = 'rgba(5, 10, 22, 0.92)';
+    ctx.strokeStyle = 'rgba(186, 230, 253, 0.95)';
+    ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    ctx.arc(point.x, point.y, 4.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+  }
+
+  ctx.restore();
+}
+
 export function createRenderer(state) {
-  let cachedStarSignature = '';
+  let cachedVoronoiStars = null;
+  let cachedVoronoiRevision = 0;
   let cachedVoronoi = {
     bounds: null,
     cellsByStarId: new Map(),
@@ -836,6 +1016,12 @@ export function createRenderer(state) {
   let cachedTerritoryRenderData = {
     loopsByTerritoryId: new Map(),
     smoothedLoopsByTerritoryId: new Map(),
+    starTerritoryByStarId: new Map(),
+    territoryRgbById: new Map(),
+    ownedStarIds: new Set(),
+  };
+  let cachedTerritoryMembershipSignature = '';
+  let cachedTerritoryMembershipData = {
     starTerritoryByStarId: new Map(),
     territoryRgbById: new Map(),
     ownedStarIds: new Set(),
@@ -851,6 +1037,8 @@ export function createRenderer(state) {
   let infrastructureSaveButtonBounds = null;
   let starCollectButtonBounds = null;
   let starCapitalButtonBounds = null;
+  let moveMissionDialogBounds = null;
+  let moveMissionShipBounds = [];
   let motionVisualBlend = 0;
   let lastMotionBlendTimestamp = performance.now();
 
@@ -888,13 +1076,10 @@ export function createRenderer(state) {
   }
 
   function ensureVoronoiCache(stars) {
-    const signature = stars
-      .map((s) => `${s.id}:${s.x.toFixed(1)},${s.y.toFixed(1)}`)
-      .join('|');
-
-    if (signature !== cachedStarSignature) {
+    if (stars !== cachedVoronoiStars) {
       cachedVoronoi = buildVoronoiCells(stars);
-      cachedStarSignature = signature;
+      cachedVoronoiStars = stars;
+      cachedVoronoiRevision += 1;
       cachedTerritorySignature = '';
     }
   }
@@ -917,11 +1102,320 @@ export function createRenderer(state) {
   }
 
   function ensureTerritoryRenderCache() {
-    const territorySignature = `${cachedStarSignature}|${state.territoryRevision ?? 0}`;
+    const territorySignature = `${cachedVoronoiRevision}|${state.territoryRevision ?? 0}`;
 
     if (territorySignature !== cachedTerritorySignature) {
       cachedTerritoryRenderData = buildTerritoryRenderData(cachedVoronoi.edgeMap, state);
       cachedTerritorySignature = territorySignature;
+    }
+  }
+
+  function ensureTerritoryMembershipCache() {
+    const territorySignature = `${state.territoryRevision ?? 0}`;
+
+    if (territorySignature !== cachedTerritoryMembershipSignature) {
+      cachedTerritoryMembershipData = buildTerritoryMembershipData(state);
+      cachedTerritoryMembershipSignature = territorySignature;
+    }
+  }
+
+  function getStationedShipStarIds() {
+    const stationedShipStarIds = new Set();
+
+    for (const ship of state.playerState?.ships ?? []) {
+      const starId = ship?.position ?? ship?.starId ?? null;
+      if (!starId || starId === 'Moving') {
+        continue;
+      }
+
+      stationedShipStarIds.add(starId);
+    }
+
+    return stationedShipStarIds;
+  }
+
+  function drawStationedShipDot(ctx, x, y, starRadius, zoom) {
+    const dotRadius = Math.max(4.2, Math.min(8.5, starRadius * 1.85 + zoom * 1.35));
+
+    ctx.save();
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.fillStyle = 'rgba(56, 189, 248, 0.9)';
+    ctx.strokeStyle = 'rgba(4, 12, 28, 0.92)';
+    ctx.lineWidth = Math.max(1.4, dotRadius * 0.34);
+    ctx.beginPath();
+    ctx.arc(x, y, dotRadius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.strokeStyle = 'rgba(186, 230, 253, 0.72)';
+    ctx.lineWidth = Math.max(0.8, dotRadius * 0.16);
+    ctx.beginPath();
+    ctx.arc(x, y, dotRadius * 0.62, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawMoveMissionEntry(ctx, camera, viewport, width, height, moveMission, { allowDialog = false } = {}) {
+    if (!moveMission?.active) {
+      return;
+    }
+
+    const originStar = state.starsById?.get(moveMission.originStarId);
+    const markerWorld = moveMission.markerWorld ?? originStar;
+    if (!originStar || !markerWorld) {
+      return;
+    }
+
+    const originPoint = worldToScreen(camera, viewport, originStar.x, originStar.y);
+    const markerPoint = worldToScreen(camera, viewport, markerWorld.x, markerWorld.y);
+    const routeRevealProgress = moveMission.routeRevealStartedAt
+      ? Math.min(1, (performance.now() - moveMission.routeRevealStartedAt) / 500)
+      : 1;
+    drawMoveMissionRoute(ctx, camera, viewport, state, moveMission.routeStarIds, routeRevealProgress);
+    if (routeRevealProgress < 1) {
+      state.invalidateRender?.();
+    }
+
+    ctx.save();
+    ctx.setLineDash([8, 7]);
+    ctx.lineWidth = 1.8;
+    ctx.strokeStyle = 'rgba(255, 217, 194, 0.68)';
+    ctx.beginPath();
+    ctx.moveTo(originPoint.x, originPoint.y);
+    ctx.lineTo(markerPoint.x, markerPoint.y);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    ctx.fillStyle = 'rgba(255, 217, 194, 0.92)';
+    ctx.beginPath();
+    ctx.arc(originPoint.x, originPoint.y, 5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+    drawMissionShipIcon(ctx, markerPoint.x, markerPoint.y, 16, moveMission.status);
+    if (moveMission.status === 'moving' || moveMission.status === 'arrived') {
+      moveMissionShipBounds.push({
+        x: markerPoint.x - 24,
+        y: markerPoint.y - 24,
+        width: 48,
+        height: 48,
+        missionId: moveMission.id,
+        ship: moveMission.ship,
+      });
+    }
+
+    if (moveMission.status === 'placing' && !moveMission.showDestinationDialog) {
+      const label = 'Drag marker to destination';
+      ctx.save();
+      ctx.font = '700 11px Arial';
+      const labelWidth = Math.ceil(ctx.measureText(label).width) + 20;
+      const labelX = markerPoint.x - labelWidth / 2;
+      const labelY = markerPoint.y + 26;
+      ctx.fillStyle = 'rgba(5, 10, 22, 0.86)';
+      ctx.strokeStyle = 'rgba(125, 211, 252, 0.38)';
+      drawInfoBox(ctx, labelX, labelY, labelWidth, 26, 8);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = '#bae6fd';
+      ctx.textAlign = 'center';
+      ctx.fillText(label, markerPoint.x, labelY + 8);
+      ctx.restore();
+
+      if (allowDialog) {
+        const boxWidth = 212;
+        const boxHeight = 98;
+        const boxX = Math.min(width - boxWidth - 14, Math.max(14, markerPoint.x + 22));
+        const boxY = Math.min(height - boxHeight - 14, Math.max(14, markerPoint.y - boxHeight - 18));
+        const padding = 12;
+        const cancelButton = {
+          x: boxX + padding,
+          y: boxY + boxHeight - padding - 30,
+          width: 78,
+          height: 30,
+        };
+
+        ctx.save();
+        ctx.fillStyle = 'rgba(5, 10, 22, 0.92)';
+        ctx.strokeStyle = 'rgba(125, 211, 252, 0.62)';
+        ctx.lineWidth = 1;
+        drawInfoBox(ctx, boxX, boxY, boxWidth, boxHeight, 10);
+        ctx.fill();
+        ctx.stroke();
+        ctx.textBaseline = 'top';
+        ctx.font = '700 11px Arial';
+        ctx.fillStyle = '#7dd3fc';
+        ctx.fillText('Move Mission', boxX + padding, boxY + padding);
+        ctx.font = '12px Arial';
+        ctx.fillStyle = '#eef4ff';
+        ctx.fillText('Choose a destination', boxX + padding, boxY + padding + 22);
+        ctx.fillStyle = 'rgba(232,239,255,0.58)';
+        ctx.fillText('Drag the marker to a system', boxX + padding, boxY + padding + 42);
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.06)';
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.16)';
+        drawInfoBox(ctx, cancelButton.x, cancelButton.y, cancelButton.width, cancelButton.height, 7);
+        ctx.fill();
+        ctx.stroke();
+        ctx.fillStyle = 'rgba(232,239,255,0.72)';
+        ctx.font = '700 11px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText('Cancel', cancelButton.x + cancelButton.width / 2, cancelButton.y + 9);
+        ctx.restore();
+
+        moveMissionDialogBounds = {
+          cancel: cancelButton,
+          calculate: null,
+          move: null,
+        };
+      }
+    }
+
+    if (moveMission.status === 'moving' || moveMission.status === 'arrived') {
+      const remainingMs = Math.max(0, Number(moveMission.travelArrivesAtMs ?? 0) - Date.now());
+      const label = moveMission.status === 'arrived'
+        ? 'Arrived'
+        : `Moving - ${formatMoveCountdown(remainingMs)} left`;
+      ctx.save();
+      ctx.font = '11px Arial';
+      ctx.textAlign = 'center';
+      ctx.fillStyle = 'rgba(232,239,255,0.92)';
+      ctx.fillText(label, markerPoint.x, markerPoint.y + 30);
+      ctx.restore();
+      return;
+    }
+
+    if (!allowDialog) {
+      return;
+    }
+
+    if (!moveMission.showDestinationDialog || !moveMission.destinationStarId) {
+      return;
+    }
+
+    const destinationStar = state.starsById?.get(moveMission.destinationStarId);
+    if (!destinationStar) {
+      return;
+    }
+
+    const boxWidth = 312;
+    const boxHeight = moveMission.routeStarIds?.length ? 218 : 156;
+    const boxX = Math.min(width - boxWidth - 14, Math.max(14, markerPoint.x + 22));
+    const boxY = Math.min(height - boxHeight - 14, Math.max(14, markerPoint.y - boxHeight - 18));
+    const padding = 12;
+
+    ctx.save();
+    ctx.fillStyle = 'rgba(5, 10, 22, 0.92)';
+    ctx.strokeStyle = 'rgba(125, 211, 252, 0.62)';
+    ctx.lineWidth = 1;
+    drawInfoBox(ctx, boxX, boxY, boxWidth, boxHeight, 10);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.textBaseline = 'top';
+    ctx.font = '700 11px Arial';
+    ctx.fillStyle = '#7dd3fc';
+    ctx.fillText('Destination', boxX + padding, boxY + padding);
+    ctx.font = '12px Arial';
+    ctx.fillStyle = '#eef4ff';
+    ctx.fillText(`The destination is ${destinationStar.name}`, boxX + padding, boxY + padding + 22);
+    ctx.fillStyle = 'rgba(232,239,255,0.58)';
+    ctx.fillText('You can still move the marker', boxX + padding, boxY + padding + 44);
+    ctx.font = '700 11px Arial';
+    ctx.fillStyle = 'rgba(232,239,255,0.68)';
+    ctx.fillText('Map Route', boxX + padding, boxY + padding + 74);
+
+    if (moveMission.routeStarIds?.length) {
+      ctx.font = '11px Arial';
+      ctx.fillStyle = 'rgba(186,230,253,0.78)';
+      ctx.fillText(`${Math.max(0, moveMission.routeStarIds.length - 1)} jumps calculated`, boxX + padding, boxY + padding + 94);
+      ctx.fillStyle = 'rgba(232,239,255,0.76)';
+      ctx.fillText(`Distance ${moveMission.travelSummary?.distanceText ?? '-'}`, boxX + padding, boxY + padding + 112);
+      ctx.fillText(`ETA ${moveMission.travelSummary?.travelTimeText ?? '-'}`, boxX + padding, boxY + padding + 130);
+      ctx.fillText(`Speed ${moveMission.travelSummary?.speedText ?? '-'}`, boxX + padding, boxY + padding + 148);
+      ctx.fillStyle = 'rgba(232,239,255,0.48)';
+      ctx.fillText(moveMission.travelSummary?.realTimeText ?? '', boxX + padding, boxY + padding + 166);
+    }
+
+    const buttonY = boxY + boxHeight - padding - 30;
+    const cancelButton = {
+      x: boxX + padding,
+      y: buttonY,
+      width: 70,
+      height: 30,
+    };
+    const calculateButton = {
+      x: boxX + padding + 80,
+      y: buttonY,
+      width: 104,
+      height: 30,
+    };
+    const moveButton = {
+      x: boxX + boxWidth - padding - 86,
+      y: buttonY,
+      width: 86,
+      height: 30,
+    };
+
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.06)';
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.16)';
+    drawInfoBox(ctx, cancelButton.x, cancelButton.y, cancelButton.width, cancelButton.height, 7);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = 'rgba(232,239,255,0.72)';
+    ctx.font = '700 11px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText('Cancel', cancelButton.x + cancelButton.width / 2, cancelButton.y + 9);
+
+    ctx.fillStyle = 'rgba(125, 211, 252, 0.16)';
+    ctx.strokeStyle = 'rgba(125, 211, 252, 0.48)';
+    drawInfoBox(ctx, calculateButton.x, calculateButton.y, calculateButton.width, calculateButton.height, 7);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = '#bae6fd';
+    ctx.font = '700 11px Arial';
+    ctx.fillText('Calculate', calculateButton.x + calculateButton.width / 2, calculateButton.y + 9);
+
+    let canMove = Boolean(moveMission.routeStarIds?.length);
+    if (canMove) {
+      ctx.fillStyle = 'rgba(255, 217, 194, 0.18)';
+      ctx.strokeStyle = 'rgba(255, 217, 194, 0.52)';
+    } else {
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.06)';
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
+    }
+    drawInfoBox(ctx, moveButton.x, moveButton.y, moveButton.width, moveButton.height, 7);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = canMove ? '#ffd9c2' : 'rgba(232,239,255,0.34)';
+    ctx.fillText('Move', moveButton.x + moveButton.width / 2, moveButton.y + 9);
+    ctx.textAlign = 'left';
+
+    ctx.restore();
+
+    moveMissionDialogBounds = {
+      cancel: cancelButton,
+      calculate: calculateButton,
+      move: {
+        ...moveButton,
+        disabled: !canMove,
+      },
+    };
+  }
+
+  function drawMoveMissionOverlay(ctx, camera, viewport, width, height) {
+    moveMissionDialogBounds = null;
+    moveMissionShipBounds = [];
+
+    const renderedMissionIds = new Set();
+    for (const moveMission of state.moveMissions ?? []) {
+      drawMoveMissionEntry(ctx, camera, viewport, width, height, moveMission, { allowDialog: false });
+      if (moveMission?.id) {
+        renderedMissionIds.add(moveMission.id);
+      }
+    }
+
+    const plannedMission = state.moveMission;
+    if (plannedMission?.active && !renderedMissionIds.has(plannedMission.id)) {
+      drawMoveMissionEntry(ctx, camera, viewport, width, height, plannedMission, { allowDialog: true });
     }
   }
 
@@ -955,24 +1449,38 @@ export function createRenderer(state) {
         )
       : galaxy.stars;
 
-    ensureVoronoiCache(galaxy.stars);
-    ensureTerritoryRenderCache();
+    const useBlurTerritories = state.showBlurTerritories;
+    let cellsByStarId = null;
+    let adjacentPairs = [];
+    let loopsByTerritoryId = null;
+    let smoothedLoopsByTerritoryId = null;
+    let starTerritoryByStarId = null;
+    let territoryRgbById = null;
 
-    const { cellsByStarId, adjacentPairs } = cachedVoronoi;
-    const {
-      loopsByTerritoryId,
-      smoothedLoopsByTerritoryId,
-      starTerritoryByStarId,
-      territoryRgbById,
-      ownedStarIds,
-    } = cachedTerritoryRenderData;
+    if (useBlurTerritories) {
+      ensureTerritoryMembershipCache();
+      ({
+        starTerritoryByStarId,
+        territoryRgbById,
+      } = cachedTerritoryMembershipData);
+    } else {
+      ensureVoronoiCache(galaxy.stars);
+      ensureTerritoryRenderCache();
+      ({ cellsByStarId, adjacentPairs } = cachedVoronoi);
+      ({
+        loopsByTerritoryId,
+        smoothedLoopsByTerritoryId,
+        starTerritoryByStarId,
+        territoryRgbById,
+      } = cachedTerritoryRenderData);
+    }
 
     ctx.clearRect(0, 0, width, height);
 
-    ctx.fillStyle = '#030712';
+    ctx.fillStyle = '#000000';
     ctx.fillRect(0, 0, width, height);
 
-    drawStarConnections(ctx, camera, viewport, adjacentPairs, selection.hoveredStarId, ownedStarIds, state);
+    drawStarConnections(ctx, camera, viewport, adjacentPairs, selection.hoveredStarId, starTerritoryByStarId, state);
 
     const selected = state.starsById?.get(selection.selectedStarId) || null;
 
@@ -988,25 +1496,39 @@ export function createRenderer(state) {
       lastSelectedStarId = selection.selectedStarId;
     }
 
-    // One unified territory mass from all owned systems
-    drawOwnedTerritoryMass(
-      ctx,
-      camera,
-      viewport,
-      loopsByTerritoryId,
-      smoothedLoopsByTerritoryId,
-      territoryRgbById,
-      state
-    );
+    if (useBlurTerritories) {
+      drawTerritoryStarClouds(
+        ctx,
+        camera,
+        viewport,
+        visibleStars,
+        starTerritoryByStarId,
+        territoryRgbById,
+        state
+      );
+    } else {
+      drawOwnedTerritoryMass(
+        ctx,
+        camera,
+        viewport,
+        loopsByTerritoryId,
+        smoothedLoopsByTerritoryId,
+        territoryRgbById,
+        state
+      );
+    }
 
     // Optional selected-system highlight
-    drawSelectedCell(ctx, camera, viewport, selected, cellsByStarId, state);
+    if (!useBlurTerritories) {
+      drawSelectedCell(ctx, camera, viewport, selected, cellsByStarId, state);
+    }
 
     const auraOpacityMultiplier = Math.max(0, 1 - motionVisualBlend);
     const shouldDrawTerritoryAuras =
       !state.performanceMode && auraOpacityMultiplier > 0.02;
 
     const shouldDrawCapitalCrowns = true;
+    const stationedShipStarIds = getStationedShipStarIds();
 
     // Stars on top
     for (const star of visibleStars) {
@@ -1049,17 +1571,23 @@ export function createRenderer(state) {
         drawCapitalCrown(ctx, p.x, p.y, Math.max(14, r * 4.4), Math.max(0.45, auraOpacityMultiplier));
       }
 
-      ctx.beginPath();
+      let starFillStyle;
       if (selection.selectedStarId === star.id) {
-        ctx.fillStyle = '#ffd166';
+        starFillStyle = '#ffd166';
       } else if (starTerritory) {
-        ctx.fillStyle = getVisibleTerritoryStarColor(starTerritoryRgb);
+        starFillStyle = getVisibleTerritoryStarColor(starTerritoryRgb);
       } else {
-        ctx.fillStyle = '#ffffff';
+        starFillStyle = '#ffffff';
       }
 
+      ctx.beginPath();
+      ctx.fillStyle = starFillStyle;
       ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
       ctx.fill();
+
+      if (stationedShipStarIds.has(star.id)) {
+        drawStationedShipDot(ctx, p.x, p.y, r, camera.zoom);
+      }
     }
 
     if (selected && !state.useReactSystemPanel) {
@@ -1462,9 +1990,65 @@ export function createRenderer(state) {
       starCapitalButtonBounds = null;
       selectedPlanetId = null;
     }
+
+    drawMoveMissionOverlay(ctx, camera, viewport, width, height);
+
   }
 
   function handleCanvasClick(screenX, screenY) {
+    if (moveMissionDialogBounds) {
+      const { cancel, calculate, move } = moveMissionDialogBounds;
+      const inCancel =
+        Boolean(cancel) &&
+        screenX >= cancel.x &&
+        screenX <= cancel.x + cancel.width &&
+        screenY >= cancel.y &&
+        screenY <= cancel.y + cancel.height;
+      const inCalculate =
+        Boolean(calculate) &&
+        screenX >= calculate.x &&
+        screenX <= calculate.x + calculate.width &&
+        screenY >= calculate.y &&
+        screenY <= calculate.y + calculate.height;
+      const inMove =
+        Boolean(move) &&
+        screenX >= move.x &&
+        screenX <= move.x + move.width &&
+        screenY >= move.y &&
+        screenY <= move.y + move.height;
+
+      if (inCancel) {
+        state.onMoveMissionCancel?.();
+        return true;
+      }
+
+      if (inCalculate) {
+        state.onMoveMissionCalculateRoute?.();
+        return true;
+      }
+
+      if (inMove) {
+        if (!move.disabled) {
+          state.onMoveMissionCommitMove?.();
+        }
+        return true;
+      }
+    }
+
+    for (let index = moveMissionShipBounds.length - 1; index >= 0; index -= 1) {
+      const shipBounds = moveMissionShipBounds[index];
+      const inShipIcon =
+        screenX >= shipBounds.x &&
+        screenX <= shipBounds.x + shipBounds.width &&
+        screenY >= shipBounds.y &&
+        screenY <= shipBounds.y + shipBounds.height;
+
+      if (inShipIcon) {
+        state.onMoveMissionOpenFleet?.(shipBounds.ship, shipBounds.missionId);
+        return true;
+      }
+    }
+
     if (starCapitalButtonBounds) {
       const inCapitalButton =
         screenX >= starCapitalButtonBounds.x &&

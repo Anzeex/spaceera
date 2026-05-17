@@ -7,17 +7,6 @@ export const SHIP_TRAIT_KEYS = Object.freeze([
   'stealth',
 ]);
 
-export const SHIP_USAGE_KEYS = Object.freeze([
-  'warfare',
-  'transport',
-  'colonization',
-  'raiding',
-  'blockade',
-  'civilianPassenger',
-  'trade',
-  'escort',
-]);
-
 export const BASE_SHIP_TRAITS = Object.freeze({
   combatPower: 0,
   defense: 0,
@@ -28,62 +17,202 @@ export const BASE_SHIP_TRAITS = Object.freeze({
 });
 
 export const BASE_SHIP_RUNTIME = Object.freeze({
-  hullMass: 10,
-  fuelUse: 1,
-  moduleMass: 0,
+  mass: 0,
+  fuelUse: 0,
   speed: 0,
+  vulnerability: 0,
+});
+
+export const SHIP_COST_KEYS = Object.freeze([
+  'Credits',
+  'Metals',
+  'Food',
+  'Rare Earth Elements',
+  'Uranium',
+]);
+
+export const BASE_SHIP_COST = Object.freeze({
+  Credits: 0,
+  Metals: 0,
+  Food: 0,
+  'Rare Earth Elements': 0,
+  Uranium: 0,
+});
+
+export const SHIP_HULL_DEFINITIONS = Object.freeze({
+  speedHull: {
+    id: 'speedHull',
+    name: 'Lightframe Hull',
+    hullWeight: 4,
+    cost: {
+      Credits: 90,
+      Metals: 60,
+      'Rare Earth Elements': 6,
+    },
+    traits: {
+      combatPower: 0,
+      defense: 0,
+      thrust: 2,
+      cargoCapacity: 1,
+      passengerCapacity: 1,
+      stealth: 2,
+    },
+    focusTraits: ['thrust', 'stealth'],
+    orientation: 'speed',
+  },
+  defenseHull: {
+    id: 'defenseHull',
+    name: 'Reinforced Hull',
+    hullWeight: 6,
+    cost: {
+      Credits: 120,
+      Metals: 95,
+      Uranium: 4,
+    },
+    traits: {
+      combatPower: 1,
+      defense: 2,
+      thrust: 0,
+      cargoCapacity: 1,
+      passengerCapacity: 1,
+      stealth: 0,
+    },
+    focusTraits: ['defense', 'combatPower'],
+    orientation: 'defense',
+  },
+  tradeHull: {
+    id: 'tradeHull',
+    name: 'Spacious Hull',
+    hullWeight: 7,
+    cost: {
+      Credits: 110,
+      Metals: 80,
+      'Rare Earth Elements': 4,
+    },
+    traits: {
+      combatPower: 0,
+      defense: 1,
+      thrust: 1,
+      cargoCapacity: 2,
+      passengerCapacity: 2,
+      stealth: 0,
+    },
+    focusTraits: ['cargoCapacity', 'passengerCapacity'],
+    orientation: 'trade',
+  },
+  stealthHull: {
+    id: 'stealthHull',
+    name: 'Veiled Hull',
+    hullWeight: 5,
+    cost: {
+      Credits: 130,
+      Metals: 70,
+      'Rare Earth Elements': 10,
+    },
+    traits: {
+      combatPower: 0,
+      defense: 0,
+      thrust: 2,
+      cargoCapacity: 1,
+      passengerCapacity: 1,
+      stealth: 2,
+    },
+    focusTraits: ['stealth', 'thrust'],
+    orientation: 'stealth',
+  },
+  damageHull: {
+    id: 'damageHull',
+    name: 'Heavyframe Hull',
+    hullWeight: 7,
+    cost: {
+      Credits: 140,
+      Metals: 110,
+      Uranium: 6,
+    },
+    traits: {
+      combatPower: 2,
+      defense: 2,
+      thrust: 0,
+      cargoCapacity: 1,
+      passengerCapacity: 0,
+      stealth: 0,
+    },
+    focusTraits: ['combatPower', 'defense'],
+    orientation: 'damage',
+  },
 });
 
 export const SHIP_MODULE_DEFINITIONS = Object.freeze({
-  weaponBattery: {
-    id: 'weaponBattery',
-    name: 'Weapon Battery',
-    traits: { combatPower: 8 },
-    mass: 3,
-    fuelUse: 0.4,
+  combatPowerModule: {
+    id: 'combatPowerModule',
+    name: 'Combat Power Module',
+    traits: { combatPower: 1 },
+    mass: 1.4,
+    fuelUse: 0.18,
+    cost: {
+      Credits: 22,
+      Metals: 18,
+      Uranium: 2,
+    },
   },
-  armorPlating: {
-    id: 'armorPlating',
-    name: 'Armor Plating',
-    traits: { defense: 7 },
-    mass: 4,
-    fuelUse: 0.2,
+  defenseModule: {
+    id: 'defenseModule',
+    name: 'Defense Module',
+    traits: { defense: 1 },
+    mass: 1.8,
+    fuelUse: 0.12,
+    cost: {
+      Credits: 18,
+      'Rare Earth Elements': 2,
+      Uranium: 1,
+    },
   },
-  engineArray: {
-    id: 'engineArray',
-    name: 'Engine Array',
-    traits: { thrust: 10 },
-    mass: 2,
-    fuelUse: 0.8,
+  thrustModule: {
+    id: 'thrustModule',
+    name: 'Thrust Module',
+    traits: { thrust: 1 },
+    mass: 1.1,
+    fuelUse: 0.24,
+    cost: {
+      Credits: 20,
+      Metals: 14,
+      Uranium: 2,
+    },
   },
-  cargoHold: {
-    id: 'cargoHold',
-    name: 'Cargo Hold',
-    traits: { cargoCapacity: 16 },
-    mass: 5,
-    fuelUse: 0.15,
+  cargoCapacityModule: {
+    id: 'cargoCapacityModule',
+    name: 'Cargo Capacity Module',
+    traits: { cargoCapacity: 1 },
+    mass: 1.6,
+    fuelUse: 0.08,
+    cost: {
+      Credits: 16,
+      Metals: 16,
+    },
   },
-  passengerDeck: {
-    id: 'passengerDeck',
-    name: 'Passenger Deck',
-    traits: { passengerCapacity: 12 },
-    mass: 4,
-    fuelUse: 0.2,
+  passengerCapacityModule: {
+    id: 'passengerCapacityModule',
+    name: 'Passenger Capacity Module',
+    traits: { passengerCapacity: 1 },
+    mass: 1.5,
+    fuelUse: 0.09,
+    cost: {
+      Credits: 17,
+      Metals: 12,
+      Food: 8,
+    },
   },
-  stealthCoating: {
-    id: 'stealthCoating',
-    name: 'Stealth Coating',
-    traits: { stealth: 9 },
-    mass: 2,
-    fuelUse: 0.45,
-  },
-  colonyPod: {
-    id: 'colonyPod',
-    name: 'Colony Pod',
-    traits: { passengerCapacity: 8, cargoCapacity: 6, defense: 1 },
-    mass: 6,
-    fuelUse: 0.35,
-    tags: ['colonization'],
+  stealthModule: {
+    id: 'stealthModule',
+    name: 'Stealth Module',
+    traits: { stealth: 1 },
+    mass: 1.2,
+    fuelUse: 0.16,
+    cost: {
+      Credits: 24,
+      Metals: 10,
+      'Rare Earth Elements': 3,
+    },
   },
 });
 
@@ -93,6 +222,10 @@ function normalizeNumber(value) {
 
 export function createEmptyShipTraits() {
   return { ...BASE_SHIP_TRAITS };
+}
+
+export function createEmptyShipCost() {
+  return { ...BASE_SHIP_COST };
 }
 
 export function addShipTraits(left = {}, right = {}) {
@@ -116,6 +249,27 @@ export function scaleShipTraits(traits = {}, multiplier = 1) {
   return nextTraits;
 }
 
+export function addShipCosts(left = {}, right = {}) {
+  const nextCost = createEmptyShipCost();
+
+  for (const costKey of SHIP_COST_KEYS) {
+    nextCost[costKey] = normalizeNumber(left[costKey]) + normalizeNumber(right[costKey]);
+  }
+
+  return nextCost;
+}
+
+export function scaleShipCost(cost = {}, multiplier = 1) {
+  const nextCost = createEmptyShipCost();
+  const normalizedMultiplier = normalizeNumber(multiplier);
+
+  for (const costKey of SHIP_COST_KEYS) {
+    nextCost[costKey] = normalizeNumber(cost[costKey]) * normalizedMultiplier;
+  }
+
+  return nextCost;
+}
+
 export function getShipModuleDefinition(moduleOrId) {
   if (!moduleOrId) {
     return null;
@@ -128,9 +282,37 @@ export function getShipModuleDefinition(moduleOrId) {
   return SHIP_MODULE_DEFINITIONS[moduleOrId.id] ?? moduleOrId;
 }
 
+export function getShipHullDefinition(hullOrId) {
+  if (!hullOrId) {
+    return null;
+  }
+
+  if (typeof hullOrId === 'string') {
+    return SHIP_HULL_DEFINITIONS[hullOrId] ?? null;
+  }
+
+  return SHIP_HULL_DEFINITIONS[hullOrId.id] ?? hullOrId;
+}
+
+export function calculateShipCost(hullId, modules = []) {
+  const hull = getShipHullDefinition(hullId);
+  let totalCost = addShipCosts(createEmptyShipCost(), hull?.cost ?? {});
+
+  for (const moduleEntry of modules) {
+    const moduleDefinition = getShipModuleDefinition(moduleEntry);
+    const count = Math.max(1, Math.floor(normalizeNumber(moduleEntry?.count ?? 1)));
+    totalCost = addShipCosts(totalCost, scaleShipCost(moduleDefinition?.cost ?? {}, count));
+  }
+
+  return totalCost;
+}
+
 export function calculateShipRuntime(traits = {}, modules = [], options = {}) {
-  const hullMass = Math.max(1, normalizeNumber(options.hullMass ?? BASE_SHIP_RUNTIME.hullMass));
-  const baseFuelUse = Math.max(0, normalizeNumber(options.baseFuelUse ?? BASE_SHIP_RUNTIME.fuelUse));
+  const hullWeight = Math.max(0, normalizeNumber(options.hullWeight));
+  const moduleCount = modules.reduce((sum, moduleEntry) => {
+    const count = Math.max(1, Math.floor(normalizeNumber(moduleEntry?.count ?? 1)));
+    return sum + count;
+  }, 0);
   const moduleMass = modules.reduce((sum, moduleEntry) => {
     const moduleDefinition = getShipModuleDefinition(moduleEntry);
     const count = Math.max(1, Math.floor(normalizeNumber(moduleEntry?.count ?? 1)));
@@ -141,64 +323,32 @@ export function calculateShipRuntime(traits = {}, modules = [], options = {}) {
     const count = Math.max(1, Math.floor(normalizeNumber(moduleEntry?.count ?? 1)));
     return sum + normalizeNumber(moduleDefinition?.fuelUse) * count;
   }, 0);
-  const totalMass = hullMass + moduleMass;
+  const mass = hullWeight + moduleMass;
   const thrust = Math.max(0, normalizeNumber(traits.thrust));
-  const speed = totalMass > 0 ? Math.max(0, thrust / totalMass) : 0;
-  const fuelUse = baseFuelUse + moduleFuelUse + totalMass * 0.015;
+  const speed = thrust > 0 ? Math.max(0, (thrust * 4) / Math.sqrt(mass + 4)) : 0;
+  const fuelUse = moduleFuelUse + mass * 0.035;
+  const vulnerability = moduleCount * 0.03;
 
   return {
-    hullMass,
-    moduleMass,
-    totalMass,
+    mass,
     fuelUse,
     speed,
+    vulnerability,
   };
-}
-
-export function deriveShipUsageScores(traits = {}, runtime = {}) {
-  const combatPower = normalizeNumber(traits.combatPower);
-  const defense = normalizeNumber(traits.defense);
-  const thrust = normalizeNumber(traits.thrust);
-  const cargoCapacity = normalizeNumber(traits.cargoCapacity);
-  const passengerCapacity = normalizeNumber(traits.passengerCapacity);
-  const stealth = normalizeNumber(traits.stealth);
-  const speed = normalizeNumber(runtime.speed);
-
-  return {
-    warfare: combatPower * 1.1 + defense * 0.7 + speed * 8,
-    transport: cargoCapacity * 1.1 + thrust * 0.2 + defense * 0.2,
-    colonization: passengerCapacity * 0.9 + cargoCapacity * 0.7 + defense * 0.2,
-    raiding: combatPower * 0.8 + stealth * 1.1 + speed * 10,
-    blockade: combatPower * 0.7 + defense * 1.1 + cargoCapacity * 0.2,
-    civilianPassenger: passengerCapacity * 1.2 + defense * 0.2 + speed * 5,
-    trade: cargoCapacity * 1.25 + defense * 0.15 + speed * 6,
-    escort: combatPower * 0.65 + defense * 0.85 + thrust * 0.25 + stealth * 0.15,
-  };
-}
-
-export function getPrimaryShipUsages(usageScores = {}, limit = 3) {
-  return Object.entries(usageScores)
-    .filter(([, score]) => normalizeNumber(score) > 0)
-    .sort(([, leftScore], [, rightScore]) => normalizeNumber(rightScore) - normalizeNumber(leftScore))
-    .slice(0, limit)
-    .map(([usage, score]) => ({ usage, score }));
 }
 
 export class ShipClass {
   constructor({
     id,
     name,
-    hullMass = BASE_SHIP_RUNTIME.hullMass,
-    baseFuelUse = BASE_SHIP_RUNTIME.fuelUse,
-    baseTraits = BASE_SHIP_TRAITS,
+    hullId = 'speedHull',
     modules = [],
     upgrades = [],
   } = {}) {
+    const hull = getShipHullDefinition(hullId) ?? getShipHullDefinition('speedHull');
     this.id = id ?? globalThis.crypto?.randomUUID?.() ?? `ship-${Date.now()}`;
-    this.name = name ?? 'Unnamed Ship Class';
-    this.hullMass = Math.max(1, normalizeNumber(hullMass));
-    this.baseFuelUse = Math.max(0, normalizeNumber(baseFuelUse));
-    this.baseTraits = { ...createEmptyShipTraits(), ...baseTraits };
+    this.name = name ?? hull?.name ?? 'Unnamed Ship Class';
+    this.hullId = hull?.id ?? 'speedHull';
     this.modules = [...modules];
     this.upgrades = [...upgrades];
   }
@@ -221,7 +371,8 @@ export class ShipClass {
   }
 
   getTraits() {
-    let traits = { ...createEmptyShipTraits(), ...this.baseTraits };
+    const hull = getShipHullDefinition(this.hullId);
+    let traits = { ...createEmptyShipTraits(), ...hull?.traits };
 
     for (const moduleEntry of this.modules) {
       const moduleDefinition = getShipModuleDefinition(moduleEntry);
@@ -241,27 +392,21 @@ export class ShipClass {
   }
 
   getRuntime() {
+    const hull = getShipHullDefinition(this.hullId);
     return calculateShipRuntime(this.getTraits(), this.modules, {
-      hullMass: this.hullMass,
-      baseFuelUse: this.baseFuelUse,
+      hullWeight: hull?.hullWeight ?? 0,
     });
   }
 
-  getUsageScores() {
-    return deriveShipUsageScores(this.getTraits(), this.getRuntime());
-  }
-
-  getPrimaryUsages(limit = 3) {
-    return getPrimaryShipUsages(this.getUsageScores(), limit);
+  getCost() {
+    return calculateShipCost(this.hullId, this.modules);
   }
 
   toJSON() {
     return {
       id: this.id,
       name: this.name,
-      hullMass: this.hullMass,
-      baseFuelUse: this.baseFuelUse,
-      baseTraits: { ...this.baseTraits },
+      hullId: this.hullId,
       modules: this.modules.map((moduleEntry) => ({ ...moduleEntry })),
       upgrades: this.upgrades.map((upgrade) => ({ ...upgrade })),
     };

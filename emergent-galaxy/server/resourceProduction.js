@@ -10,6 +10,7 @@ import {
   getCapitalBonusMultiplier,
 } from '../src/core/capitalBonuses.js';
 import {
+  BASE_PLAYER_RESOURCE_PRODUCTION_PER_PERIOD,
   POPULATION_CREDITS_PER_PERSON,
   RESOURCE_PRODUCTION_PER_INFRASTRUCTURE_LEVEL,
   STARTING_PLAYER_RESOURCES,
@@ -57,6 +58,7 @@ const RESOURCE_KEYS = [
   'Rare Earth Elements',
   'Uranium',
 ];
+const BASE_PRODUCTION_OFFLINE_PERIOD_CAP = 10;
 const RESOURCE_INFRASTRUCTURE_MAP = {
   Food: 'farming',
 };
@@ -228,6 +230,11 @@ function sumResources(target, source, multiplier = 1) {
   return target;
 }
 
+function addBasePlayerResourceProduction(resources, multiplier = 1) {
+  sumResources(resources, BASE_PLAYER_RESOURCE_PRODUCTION_PER_PERIOD, multiplier);
+  return resources;
+}
+
 function addResourcesToSystemPool(poolEntry, production, capacity) {
   const nextPoolResources = cloneResources(poolEntry.resources);
   const acceptedProduction = createEmptyResources();
@@ -382,6 +389,7 @@ function calculatePeriodProductionForPlayer(
   }
 
   periodProduction.Credits += getDirectPopulationCreditsForOwnedStars(ownedStars);
+  addBasePlayerResourceProduction(periodProduction);
 
   return periodProduction;
 }
@@ -450,7 +458,53 @@ function calculateProductionAllocation(queue, industryLevel) {
   });
 }
 
-function advanceProductionQueue(playerState, completedPeriods, industryLevel) {
+function createShipInventoryEntryFromProduction(entry, defaultPosition = null) {
+  const template = entry.shipTemplate ?? {};
+  const templateId = template.id ?? entry.itemId ?? entry.id;
+  return {
+    id: templateId,
+    templateId,
+    name: template.name ?? entry.itemName ?? 'Ship Template',
+    hullId: template.hullId ?? null,
+    hullName: template.hullName ?? null,
+    modules: Array.isArray(template.modules)
+      ? template.modules.map((module) => ({ ...module }))
+      : [],
+    traits: { ...(template.traits ?? {}) },
+    runtime: { ...(template.runtime ?? {}) },
+    position: entry.position ?? defaultPosition ?? null,
+    count: 1,
+  };
+}
+
+function addCompletedShipToInventory(ships, entry, defaultPosition = null) {
+  const completedShip = createShipInventoryEntryFromProduction(entry, defaultPosition);
+  const nextShips = Array.isArray(ships)
+    ? ships.map((ship) => ({
+        ...ship,
+        modules: Array.isArray(ship.modules)
+          ? ship.modules.map((module) => ({ ...module }))
+          : [],
+        traits: { ...(ship.traits ?? {}) },
+        runtime: { ...(ship.runtime ?? {}) },
+        position: ship.position ?? defaultPosition ?? null,
+      }))
+    : [];
+  const existingShip = nextShips.find(
+    (ship) =>
+      (ship.templateId === completedShip.templateId || ship.id === completedShip.templateId) &&
+      (ship.position ?? null) === (completedShip.position ?? null)
+  );
+
+  if (existingShip) {
+    existingShip.count = (Number(existingShip.count) || 0) + 1;
+    return nextShips;
+  }
+
+  return [...nextShips, completedShip];
+}
+
+function advanceProductionQueue(playerState, completedPeriods, industryLevel, defaultShipPosition = null) {
   let productionQueue = (playerState.productionQueue ?? []).map((entry) => ({
     ...entry,
     productionCost: getProductionCostForQueueEntry(entry),
@@ -473,6 +527,36 @@ function advanceProductionQueue(playerState, completedPeriods, industryLevel) {
     ),
   }));
   const items = cloneItemInventory(playerState.items);
+  let ships = Array.isArray(playerState.ships)
+    ? playerState.ships.map((ship) => ({
+        ...ship,
+        modules: Array.isArray(ship.modules)
+          ? ship.modules.map((module) => ({ ...module }))
+          : [],
+        traits: { ...(ship.traits ?? {}) },
+        runtime: { ...(ship.runtime ?? {}) },
+        position: ship.position ?? defaultShipPosition ?? null,
+      }))
+    : [];
+  const completeReadyEntries = () => {
+    productionQueue = productionQueue.flatMap((entry) => {
+      if (entry.remainingProductionCost > 0) {
+        const nextEntry = { ...entry };
+        delete nextEntry.storageBlocked;
+        return [nextEntry];
+      }
+
+      if (entry.targetType === 'ship-template') {
+        ships = addCompletedShipToInventory(ships, entry, defaultShipPosition);
+        return [];
+      }
+
+      items[entry.itemId] = (Number(items[entry.itemId]) || 0) + 1;
+      return [];
+    });
+  };
+
+  completeReadyEntries();
 
   for (let periodIndex = 0; periodIndex < completedPeriods; periodIndex++) {
     const allocation = calculateProductionAllocation(productionQueue, industryLevel);
@@ -492,18 +576,12 @@ function advanceProductionQueue(playerState, completedPeriods, industryLevel) {
           (Number(entry.remainingProductionCost) || 0) - allocatedProduction
         ),
       }))
-      .filter((entry) => {
-        if (entry.remainingProductionCost > 0) {
-          return true;
-        }
-
-        items[entry.itemId] = (Number(items[entry.itemId]) || 0) + 1;
-        return false;
-      });
+    completeReadyEntries();
   }
 
   return {
     items,
+    ships,
     productionQueue,
   };
 }
@@ -548,6 +626,7 @@ export function createInitialPlayerState(playerId, nowMs) {
     },
     logistics: {
       systemPools: {},
+      baseResourcePool: createEmptyResources(),
       systemItemInventories: {},
       systemPoolCapacities: {},
       productionQueue: [],
@@ -608,20 +687,28 @@ export function updatePlayerResources({ seed, storedState, playerId, existingPla
     ...cloneResources(basePlayerState.resources),
   };
   nextResources.Credits += getDirectPopulationCreditsForOwnedStars(ownedStars, completedHours);
+  sumResources(nextResources, cloneResources(basePlayerState.baseResourcePool));
+  addBasePlayerResourceProduction(
+    nextResources,
+    Math.min(BASE_PRODUCTION_OFFLINE_PERIOD_CAP, completedHours)
+  );
   const productionState = advanceProductionQueue(
     basePlayerState,
     completedHours,
-    getTotalIndustryInfrastructure(ownedStars)
+    getTotalIndustryInfrastructure(ownedStars),
+    territory?.capitalStarId ?? null
   );
 
   const nextRuntimeState = {
     ...basePlayerState,
     playerId,
     items: productionState.items,
+    ships: productionState.ships,
     resources: nextResources,
     productionQueue: productionState.productionQueue,
     hourlyProduction: periodProduction,
     systemPools,
+    baseResourcePool: createEmptyResources(),
     systemItemInventories,
     systemPoolCapacities,
     energyOutput: energyState.output,

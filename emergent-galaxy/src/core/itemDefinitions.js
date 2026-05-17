@@ -11,7 +11,8 @@ export const ITEM_DEFINITIONS = [
     },
     category: 'expansion',
     description: 'Used to establish a full colony on a viable world.',
-    productionCost: 24,
+    productionCost: 48,
+    storageSize: 50,
     resourceCost: {
       Credits: 120,
       Metals: 45,
@@ -30,7 +31,7 @@ export const ITEM_DEFINITIONS = [
     },
     category: 'planetary',
     description: 'Used to prepare harsh worlds for future development.',
-    productionCost: 42,
+    productionCost: 84,
     resourceCost: {
       Credits: 220,
       Metals: 80,
@@ -49,12 +50,32 @@ export const ITEM_DEFINITIONS = [
     },
     category: 'expansion',
     description: 'Used to establish a specialized outpost such as mining or logistics.',
-    productionCost: 18,
+    productionCost: 36,
+    storageSize: 50,
     resourceCost: {
       Credits: 90,
       Metals: 60,
       Food: 20,
       'Rare Earth Elements': 4,
+    },
+  },
+  {
+    id: 'mining-kit',
+    name: 'Mining Kit',
+    icon: {
+      symbol: 'M',
+      color: '#cbd5e1',
+      background: 'linear-gradient(135deg, #334155, #94a3b8)',
+    },
+    category: 'planetary',
+    description: 'Used to establish or reinforce mining operations on resource-rich worlds.',
+    productionCost: 40,
+    storageSize: 50,
+    resourceCost: {
+      Credits: 110,
+      Metals: 75,
+      Food: 12,
+      'Rare Earth Elements': 5,
     },
   },
   {
@@ -67,11 +88,30 @@ export const ITEM_DEFINITIONS = [
     },
     category: 'military',
     description: 'Used to reduce or resist hostile pressure in a system.',
-    productionCost: 16,
+    productionCost: 32,
     resourceCost: {
       Credits: 100,
       Metals: 70,
       Uranium: 4,
+    },
+  },
+  {
+    id: 'wormhole-kit',
+    name: 'Wormhole Kit',
+    icon: {
+      symbol: 'W',
+      color: '#ddd6fe',
+      background: 'linear-gradient(135deg, #312e81, #8b5cf6)',
+    },
+    category: 'logistics',
+    description: 'Used to prepare experimental long-range transit infrastructure.',
+    productionCost: 120,
+    storageSize: 60,
+    resourceCost: {
+      Credits: 320,
+      Metals: 120,
+      'Rare Earth Elements': 18,
+      Uranium: 14,
     },
   },
 ];
@@ -84,6 +124,10 @@ export function getItemDefinition(itemId) {
 
 export function getItemProductionCost(itemId) {
   return Math.max(0, Number(getItemDefinition(itemId)?.productionCost) || 0);
+}
+
+export function getItemStorageSize(itemId) {
+  return Math.max(0, Number(getItemDefinition(itemId)?.storageSize) || 0);
 }
 
 export function createEmptyItemInventory() {

@@ -35,6 +35,10 @@ export function attachCameraControls(state) {
   };
 
   canvas.addEventListener('pointerdown', (e) => {
+    if (state.handleMoveMissionPointerDown?.(e)) {
+      return;
+    }
+
     drag.active = true;
     drag.moved = false;
     state.suppressCanvasClick = false;
@@ -45,6 +49,10 @@ export function attachCameraControls(state) {
   });
 
   canvas.addEventListener('pointermove', (e) => {
+    if (state.handleMoveMissionPointerMove?.(e)) {
+      return;
+    }
+
     if (!drag.active) return;
 
     const dx = e.clientX - drag.lastX;
@@ -67,6 +75,10 @@ export function attachCameraControls(state) {
   });
 
   canvas.addEventListener('pointerup', (e) => {
+    if (state.handleMoveMissionPointerUp?.(e)) {
+      return;
+    }
+
     drag.active = false;
     state.suppressCanvasClick = drag.moved;
     setCameraMoving(false);
@@ -75,6 +87,10 @@ export function attachCameraControls(state) {
   });
 
   canvas.addEventListener('pointercancel', () => {
+    if (state.handleMoveMissionPointerCancel?.()) {
+      return;
+    }
+
     drag.active = false;
     state.suppressCanvasClick = false;
     setCameraMoving(false);

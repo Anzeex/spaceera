@@ -1,5 +1,5 @@
 import { createServer } from 'node:http';
-import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
@@ -19,6 +19,7 @@ const __dirname = path.dirname(__filename);
 const dataDir = path.join(__dirname, 'data');
 const uploadsDir = path.join(__dirname, 'uploads', 'profile-images');
 const port = Number(process.env.PORT || 8787);
+const stateWriteLocks = new Map();
 
 async function ensureDataDir() {
   await mkdir(dataDir, { recursive: true });
@@ -120,9 +121,16 @@ function sanitizeStoredDocument(documentState) {
       playerId,
       {
         ...playerRecord,
+        itemStorageCapacity: undefined,
+        itemStorageUsed: undefined,
         profile: {
           ...(playerRecord?.profile ?? {}),
           avatarImageUrl: sanitizeAvatarUrl(playerRecord?.profile?.avatarImageUrl),
+        },
+        inventory: {
+          ...(playerRecord?.inventory ?? {}),
+          itemStorageCapacity: undefined,
+          itemStorageUsed: undefined,
         },
         economy: {
           ...(playerRecord?.economy ?? {}),
@@ -131,6 +139,7 @@ function sanitizeStoredDocument(documentState) {
         },
         logistics: {
           ...(playerRecord?.logistics ?? {}),
+          baseResourcePool: sanitizeResourceMap(playerRecord?.logistics?.baseResourcePool),
           systemPools: Object.fromEntries(
             Object.entries(playerRecord?.logistics?.systemPools ?? {}).map(([starId, poolEntry]) => [
               starId,
@@ -183,8 +192,10 @@ async function loadState(seed) {
 async function saveStateDocument(seed, documentState) {
   await ensureDataDir();
   const sanitizedDocument = sanitizeStoredDocument(documentState);
+  const statePath = getStatePath(seed);
+  const temporaryStatePath = `${statePath}.${process.pid}.${Date.now()}.tmp`;
   await writeFile(
-    getStatePath(seed),
+    temporaryStatePath,
     JSON.stringify({
       state: sanitizedDocument.state ?? null,
       players: sanitizedDocument.players ?? {},
@@ -192,10 +203,94 @@ async function saveStateDocument(seed, documentState) {
     }, null, 2),
     'utf8'
   );
+  await rename(temporaryStatePath, statePath);
 }
 
 async function deleteState(seed) {
   await rm(getStatePath(seed), { force: true });
+}
+
+async function withStateWriteLock(seed, operation) {
+  const lockKey = sanitizeFileSegment(seed);
+  const previousLock = stateWriteLocks.get(lockKey) ?? Promise.resolve();
+  let releaseLock;
+  const currentLock = new Promise((resolve) => {
+    releaseLock = resolve;
+  });
+  const queuedLock = previousLock.then(() => currentLock, () => currentLock);
+  stateWriteLocks.set(lockKey, queuedLock);
+
+  await previousLock.catch(() => {});
+
+  try {
+    return await operation();
+  } finally {
+    releaseLock();
+    if (stateWriteLocks.get(lockKey) === queuedLock) {
+      stateWriteLocks.delete(lockKey);
+    }
+  }
+}
+
+function removeEmptyStoredStarOverrides(starOverrides = {}) {
+  return Object.fromEntries(
+    Object.entries(starOverrides)
+      .map(([starId, starOverride]) => {
+        const nextStarOverride = { ...starOverride };
+        delete nextStarOverride.owner;
+        delete nextStarOverride.faction;
+
+        if (nextStarOverride.planets) {
+          const nextPlanets = Object.fromEntries(
+            Object.entries(nextStarOverride.planets)
+              .map(([planetId, planetOverride]) => {
+                const nextPlanetOverride = { ...planetOverride };
+                delete nextPlanetOverride.infrastructure;
+                return Object.keys(nextPlanetOverride).length > 0
+                  ? [planetId, nextPlanetOverride]
+                  : null;
+              })
+              .filter(Boolean)
+          );
+
+          if (Object.keys(nextPlanets).length > 0) {
+            nextStarOverride.planets = nextPlanets;
+          } else {
+            delete nextStarOverride.planets;
+          }
+        }
+
+        return Object.keys(nextStarOverride).length > 0
+          ? [starId, nextStarOverride]
+          : null;
+      })
+      .filter(Boolean)
+  );
+}
+
+function resetGalaxyMapState(documentState) {
+  const nextPlayers = Object.fromEntries(
+    Object.entries(documentState.players ?? {}).map(([playerId, playerRecord]) => [
+      playerId,
+      {
+        ...playerRecord,
+        territory: null,
+      },
+    ])
+  );
+
+  return {
+    ...documentState,
+    state: documentState.state
+      ? {
+          ...documentState.state,
+          territories: [],
+          currentTerritoryId: null,
+          starOverrides: removeEmptyStoredStarOverrides(documentState.state.starOverrides),
+        }
+      : documentState.state,
+    players: nextPlayers,
+  };
 }
 
 function sendJson(response, statusCode, payload) {
@@ -276,6 +371,7 @@ const server = createServer(async (request, response) => {
     }
 
     if (url.pathname === '/api/player-state') {
+      await withStateWriteLock(seed, async () => {
       const playerId = url.searchParams.get('playerId');
       if (!playerId) {
         sendJson(response, 400, { error: 'Missing playerId' });
@@ -357,6 +453,7 @@ const server = createServer(async (request, response) => {
       }
 
       sendJson(response, 405, { error: 'Method not allowed' });
+      });
       return;
     }
 
@@ -366,18 +463,28 @@ const server = createServer(async (request, response) => {
     }
 
     if (request.method === 'PUT') {
-      const state = await readJsonBody(request);
-      const currentState = await loadState(seed);
-      await saveStateDocument(seed, {
-        ...currentState,
-        state,
+      await withStateWriteLock(seed, async () => {
+        const state = await readJsonBody(request);
+        const currentState = await loadState(seed);
+        await saveStateDocument(seed, {
+          ...currentState,
+          state,
+        });
       });
       sendJson(response, 200, { ok: true });
       return;
     }
 
     if (request.method === 'DELETE') {
-      await deleteState(seed);
+      await withStateWriteLock(seed, async () => {
+        if (url.searchParams.get('scope') === 'galaxy') {
+          const documentState = await loadState(seed);
+          await saveStateDocument(seed, resetGalaxyMapState(documentState));
+          return;
+        }
+
+        await deleteState(seed);
+      });
       sendJson(response, 200, { ok: true });
       return;
     }

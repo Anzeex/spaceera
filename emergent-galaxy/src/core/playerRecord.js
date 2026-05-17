@@ -41,6 +41,8 @@ function cloneProductionQueue(productionQueue = []) {
     ? productionQueue.map((entry) => ({
         id: entry.id,
         itemId: entry.itemId,
+        targetType: entry.targetType,
+        itemName: entry.itemName,
         queuedAt: entry.queuedAt,
         productionCost:
           Number(entry.productionCost ?? entry.requiredIndustryPeriods ?? entry.requiredIndustryHours) || 0,
@@ -55,7 +57,95 @@ function cloneProductionQueue(productionQueue = []) {
             ? null
             : Number(entry.estimatedPeriods ?? entry.estimatedHours) || 0,
         resourceCost: cloneResources(entry.resourceCost),
+        shipTemplate: entry.shipTemplate ? cloneShipTemplate(entry.shipTemplate) : undefined,
       }))
+    : [];
+}
+
+function cloneShipTemplate(template = {}) {
+  return {
+    ...template,
+    id: template.id,
+    name: template.name ?? 'Unnamed Template',
+    hullId: template.hullId ?? null,
+    hullName: template.hullName ?? null,
+    modules: Array.isArray(template.modules)
+      ? template.modules.map((module) => ({ ...module }))
+      : [],
+    traits: { ...(template.traits ?? {}) },
+    runtime: { ...(template.runtime ?? {}) },
+    cost: cloneResources(template.cost),
+  };
+}
+
+function cloneShipTemplates(shipTemplates = []) {
+  return Array.isArray(shipTemplates)
+    ? shipTemplates.map((template) => cloneShipTemplate(template))
+    : [];
+}
+
+function cloneMoveMission(mission = {}) {
+  return {
+    ...mission,
+    id: mission.id,
+    status: mission.status ?? 'moving',
+    active: mission.active !== false,
+    ship: mission.ship ? cloneShips([mission.ship])[0] : null,
+    originStarId: mission.originStarId ?? null,
+    destinationStarId: mission.destinationStarId ?? null,
+    routeStarIds: Array.isArray(mission.routeStarIds) ? [...mission.routeStarIds] : [],
+    markerWorld: mission.markerWorld
+      ? {
+          x: Number(mission.markerWorld.x) || 0,
+          y: Number(mission.markerWorld.y) || 0,
+        }
+      : null,
+    distanceWorldUnits: Number(mission.distanceWorldUnits) || 0,
+    distanceLightYears: Number(mission.distanceLightYears) || 0,
+    speedRating: Number(mission.speedRating) || 0,
+    speedLightYearsPerDay: Number(mission.speedLightYearsPerDay) || 0,
+    travelDays: Number(mission.travelDays) || 0,
+    realTravelDurationMs: Number(mission.realTravelDurationMs) || 0,
+    travelStartedAtMs: Number(mission.travelStartedAtMs) || 0,
+    travelArrivesAtMs: Number(mission.travelArrivesAtMs) || 0,
+    travelSummary: mission.travelSummary ? { ...mission.travelSummary } : null,
+  };
+}
+
+function cloneMoveMissions(moveMissions = []) {
+  return Array.isArray(moveMissions)
+    ? moveMissions.map((mission) => cloneMoveMission(mission)).filter((mission) => mission.id && mission.ship)
+    : [];
+}
+
+function normalizeShipPosition(position, defaultPosition = null) {
+  if (position === 'Moving') {
+    return 'Moving';
+  }
+
+  return position ?? defaultPosition ?? null;
+}
+
+function cloneShips(ships = [], defaultPosition = null) {
+  return Array.isArray(ships)
+    ? ships.map((ship, index) => {
+        const fallbackId = ship.templateId ?? ship.id ?? `ship-${index}`;
+        return {
+          ...ship,
+          id: ship.id ?? fallbackId,
+          templateId: ship.templateId ?? fallbackId,
+          name: ship.name ?? ship.type ?? 'Ship',
+          hullId: ship.hullId ?? null,
+          hullName: ship.hullName ?? null,
+          modules: Array.isArray(ship.modules)
+            ? ship.modules.map((module) => ({ ...module }))
+            : [],
+          traits: { ...(ship.traits ?? {}) },
+          runtime: { ...(ship.runtime ?? {}) },
+          position: normalizeShipPosition(ship.position ?? ship.starId, defaultPosition),
+          count: Math.max(1, Math.floor(Number(ship.count) || 1)),
+        };
+      })
     : [];
 }
 
@@ -115,8 +205,14 @@ export function createPlayerRecord(playerId, nowMs = Date.now(), overrides = {})
     inventory: {
       items: cloneItemInventory(overrides.inventory?.items),
     },
+    fleet: {
+      ships: cloneShips(overrides.fleet?.ships ?? overrides.ships, territory?.capitalStarId ?? null),
+      shipTemplates: cloneShipTemplates(overrides.fleet?.shipTemplates ?? overrides.shipTemplates),
+      activeMoveMissions: cloneMoveMissions(overrides.fleet?.activeMoveMissions ?? overrides.activeMoveMissions),
+    },
     logistics: {
       systemPools: cloneSystemPools(overrides.logistics?.systemPools),
+      baseResourcePool: cloneResources(overrides.logistics?.baseResourcePool ?? overrides.baseResourcePool),
       systemItemInventories: cloneSystemItemInventories(overrides.logistics?.systemItemInventories),
       systemPoolCapacities: cloneSystemPoolCapacities(overrides.logistics?.systemPoolCapacities),
       productionQueue: cloneProductionQueue(overrides.logistics?.productionQueue),
@@ -161,8 +257,14 @@ export function normalizePlayerRecord(playerLike, playerId, nowMs = Date.now()) 
     inventory: {
       items: playerLike.items,
     },
+    fleet: {
+      ships: playerLike.ships ?? playerLike.fleet?.ships,
+      shipTemplates: playerLike.shipTemplates ?? playerLike.fleet?.shipTemplates,
+      activeMoveMissions: playerLike.activeMoveMissions ?? playerLike.fleet?.activeMoveMissions,
+    },
     logistics: {
       systemPools: playerLike.systemPools,
+      baseResourcePool: playerLike.baseResourcePool,
       systemItemInventories: playerLike.systemItemInventories,
       systemPoolCapacities: playerLike.systemPoolCapacities,
       productionQueue: playerLike.productionQueue,
@@ -210,6 +312,9 @@ export function playerRecordToRuntimeState(playerRecord) {
       : null,
     resources: cloneResources(playerRecord.economy.resources),
     items: cloneItemInventory(playerRecord.inventory.items),
+    ships: cloneShips(playerRecord.fleet?.ships, playerRecord.territory?.capitalStarId ?? null),
+    shipTemplates: cloneShipTemplates(playerRecord.fleet?.shipTemplates),
+    activeMoveMissions: cloneMoveMissions(playerRecord.fleet?.activeMoveMissions),
     level: playerRecord.progression.level,
     xp: playerRecord.progression.xp,
     currentLevelXp: playerRecord.progression.currentLevelXp,
@@ -218,6 +323,7 @@ export function playerRecordToRuntimeState(playerRecord) {
     profileImageUrl: playerRecord.profile.avatarImageUrl ?? '',
     hourlyProduction: cloneResources(playerRecord.economy.hourlyProduction),
     systemPools: cloneSystemPools(playerRecord.logistics.systemPools),
+    baseResourcePool: cloneResources(playerRecord.logistics.baseResourcePool),
     systemItemInventories: cloneSystemItemInventories(playerRecord.logistics.systemItemInventories),
     systemPoolCapacities: cloneSystemPoolCapacities(playerRecord.logistics.systemPoolCapacities),
     productionQueue: cloneProductionQueue(playerRecord.logistics.productionQueue),
@@ -245,6 +351,18 @@ export function applyRuntimeStateToPlayerRecord(playerRecord, runtimeState, nowM
     inventory: {
       items: cloneItemInventory(runtimeState?.items ?? nextRecord.inventory.items),
     },
+    fleet: {
+      ships: cloneShips(
+        runtimeState?.ships ?? nextRecord.fleet?.ships,
+        (runtimeState?.territory ?? nextRecord.territory)?.capitalStarId ?? null
+      ),
+      shipTemplates: cloneShipTemplates(
+        runtimeState?.shipTemplates ?? nextRecord.fleet?.shipTemplates
+      ),
+      activeMoveMissions: cloneMoveMissions(
+        runtimeState?.activeMoveMissions ?? nextRecord.fleet?.activeMoveMissions
+      ),
+    },
     progression: normalizeProgressionRecord({
       ...nextRecord.progression,
       level: runtimeState?.level ?? nextRecord.progression.level,
@@ -261,6 +379,7 @@ export function applyRuntimeStateToPlayerRecord(playerRecord, runtimeState, nowM
     },
     logistics: {
       systemPools: cloneSystemPools(runtimeState?.systemPools ?? nextRecord.logistics.systemPools),
+      baseResourcePool: cloneResources(runtimeState?.baseResourcePool ?? nextRecord.logistics.baseResourcePool),
       systemItemInventories: cloneSystemItemInventories(
         runtimeState?.systemItemInventories ?? nextRecord.logistics.systemItemInventories
       ),

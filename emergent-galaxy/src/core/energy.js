@@ -7,6 +7,7 @@ export const INFRASTRUCTURE_ENERGY_COSTS = {
   mining: 4,
   farming: 3,
   industrial: 5,
+  storage: 0,
   defense: 2,
 };
 
@@ -16,6 +17,7 @@ export const POWERABLE_INFRASTRUCTURE_PRIORITY = [
   'mining',
   'farming',
   'industrial',
+  'storage',
   'defense',
 ];
 

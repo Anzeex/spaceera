@@ -26,6 +26,7 @@ function createPlanetInfrastructure(type, resources) {
   const infrastructure = {
     industrial: 0,
     energy: 0,
+    storage: 0,
     defense: 0,
   };
 

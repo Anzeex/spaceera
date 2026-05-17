@@ -5,6 +5,7 @@ import {
   fetchServerGalaxyState,
   isLocalServerUnavailable,
   resetServerGalaxyState,
+  resetServerGalaxyMapState,
   savePlayerState,
   saveServerGalaxyState,
   uploadProfileImage as uploadProfileImageRequest,
@@ -13,6 +14,7 @@ import {
 export function createMultiplayerSync({ state, baselineState, onStateApplied }) {
   let lastAppliedSnapshot = null;
   let hasLoggedLocalServerIssue = false;
+  let pushQueue = Promise.resolve();
 
   function getSerializablePlayerState() {
     if (typeof state.getSerializablePlayerState === 'function') {
@@ -55,7 +57,7 @@ export function createMultiplayerSync({ state, baselineState, onStateApplied }) 
     return JSON.stringify(serializableGalaxyState);
   }
 
-  async function pushState() {
+  async function pushStateNow() {
     const nextState =
       typeof state.getSerializableGalaxyState === 'function'
         ? state.getSerializableGalaxyState(baselineState)
@@ -99,9 +101,33 @@ export function createMultiplayerSync({ state, baselineState, onStateApplied }) 
     }
   }
 
+  async function pushState() {
+    const nextPush = pushQueue.then(pushStateNow, pushStateNow);
+    pushQueue = nextPush.catch(() => {});
+    return nextPush;
+  }
+
   async function resetRemoteState() {
     try {
       await resetServerGalaxyState(state.galaxySeed);
+      lastAppliedSnapshot = null;
+      hasLoggedLocalServerIssue = false;
+      return true;
+    } catch (serverError) {
+      if (!hasLoggedLocalServerIssue) {
+        console.warn(
+          'Local resource server is unavailable. Start `npm run dev:server` to enable authoritative resource updates.',
+          serverError
+        );
+        hasLoggedLocalServerIssue = true;
+      }
+      return false;
+    }
+  }
+
+  async function resetGalaxyMapState() {
+    try {
+      await resetServerGalaxyMapState(state.galaxySeed);
       lastAppliedSnapshot = null;
       hasLoggedLocalServerIssue = false;
       return true;
@@ -146,6 +172,7 @@ export function createMultiplayerSync({ state, baselineState, onStateApplied }) 
     stop,
     pushState,
     resetRemoteState,
+    resetGalaxyMapState,
     fetchPlayerState(playerId) {
       return fetchAuthoritativePlayerState(state.galaxySeed, playerId);
     },

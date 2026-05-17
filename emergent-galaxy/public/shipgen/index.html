@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="sv">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Shipgen</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <aside class="panel controls-panel">
+        <header class="app-header">
+          <p class="eyebrow">Procedural shipgen</p>
+          <h1>Skeppsbyggare</h1>
+        </header>
+
+        <section class="control-section seed-row" aria-label="Seed">
+          <label for="seedInput">Seed</label>
+          <div class="seed-controls">
+            <input id="seedInput" type="text" autocomplete="off" spellcheck="false" />
+            <button id="rerollSeed" type="button" title="Ny seed" aria-label="Ny seed">↻</button>
+          </div>
+        </section>
+
+        <section class="control-section trait-controls" aria-label="Traits">
+          <div class="section-heading">
+            <h2>Traits</h2>
+            <button id="randomizeTraits" type="button">Randomisera</button>
+          </div>
+          <div id="traitControls"></div>
+        </section>
+      </aside>
+
+      <section class="stage">
+        <div class="top-bar">
+          <div>
+            <p class="eyebrow">Old school dithering</p>
+            <h2 id="shipName">Unnamed hull</h2>
+          </div>
+          <div class="action-row">
+            <button id="copyBuild" type="button">Kopiera build</button>
+            <button id="exportPng" type="button">Export PNG</button>
+          </div>
+        </div>
+
+        <div class="canvas-frame">
+          <canvas id="shipCanvas" width="294" height="180" aria-label="Procedural pixel ship"></canvas>
+        </div>
+
+        <div class="stats-grid" aria-label="Härledda värden">
+          <article>
+            <span>Total vikt</span>
+            <strong id="massValue">0</strong>
+          </article>
+          <article>
+            <span>Hastighet</span>
+            <strong id="speedValue">0</strong>
+          </article>
+          <article>
+            <span>Bränsle / hopp</span>
+            <strong id="fuelValue">0</strong>
+          </article>
+          <article>
+            <span>Operativ risk</span>
+            <strong id="riskValue">0</strong>
+          </article>
+        </div>
+
+        <div class="trait-readout" id="traitReadout" aria-label="Traitvärden"></div>
+      </section>
+    </main>
+
+    <script src="app.js?v=hi-dither-20"></script>
+  </body>
+</html>

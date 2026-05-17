@@ -22,6 +22,14 @@ export const RESOURCE_PRODUCTION_PER_INFRASTRUCTURE_LEVEL = {
   Uranium: 0.15,
 };
 
+export const BASE_PLAYER_RESOURCE_PRODUCTION_PER_PERIOD = {
+  Credits: 250,
+  Metals: 125,
+  Food: 125,
+  'Rare Earth Elements': 25,
+  Uranium: 15,
+};
+
 // Tuned for 1 hour periods and long-term progression.
 // A fully populated 1.2M planet yields about 12 credits/hour.
 export const POPULATION_CREDITS_PER_PERSON = 0.00001;

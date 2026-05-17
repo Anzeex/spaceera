@@ -1,0 +1,389 @@
+:root {
+  color-scheme: dark;
+  --bg: #111115;
+  --panel: #1b1b20;
+  --panel-2: #242228;
+  --panel-3: #2d2a2e;
+  --ink: #f0eadb;
+  --muted: #afa895;
+  --quiet: #756f63;
+  --line: #3b3737;
+  --teal: #56c4b3;
+  --amber: #d8b35f;
+  --red: #c85f51;
+  --green: #8cb86d;
+  --focus: #f2d078;
+  --shadow: #08080b;
+  font-family:
+    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  min-height: 100vh;
+  margin: 0;
+  color: var(--ink);
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px) 0 0 / 16px 16px,
+    linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px) 0 0 / 16px 16px,
+    var(--bg);
+}
+
+button,
+input {
+  font: inherit;
+}
+
+button {
+  min-height: 38px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  color: var(--ink);
+  background: var(--panel-2);
+  cursor: pointer;
+}
+
+button:hover {
+  border-color: #5d5653;
+  background: #302d30;
+}
+
+button:focus-visible,
+input:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+input[type="text"] {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 0.72rem 0.75rem;
+  color: var(--ink);
+  background: #121216;
+}
+
+.app-shell {
+  display: grid;
+  grid-template-columns: minmax(300px, 390px) minmax(0, 1fr);
+  gap: 18px;
+  width: min(1480px, 100%);
+  min-height: 100vh;
+  margin: 0 auto;
+  padding: 18px;
+}
+
+.panel,
+.stage {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(27, 27, 32, 0.96);
+  box-shadow: 0 18px 45px rgba(0, 0, 0, 0.24);
+}
+
+.controls-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  max-height: calc(100vh - 36px);
+  overflow: auto;
+  padding: 18px;
+}
+
+.stage {
+  display: grid;
+  grid-template-rows: auto minmax(280px, 1fr) auto auto;
+  gap: 14px;
+  min-width: 0;
+  padding: 18px;
+}
+
+.app-header h1,
+.top-bar h2 {
+  margin: 0;
+  letter-spacing: 0;
+}
+
+.app-header h1 {
+  font-size: 1.75rem;
+}
+
+.top-bar h2 {
+  font-size: clamp(1.35rem, 2vw, 2.05rem);
+}
+
+.eyebrow {
+  margin: 0 0 0.35rem;
+  color: var(--amber);
+  font-size: 0.78rem;
+  font-weight: 750;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.control-section {
+  display: grid;
+  gap: 12px;
+}
+
+.seed-row label,
+.trait-control label,
+.section-heading h2 {
+  font-size: 0.88rem;
+  font-weight: 760;
+}
+
+.seed-row label,
+.section-heading h2 {
+  margin: 0;
+}
+
+.seed-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 42px;
+  gap: 8px;
+}
+
+.seed-controls button {
+  padding: 0;
+  font-size: 1.2rem;
+}
+
+.section-heading,
+.top-bar,
+.action-row,
+.trait-head {
+  display: flex;
+  align-items: center;
+}
+
+.section-heading,
+.top-bar,
+.trait-head {
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.section-heading button,
+.action-row button {
+  padding: 0 0.75rem;
+}
+
+#traitControls {
+  display: grid;
+  gap: 12px;
+}
+
+.trait-control {
+  display: grid;
+  gap: 8px;
+}
+
+.trait-head span:last-child {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.range-wrap {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 48px;
+  align-items: center;
+  gap: 10px;
+}
+
+input[type="range"] {
+  width: 100%;
+  height: 18px;
+  margin: 0;
+  accent-color: var(--teal);
+}
+
+.mass-tag {
+  color: var(--quiet);
+  font-size: 0.78rem;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.top-bar {
+  flex-wrap: wrap;
+}
+
+.action-row {
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.canvas-frame {
+  display: grid;
+  place-items: center;
+  min-height: 280px;
+  border: 1px solid #322e2c;
+  border-radius: 8px;
+  overflow: hidden;
+  background:
+    linear-gradient(135deg, rgba(86, 196, 179, 0.05), transparent 38%),
+    #0b0b0f;
+}
+
+canvas {
+  display: block;
+  width: min(100%, 1020px);
+  height: auto;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+
+body.embed-mode {
+  width: 100vw;
+  height: 100vh;
+  min-height: 0;
+  overflow: hidden;
+  background: transparent;
+}
+
+.embed-mode .app-shell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100vh;
+  min-height: 0;
+  overflow: hidden;
+  margin: 0;
+  padding: 0;
+}
+
+.embed-mode .controls-panel,
+.embed-mode .top-bar,
+.embed-mode .stats-grid,
+.embed-mode .trait-readout,
+.embed-mode .eyebrow {
+  display: none;
+}
+
+.embed-mode .stage {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100vh;
+  min-height: 0;
+  overflow: hidden;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.embed-mode .canvas-frame {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100vh;
+  min-height: 0;
+  overflow: hidden;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.embed-mode canvas {
+  width: auto;
+  max-width: 100%;
+  height: auto;
+  max-height: calc(100vh - 2px);
+  margin: auto;
+}
+
+.stats-grid,
+.trait-readout {
+  display: grid;
+  gap: 10px;
+}
+
+.stats-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.stats-grid article,
+.trait-pill {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel-2);
+}
+
+.stats-grid article {
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+}
+
+.stats-grid span,
+.trait-pill span {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.stats-grid strong {
+  font-size: 1.25rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.trait-readout {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+
+.trait-pill {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 9px 10px;
+}
+
+.trait-pill strong {
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 980px) {
+  .app-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .controls-panel {
+    max-height: none;
+  }
+
+  .stats-grid,
+  .trait-readout {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 560px) {
+  .app-shell {
+    padding: 10px;
+  }
+
+  .panel,
+  .stage {
+    padding: 12px;
+  }
+
+  .stats-grid,
+  .trait-readout {
+    grid-template-columns: 1fr;
+  }
+}

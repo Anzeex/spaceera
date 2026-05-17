@@ -6,6 +6,7 @@ const INFRASTRUCTURE_BASE_COSTS = {
   farming: { Credits: 4 },
   mining: { Credits: 5 },
   energy: { Credits: 6 },
+  storage: { Credits: 5 },
   cities: { Credits: 6 },
   industrial: { Credits: 6 },
   defense: { Credits: 6 },

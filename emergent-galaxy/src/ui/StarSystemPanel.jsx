@@ -30,6 +30,15 @@ function summarizePoolResources(poolResources) {
   return entries.length ? entries.join(' | ') : 'Empty';
 }
 
+function formatShipCount(count) {
+  const normalizedCount = Math.max(1, Math.floor(Number(count) || 1));
+  return `${formatNumber(normalizedCount)} ${normalizedCount === 1 ? 'ship' : 'ships'}`;
+}
+
+function getTotalShipCount(ships = []) {
+  return ships.reduce((sum, ship) => sum + Math.max(1, Math.floor(Number(ship.count) || 1)), 0);
+}
+
 function titleCaseInfrastructure(key) {
   return key
     .replace(/([A-Z])/g, ' $1')
@@ -111,6 +120,7 @@ export function StarSystemPanel({
   onInfrastructureChanged,
   onSaveInfrastructureChanges,
   onSelectPlanet,
+  onOpenFleetShip,
   onInspectOwnerProfile,
   onClose,
   embedded = false,
@@ -140,6 +150,9 @@ export function StarSystemPanel({
   const poolUsed = getWeightedResourceAmount(poolResources);
   const canCollect = isOwnedByCurrentTerritory && poolUsed > 0;
   const canSetCapital = isOwnedByCurrentTerritory && !isCapital;
+  const ships = playerState?.ships ?? playerState?.fleet?.ships ?? [];
+  const shipList = Array.isArray(ships) ? ships : [];
+  const stationedShips = shipList.filter((ship) => (ship.position ?? ship.starId) === star.id);
   const resolvedOwnerProfileImageUrl =
     ownerProfileImageUrl
     ?? territory?.avatarImageUrl
@@ -241,6 +254,34 @@ export function StarSystemPanel({
           <strong>{formatNumber(poolUsed)} / {formatNumber(poolCapacity)}</strong>
           <span>{summarizePoolResources(poolResources)}</span>
         </div>
+      </section>
+
+      <section className="system-section">
+        <div className="system-section__title stationed-ship-title">
+          <span>Stationed Ships</span>
+          <strong>{formatShipCount(getTotalShipCount(stationedShips))}</strong>
+        </div>
+        {stationedShips.length ? (
+          <div className="stationed-ship-list">
+            {stationedShips.map((ship, index) => (
+              <button
+                key={ship.id ?? `${ship.name ?? ship.type}-${index}`}
+                type="button"
+                className="stationed-ship-row"
+                onClick={() => onOpenFleetShip?.(ship)}
+              >
+                <span className="stationed-ship-row__marker" aria-hidden="true" />
+                <span className="stationed-ship-row__main">
+                  <strong>{ship.name ?? ship.type ?? 'Ship'}</strong>
+                  <small>{ship.hullName ?? ship.type ?? 'Fleet ship'}</small>
+                </span>
+                <span className="stationed-ship-row__count">{formatShipCount(ship.count)}</span>
+              </button>
+            ))}
+          </div>
+        ) : (
+          <div className="stationed-ship-empty">No stationed ships.</div>
+        )}
       </section>
 
       <section className="system-section">
