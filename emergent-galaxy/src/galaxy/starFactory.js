@@ -1,5 +1,6 @@
 import { createPlanets } from './planetFactory.js';
 import { createStarName } from './nameGenerator.js';
+import { calculateStarDevelopment } from '../core/population.js';
 
 function pickWeighted(rng, weightedItems) {
   const totalWeight = weightedItems.reduce((sum, item) => sum + item.weight, 0);
@@ -58,6 +59,7 @@ export function createStar(index, position, rng) {
   const planets = createPlanets(rng, name);
   const population = planets.reduce((sum, p) => sum + p.population, 0);
   const systemDefense = calculateSystemDefense(planets);
+  const development = calculateStarDevelopment({ planets });
   const profile = createStarProfile(rng);
 
   return {
@@ -71,6 +73,7 @@ export function createStar(index, position, rng) {
     energyOutput: profile.energyOutput,
     population,
     systemDefense,
+    development,
     planets,
     // old fields
     radius: 1 + rng.random() * 0.5,

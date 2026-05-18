@@ -35,6 +35,10 @@ export function attachCameraControls(state) {
   };
 
   canvas.addEventListener('pointerdown', (e) => {
+    if (state.handleTradeMissionPointerDown?.(e)) {
+      return;
+    }
+
     if (state.handleMoveMissionPointerDown?.(e)) {
       return;
     }
@@ -49,6 +53,10 @@ export function attachCameraControls(state) {
   });
 
   canvas.addEventListener('pointermove', (e) => {
+    if (state.handleTradeMissionPointerMove?.(e)) {
+      return;
+    }
+
     if (state.handleMoveMissionPointerMove?.(e)) {
       return;
     }
@@ -75,6 +83,10 @@ export function attachCameraControls(state) {
   });
 
   canvas.addEventListener('pointerup', (e) => {
+    if (state.handleTradeMissionPointerUp?.(e)) {
+      return;
+    }
+
     if (state.handleMoveMissionPointerUp?.(e)) {
       return;
     }
@@ -87,6 +99,10 @@ export function attachCameraControls(state) {
   });
 
   canvas.addEventListener('pointercancel', () => {
+    if (state.handleTradeMissionPointerCancel?.()) {
+      return;
+    }
+
     if (state.handleMoveMissionPointerCancel?.()) {
       return;
     }

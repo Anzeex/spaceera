@@ -1,4 +1,4 @@
-import { createEmptyItemInventory, cloneItemInventory, cloneSystemItemInventories } from './itemDefinitions.js';
+import { createEmptyItemInventory, cloneItemInventory } from './itemDefinitions.js';
 
 const RESOURCE_KEYS = [
   'Credits',
@@ -126,11 +126,21 @@ function normalizeShipPosition(position, defaultPosition = null) {
   return position ?? defaultPosition ?? null;
 }
 
+function hasInventoryItems(items = {}) {
+  return Object.values(items ?? {}).some((value) => (Number(value) || 0) > 0);
+}
+
+function cloneShipCargo(ship = {}) {
+  const items = cloneItemInventory(ship?.cargo?.items ?? ship?.cargoItems);
+  return hasInventoryItems(items) ? { items } : null;
+}
+
 function cloneShips(ships = [], defaultPosition = null) {
   return Array.isArray(ships)
     ? ships.map((ship, index) => {
         const fallbackId = ship.templateId ?? ship.id ?? `ship-${index}`;
-        return {
+        const cargo = cloneShipCargo(ship);
+        const nextShip = {
           ...ship,
           id: ship.id ?? fallbackId,
           templateId: ship.templateId ?? fallbackId,
@@ -145,6 +155,13 @@ function cloneShips(ships = [], defaultPosition = null) {
           position: normalizeShipPosition(ship.position ?? ship.starId, defaultPosition),
           count: Math.max(1, Math.floor(Number(ship.count) || 1)),
         };
+        delete nextShip.cargoItems;
+        if (cargo) {
+          nextShip.cargo = cargo;
+        } else {
+          delete nextShip.cargo;
+        }
+        return nextShip;
       })
     : [];
 }
@@ -213,7 +230,6 @@ export function createPlayerRecord(playerId, nowMs = Date.now(), overrides = {})
     logistics: {
       systemPools: cloneSystemPools(overrides.logistics?.systemPools),
       baseResourcePool: cloneResources(overrides.logistics?.baseResourcePool ?? overrides.baseResourcePool),
-      systemItemInventories: cloneSystemItemInventories(overrides.logistics?.systemItemInventories),
       systemPoolCapacities: cloneSystemPoolCapacities(overrides.logistics?.systemPoolCapacities),
       productionQueue: cloneProductionQueue(overrides.logistics?.productionQueue),
     },
@@ -265,7 +281,6 @@ export function normalizePlayerRecord(playerLike, playerId, nowMs = Date.now()) 
     logistics: {
       systemPools: playerLike.systemPools,
       baseResourcePool: playerLike.baseResourcePool,
-      systemItemInventories: playerLike.systemItemInventories,
       systemPoolCapacities: playerLike.systemPoolCapacities,
       productionQueue: playerLike.productionQueue,
     },
@@ -324,7 +339,6 @@ export function playerRecordToRuntimeState(playerRecord) {
     hourlyProduction: cloneResources(playerRecord.economy.hourlyProduction),
     systemPools: cloneSystemPools(playerRecord.logistics.systemPools),
     baseResourcePool: cloneResources(playerRecord.logistics.baseResourcePool),
-    systemItemInventories: cloneSystemItemInventories(playerRecord.logistics.systemItemInventories),
     systemPoolCapacities: cloneSystemPoolCapacities(playerRecord.logistics.systemPoolCapacities),
     productionQueue: cloneProductionQueue(playerRecord.logistics.productionQueue),
     energyOutput: playerRecord.status.energyOutput,
@@ -380,9 +394,6 @@ export function applyRuntimeStateToPlayerRecord(playerRecord, runtimeState, nowM
     logistics: {
       systemPools: cloneSystemPools(runtimeState?.systemPools ?? nextRecord.logistics.systemPools),
       baseResourcePool: cloneResources(runtimeState?.baseResourcePool ?? nextRecord.logistics.baseResourcePool),
-      systemItemInventories: cloneSystemItemInventories(
-        runtimeState?.systemItemInventories ?? nextRecord.logistics.systemItemInventories
-      ),
       systemPoolCapacities: cloneSystemPoolCapacities(
         runtimeState?.systemPoolCapacities ?? nextRecord.logistics.systemPoolCapacities
       ),

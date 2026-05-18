@@ -6,6 +6,7 @@ import { PlanetPreview } from './PlanetPreview.jsx';
 import {
   calculatePlanetPopulationCap,
   calculatePlanetPopulationGrowth,
+  calculateStarDevelopment,
   calculateStarPopulationCap,
   calculateStarPopulationGrowth,
   estimatePlanetDisplayPeriodsToFill,
@@ -158,6 +159,7 @@ export function StarSystemPanel({
     ?? territory?.avatarImageUrl
     ?? (isOwnedByCurrentTerritory ? playerState?.profileImageUrl ?? '' : '');
   const starPopulationGrowth = calculateStarPopulationGrowth(star, capitalGrowthMultiplier);
+  const starDevelopment = calculateStarDevelopment(star);
   const starPeriodsToFill = estimateStarDisplayPeriodsToFill(star, 100000, capitalGrowthMultiplier);
   const starPeriodsToNinety = estimateStarDisplayPeriodsToNinety(star, 100000, capitalGrowthMultiplier);
   const creditPeriodLabel = playerState?.resourceUpdateInterval === 'hour' ? 'h' : 'min';
@@ -228,6 +230,7 @@ export function StarSystemPanel({
         <Stat label="Star Type" value={star.starType} />
         <Stat label="Energy" value={formatNumber(star.energyOutput)} />
         <Stat label="Defense" value={formatNumber(star.systemDefense)} />
+        <Stat label="Development" value={formatNumber(starDevelopment)} tone="accent" />
         <Stat label="Population" value={`${formatNumber(star.population)} (+${formatNumber(starPopulationGrowth)} pp)`} />
         <Stat label="Population Cap" value={formatNumber(calculateStarPopulationCap(star))} />
       </div>

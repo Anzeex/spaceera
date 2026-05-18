@@ -11,14 +11,72 @@ import {
   uploadProfileImage as uploadProfileImageRequest,
 } from './serverApi.js';
 
+const REMOTE_STATE_POLL_INTERVAL_MS = 2500;
+
 export function createMultiplayerSync({ state, baselineState, onStateApplied }) {
   let lastAppliedSnapshot = null;
   let hasLoggedLocalServerIssue = false;
   let pushQueue = Promise.resolve();
+  let remoteStatePollIntervalId = null;
+  let isPushingState = false;
 
-  function getSerializablePlayerState() {
+  function hasPendingLocalState() {
+    return Boolean(state.hasPendingTerritoryChanges || state.hasPendingInfrastructureChanges);
+  }
+
+  function applyServerGalaxyState(serverState, { force = false } = {}) {
+    if (!serverState) {
+      return false;
+    }
+
+    const nextSnapshot = JSON.stringify(serverState);
+    if (nextSnapshot === lastAppliedSnapshot) {
+      return false;
+    }
+
+    if (!force && (isPushingState || hasPendingLocalState())) {
+      return false;
+    }
+
+    restoreBaselineState(state, baselineState);
+    applyStoredState(state, serverState);
+    lastAppliedSnapshot = nextSnapshot;
+    onStateApplied?.();
+    state.invalidateRender?.();
+    return true;
+  }
+
+  async function pullServerGalaxyState(options = {}) {
+    try {
+      const serverSnapshot = await fetchServerGalaxyState(state.galaxySeed);
+      applyServerGalaxyState(serverSnapshot?.state, options);
+      hasLoggedLocalServerIssue = false;
+      return true;
+    } catch (error) {
+      if (!hasLoggedLocalServerIssue) {
+        console.warn(
+          'Local resource server is unavailable. Start `npm run dev:server` to enable authoritative resource updates.',
+          error
+        );
+        hasLoggedLocalServerIssue = true;
+      }
+      return false;
+    }
+  }
+
+  function startRemoteStatePolling() {
+    if (remoteStatePollIntervalId !== null) {
+      return;
+    }
+
+    remoteStatePollIntervalId = window.setInterval(() => {
+      void pullServerGalaxyState();
+    }, REMOTE_STATE_POLL_INTERVAL_MS);
+  }
+
+  function getSerializablePlayerState(options = {}) {
     if (typeof state.getSerializablePlayerState === 'function') {
-      return state.getSerializablePlayerState();
+      return state.getSerializablePlayerState(options);
     }
 
     const playerId = state.currentPlayerId ?? state.currentTerritoryId;
@@ -57,52 +115,64 @@ export function createMultiplayerSync({ state, baselineState, onStateApplied }) 
     return JSON.stringify(serializableGalaxyState);
   }
 
-  async function pushStateNow() {
-    const nextState =
-      typeof state.getSerializableGalaxyState === 'function'
-        ? state.getSerializableGalaxyState(baselineState)
-        : serializeGameState(state, baselineState);
-    const nextSnapshot = JSON.stringify(nextState);
-    const serializablePlayerState = getSerializablePlayerState();
+  async function pushStateNow(options = {}) {
+    isPushingState = true;
+    let didPersistState = false;
 
-    if (nextSnapshot === lastAppliedSnapshot && !serializablePlayerState) {
-      return;
-    }
+    try {
+      const nextState =
+        typeof state.getSerializableGalaxyState === 'function'
+          ? state.getSerializableGalaxyState(baselineState, options)
+          : serializeGameState(state, baselineState);
+      const nextSnapshot = JSON.stringify(nextState);
+      const serializablePlayerState = getSerializablePlayerState(options);
 
-    if (nextSnapshot !== lastAppliedSnapshot) {
-      try {
-        await saveServerGalaxyState(state.galaxySeed, nextState);
-        lastAppliedSnapshot = nextSnapshot;
-        hasLoggedLocalServerIssue = false;
-      } catch (serverError) {
-        if (!hasLoggedLocalServerIssue) {
-          console.warn(
-            'Local resource server is unavailable. Start `npm run dev:server` to enable authoritative resource updates.',
-            serverError
-          );
-          hasLoggedLocalServerIssue = true;
+      if (nextSnapshot === lastAppliedSnapshot && !serializablePlayerState) {
+        return true;
+      }
+
+      if (nextSnapshot !== lastAppliedSnapshot) {
+        try {
+          await saveServerGalaxyState(state.galaxySeed, nextState);
+          lastAppliedSnapshot = nextSnapshot;
+          hasLoggedLocalServerIssue = false;
+          didPersistState = true;
+        } catch (serverError) {
+          if (!hasLoggedLocalServerIssue) {
+            console.warn(
+              'Local resource server is unavailable. Start `npm run dev:server` to enable authoritative resource updates.',
+              serverError
+            );
+            hasLoggedLocalServerIssue = true;
+          }
         }
       }
-    }
 
-    if (serializablePlayerState) {
-      try {
-        await savePlayerState(state.galaxySeed, serializablePlayerState.playerId, serializablePlayerState);
-        hasLoggedLocalServerIssue = false;
-      } catch (serverError) {
-        if (!hasLoggedLocalServerIssue) {
-          console.warn(
-            'Local resource server is unavailable. Start `npm run dev:server` to enable authoritative resource updates.',
-            serverError
-          );
-          hasLoggedLocalServerIssue = true;
+      if (serializablePlayerState) {
+        try {
+          await savePlayerState(state.galaxySeed, serializablePlayerState.playerId, serializablePlayerState);
+          hasLoggedLocalServerIssue = false;
+          didPersistState = true;
+        } catch (serverError) {
+          if (!hasLoggedLocalServerIssue) {
+            console.warn(
+              'Local resource server is unavailable. Start `npm run dev:server` to enable authoritative resource updates.',
+              serverError
+            );
+            hasLoggedLocalServerIssue = true;
+          }
         }
       }
+
+      return didPersistState || nextSnapshot === lastAppliedSnapshot;
+    } finally {
+      isPushingState = false;
     }
   }
 
-  async function pushState() {
-    const nextPush = pushQueue.then(pushStateNow, pushStateNow);
+  async function pushState(options = {}) {
+    const runPush = () => pushStateNow(options);
+    const nextPush = pushQueue.then(runPush, runPush);
     pushQueue = nextPush.catch(() => {});
     return nextPush;
   }
@@ -144,28 +214,19 @@ export function createMultiplayerSync({ state, baselineState, onStateApplied }) 
   }
 
   async function start() {
-    try {
-      const serverSnapshot = await fetchServerGalaxyState(state.galaxySeed);
-      if (serverSnapshot?.state) {
-        restoreBaselineState(state, baselineState);
-        applyStoredState(state, serverSnapshot.state);
-        lastAppliedSnapshot = snapshotState();
-        onStateApplied?.();
-        state.invalidateRender?.();
-      }
-      hasLoggedLocalServerIssue = false;
-    } catch (error) {
-      if (!hasLoggedLocalServerIssue) {
-        console.warn(
-          'Local resource server is unavailable. Start `npm run dev:server` to enable authoritative resource updates.',
-          error
-        );
-        hasLoggedLocalServerIssue = true;
-      }
+    await pullServerGalaxyState({ force: true });
+    if (lastAppliedSnapshot === null) {
+      lastAppliedSnapshot = snapshotState();
     }
+    startRemoteStatePolling();
   }
 
-  function stop() {}
+  function stop() {
+    if (remoteStatePollIntervalId !== null) {
+      window.clearInterval(remoteStatePollIntervalId);
+      remoteStatePollIntervalId = null;
+    }
+  }
 
   return {
     start,

@@ -209,17 +209,12 @@
       "c74e35d1-060a-461e-8f8b-e4c7874d23bd": {
         "owner": "DS",
         "faction": "DS",
-        "population": 248770,
-        "development": 2806,
+        "population": 100000,
+        "development": 100,
         "planets": {
           "55e876a2-ab88-41e8-bb24-cf278d8a3c5f": {
-            "population": 248770,
-            "infrastructure": {
-              "industrial": 6,
-              "energy": 4,
-              "cities": 8,
-              "mining": 7
-            }
+            "population": 100000,
+            "infrastructure": {}
           }
         }
       },
@@ -747,6 +742,25 @@
             "runtime": {}
           },
           {
+            "id": "1778326784163-bwyou9",
+            "templateId": "1778326784163-bwyou9",
+            "name": "fatty",
+            "hullId": "speedHull",
+            "hullName": "Lightframe Hull",
+            "traits": {
+              "combatPower": 10,
+              "defense": 10,
+              "thrust": 12,
+              "cargoCapacity": 11,
+              "passengerCapacity": 11,
+              "stealth": 12
+            },
+            "count": 2,
+            "position": "3ddb9ba3-f74a-4aa5-b3ce-ce684f6a3d33",
+            "modules": [],
+            "runtime": {}
+          },
+          {
             "id": "1778326694230-lkbko5",
             "templateId": "1778326694230-lkbko5",
             "name": "attacker",
@@ -766,6 +780,35 @@
             "runtime": {}
           },
           {
+            "id": "1778326784163-bwyou9",
+            "templateId": "1778326784163-bwyou9",
+            "name": "fatty",
+            "hullId": "speedHull",
+            "hullName": "Lightframe Hull",
+            "traits": {
+              "combatPower": 10,
+              "defense": 10,
+              "thrust": 12,
+              "cargoCapacity": 11,
+              "passengerCapacity": 11,
+              "stealth": 12
+            },
+            "count": 2,
+            "position": "8c0c0bbf-666d-4f64-81f1-4004158a6c53",
+            "modules": [],
+            "runtime": {},
+            "cargo": {
+              "items": {
+                "colony-kit": 0,
+                "terraforming-kit": 1,
+                "outpost-kit": 0,
+                "mining-kit": 0,
+                "defense-kit": 0,
+                "wormhole-kit": 1
+              }
+            }
+          },
+          {
             "id": "1778791591174-8cujbk",
             "templateId": "1778791591174-8cujbk",
             "name": "Passanger Vessel",
@@ -781,61 +824,6 @@
             },
             "position": "70b1b7f1-b709-44ba-8af1-9578e7b95303",
             "count": 2,
-            "modules": [],
-            "runtime": {}
-          },
-          {
-            "id": "1778326784163-bwyou9",
-            "templateId": "1778326784163-bwyou9",
-            "name": "fatty",
-            "hullId": "speedHull",
-            "hullName": "Lightframe Hull",
-            "traits": {
-              "combatPower": 10,
-              "defense": 10,
-              "thrust": 12,
-              "cargoCapacity": 11,
-              "passengerCapacity": 11,
-              "stealth": 12
-            },
-            "count": 3,
-            "position": "Trading",
-            "modules": [],
-            "runtime": {},
-            "cargo": {
-              "items": {
-                "colony-kit": 0,
-                "terraforming-kit": 1,
-                "outpost-kit": 0,
-                "mining-kit": 0,
-                "defense-kit": 0,
-                "wormhole-kit": 1
-              }
-            },
-            "tradeRouteId": "trade:4837b551-6127-40d4-af9d-66def147f279|76b225ea-5ad0-4ba7-9a2f-41bf7d0c222c",
-            "tradeOriginStarId": "4837b551-6127-40d4-af9d-66def147f279",
-            "tradeDestinationStarId": "76b225ea-5ad0-4ba7-9a2f-41bf7d0c222c",
-            "tradeOriginName": "Bexus Nebulon",
-            "tradeDestinationName": "Draem Cygnus",
-            "tradeRevenueCredits": 198,
-            "tradeDistanceLightYears": 3081.7277936766955
-          },
-          {
-            "id": "1778326784163-bwyou9",
-            "templateId": "1778326784163-bwyou9",
-            "name": "fatty",
-            "hullId": "speedHull",
-            "hullName": "Lightframe Hull",
-            "traits": {
-              "combatPower": 10,
-              "defense": 10,
-              "thrust": 12,
-              "cargoCapacity": 11,
-              "passengerCapacity": 11,
-              "stealth": 12
-            },
-            "count": 1,
-            "position": "1edd4334-df1b-4672-8a5f-50fd9b93329d",
             "modules": [],
             "runtime": {}
           }
@@ -1160,7 +1148,7 @@
           },
           "4837b551-6127-40d4-af9d-66def147f279": {
             "resources": {
-              "Credits": 4574.89999999992,
+              "Credits": 4452.799999999879,
               "Metals": 13.199999999999998,
               "Food": 13.199999999999998,
               "Rare Earth Elements": 13.199999999999998,
@@ -1259,11 +1247,11 @@
       },
       "economy": {
         "resources": {
-          "Credits": 1000093617,
-          "Metals": 182465.9,
-          "Food": 250314.80000000002,
-          "Rare Earth Elements": 215206.80000000002,
-          "Uranium": 208974.50000000003
+          "Credits": 1000065372,
+          "Metals": 169340.9,
+          "Food": 237189.80000000002,
+          "Rare Earth Elements": 212581.80000000002,
+          "Uranium": 207399.50000000003
         },
         "hourlyProduction": {
           "Credits": 262.1,
@@ -1274,7 +1262,7 @@
         },
         "completedHours": 1,
         "resourceUpdateInterval": "minute",
-        "lastResourceUpdate": "2026-05-18T12:30:00.000Z"
+        "lastResourceUpdate": "2026-05-18T10:39:00.000Z"
       },
       "status": {
         "energyOutput": 310,
@@ -1285,7 +1273,7 @@
       },
       "meta": {
         "createdAt": "2026-04-26T14:02:34.244Z",
-        "updatedAt": "2026-05-18T12:30:00.046Z"
+        "updatedAt": "2026-05-18T10:39:00.170Z"
       }
     },
     "anzeed": {
@@ -10675,202 +10663,19 @@
         }
       },
       "fleet": {
-        "ships": [
-          {
-            "id": "1779105357461-4cinr9",
-            "templateId": "1779105357461-4cinr9",
-            "name": "raider",
-            "hullId": "speedHull",
-            "hullName": "Lightframe Hull",
-            "modules": [
-              {
-                "id": "combatPowerModule",
-                "count": 10
-              },
-              {
-                "id": "thrustModule",
-                "count": 10
-              }
-            ],
-            "traits": {
-              "combatPower": 10,
-              "defense": 0,
-              "thrust": 12,
-              "cargoCapacity": 1,
-              "passengerCapacity": 1,
-              "stealth": 2
-            },
-            "runtime": {
-              "mass": 29,
-              "fuelUse": 5.215,
-              "speed": 8.355727485873496,
-              "vulnerability": 0.6
-            },
-            "position": "Piracy",
-            "count": 1,
-            "piracyMissionId": "piracy:1779106097112-izw4ta",
-            "piracyCenterStarId": "cd3acc6d-d3e1-411a-a067-c1f031eb575b",
-            "piracyCenterName": "Bexia Radian",
-            "piracyTerritoryId": "martinsg",
-            "piracyTerritoryName": "martinsg",
-            "piracyRadiusLightYears": 1000,
-            "piracyEfficiency": 0.65,
-            "piracyStolenCredits": 0,
-            "piracyAffectedRouteCount": 0
-          },
-          {
-            "id": "1779105954496-phzxyy",
-            "templateId": "1779105954496-phzxyy",
-            "name": "fatty",
-            "hullId": "defenseHull",
-            "hullName": "Reinforced Hull",
-            "modules": [
-              {
-                "id": "combatPowerModule",
-                "count": 10
-              },
-              {
-                "id": "defenseModule",
-                "count": 10
-              },
-              {
-                "id": "thrustModule",
-                "count": 10
-              },
-              {
-                "id": "cargoCapacityModule",
-                "count": 10
-              },
-              {
-                "id": "passengerCapacityModule",
-                "count": 10
-              },
-              {
-                "id": "stealthModule",
-                "count": 10
-              }
-            ],
-            "traits": {
-              "combatPower": 11,
-              "defense": 12,
-              "thrust": 10,
-              "cargoCapacity": 11,
-              "passengerCapacity": 11,
-              "stealth": 10
-            },
-            "runtime": {
-              "mass": 92,
-              "fuelUse": 11.92,
-              "speed": 4.08248290463863,
-              "vulnerability": 1.7999999999999998
-            },
-            "position": "c74e35d1-060a-461e-8f8b-e4c7874d23bd",
-            "count": 1
-          }
-        ],
-        "shipTemplates": [
-          {
-            "id": "1779105954496-phzxyy",
-            "name": "fatty",
-            "hullName": "Reinforced Hull",
-            "hullId": "defenseHull",
-            "modules": [
-              {
-                "id": "combatPowerModule",
-                "count": 10
-              },
-              {
-                "id": "defenseModule",
-                "count": 10
-              },
-              {
-                "id": "thrustModule",
-                "count": 10
-              },
-              {
-                "id": "cargoCapacityModule",
-                "count": 10
-              },
-              {
-                "id": "passengerCapacityModule",
-                "count": 10
-              },
-              {
-                "id": "stealthModule",
-                "count": 10
-              }
-            ],
-            "traits": {
-              "combatPower": 11,
-              "defense": 12,
-              "thrust": 10,
-              "cargoCapacity": 11,
-              "passengerCapacity": 11,
-              "stealth": 10
-            },
-            "runtime": {
-              "mass": 92,
-              "fuelUse": 11.92,
-              "speed": 4.08248290463863,
-              "vulnerability": 1.7999999999999998
-            },
-            "cost": {
-              "Credits": 1290,
-              "Metals": 795,
-              "Food": 80,
-              "Rare Earth Elements": 50,
-              "Uranium": 54
-            }
-          },
-          {
-            "id": "1779105357461-4cinr9",
-            "name": "raider",
-            "hullName": "Lightframe Hull",
-            "hullId": "speedHull",
-            "modules": [
-              {
-                "id": "combatPowerModule",
-                "count": 10
-              },
-              {
-                "id": "thrustModule",
-                "count": 10
-              }
-            ],
-            "traits": {
-              "combatPower": 10,
-              "defense": 0,
-              "thrust": 12,
-              "cargoCapacity": 1,
-              "passengerCapacity": 1,
-              "stealth": 2
-            },
-            "runtime": {
-              "mass": 29,
-              "fuelUse": 5.215,
-              "speed": 8.355727485873496,
-              "vulnerability": 0.6
-            },
-            "cost": {
-              "Credits": 510,
-              "Metals": 380,
-              "Food": 0,
-              "Rare Earth Elements": 6,
-              "Uranium": 40
-            }
-          }
-        ],
+        "ships": [],
+        "shipTemplates": [],
         "activeMoveMissions": []
       },
       "logistics": {
         "systemPools": {
           "c74e35d1-060a-461e-8f8b-e4c7874d23bd": {
             "resources": {
-              "Credits": 26.40000000000001,
-              "Metals": 77.99999999999999,
-              "Food": 18.7,
-              "Rare Earth Elements": 17.599999999999998,
-              "Uranium": 17.599999999999998
+              "Credits": 1045.0000000000132,
+              "Metals": 13.199999999999998,
+              "Food": 13.199999999999998,
+              "Rare Earth Elements": 13.199999999999998,
+              "Uranium": 13.099999999999998
             }
           },
           "075edf34-e5db-4650-ae47-791dcf8d008b": {
@@ -11053,7 +10858,7 @@
           "Uranium": 0
         },
         "systemPoolCapacities": {
-          "c74e35d1-060a-461e-8f8b-e4c7874d23bd": 184.8,
+          "c74e35d1-060a-461e-8f8b-e4c7874d23bd": 92.4,
           "075edf34-e5db-4650-ae47-791dcf8d008b": 0,
           "9db52e91-054e-4491-a596-69bea0c7a3a7": 0,
           "3c78683b-80ec-4115-92c6-6b2611fb7680": 0,
@@ -11078,14 +10883,14 @@
       },
       "economy": {
         "resources": {
-          "Credits": 30158.000000000007,
-          "Metals": 14188.2,
-          "Food": 15343.2,
-          "Rare Earth Elements": 3022.2,
-          "Uranium": 1757.1
+          "Credits": 20741,
+          "Metals": 8850,
+          "Food": 8910,
+          "Rare Earth Elements": 1765,
+          "Uranium": 1058
         },
         "hourlyProduction": {
-          "Credits": 253.1,
+          "Credits": 252.1,
           "Metals": 125,
           "Food": 125,
           "Rare Earth Elements": 25,
@@ -11093,18 +10898,18 @@
         },
         "completedHours": 13,
         "resourceUpdateInterval": "minute",
-        "lastResourceUpdate": "2026-05-18T12:19:00.000Z"
+        "lastResourceUpdate": "2026-05-18T10:35:00.000Z"
       },
       "status": {
-        "energyOutput": 170,
-        "energyConsumption": 106,
-        "activeEnergyConsumption": 106,
+        "energyOutput": 100,
+        "energyConsumption": 0,
+        "activeEnergyConsumption": 0,
         "energyDeficit": 0,
         "inactiveInfrastructureCount": 0
       },
       "meta": {
         "createdAt": "2026-05-15T10:38:10.872Z",
-        "updatedAt": "2026-05-18T12:19:00.180Z"
+        "updatedAt": "2026-05-18T10:35:43.890Z"
       }
     },
     "martinsg": {
@@ -11318,7 +11123,7 @@
           },
           "76b225ea-5ad0-4ba7-9a2f-41bf7d0c222c": {
             "resources": {
-              "Credits": 4544.099999999909,
+              "Credits": 4423.099999999869,
               "Metals": 26.399999999999995,
               "Food": 13.199999999999998,
               "Rare Earth Elements": 16.8,
@@ -11450,11 +11255,11 @@
       },
       "economy": {
         "resources": {
-          "Credits": 18876.5,
-          "Metals": 7355.5,
-          "Food": 7415.5,
-          "Rare Earth Elements": 1470.5,
-          "Uranium": 883.5
+          "Credits": 13766.5,
+          "Metals": 4855.5,
+          "Food": 4915.5,
+          "Rare Earth Elements": 970.5,
+          "Uranium": 583.5
         },
         "hourlyProduction": {
           "Credits": 252.1,
@@ -11463,9 +11268,9 @@
           "Rare Earth Elements": 25,
           "Uranium": 15
         },
-        "completedHours": 73,
+        "completedHours": 1,
         "resourceUpdateInterval": "minute",
-        "lastResourceUpdate": "2026-05-18T12:08:00.000Z"
+        "lastResourceUpdate": "2026-05-18T10:18:00.000Z"
       },
       "status": {
         "energyOutput": 100,
@@ -11476,9 +11281,9 @@
       },
       "meta": {
         "createdAt": "2026-05-15T15:12:12.325Z",
-        "updatedAt": "2026-05-18T12:08:09.239Z"
+        "updatedAt": "2026-05-18T10:18:36.881Z"
       }
     }
   },
-  "updatedAt": "2026-05-18T12:30:00.182Z"
+  "updatedAt": "2026-05-18T10:39:00.291Z"
 }

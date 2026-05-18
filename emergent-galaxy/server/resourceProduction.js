@@ -18,7 +18,6 @@ import {
 import { calculateAndApplyTerritoryEnergyState, getEffectiveInfrastructureLevel } from '../src/core/energy.js';
 import {
   cloneItemInventory,
-  cloneSystemItemInventories,
   createEmptyItemInventory,
   getItemDefinition,
   MINIMUM_ITEM_CRAFT_TIME_RATIO,
@@ -113,10 +112,6 @@ function normalizeSystemPools(existingPools, ownedStarIds) {
   }
 
   return normalizedPools;
-}
-
-function normalizeSystemItemInventories(existingItemInventories, ownedStarIds) {
-  return cloneSystemItemInventories(existingItemInventories, ownedStarIds);
 }
 
 function createServerStateContainer(seed, storedState) {
@@ -627,7 +622,6 @@ export function createInitialPlayerState(playerId, nowMs) {
     logistics: {
       systemPools: {},
       baseResourcePool: createEmptyResources(),
-      systemItemInventories: {},
       systemPoolCapacities: {},
       productionQueue: [],
     },
@@ -660,10 +654,6 @@ export function updatePlayerResources({ seed, storedState, playerId, existingPla
   });
   const systemPools = normalizeSystemPools(
     basePlayerState.systemPools,
-    new Set(ownedStars.map((star) => star.id))
-  );
-  const systemItemInventories = normalizeSystemItemInventories(
-    basePlayerState.systemItemInventories,
     new Set(ownedStars.map((star) => star.id))
   );
   const systemPoolCapacities = calculateSystemPoolCapacitiesForStars(
@@ -709,7 +699,6 @@ export function updatePlayerResources({ seed, storedState, playerId, existingPla
     hourlyProduction: periodProduction,
     systemPools,
     baseResourcePool: createEmptyResources(),
-    systemItemInventories,
     systemPoolCapacities,
     energyOutput: energyState.output,
     energyConsumption: energyState.consumption,

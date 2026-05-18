@@ -140,6 +140,7 @@ function sanitizeStoredDocument(documentState) {
         logistics: {
           ...(playerRecord?.logistics ?? {}),
           baseResourcePool: sanitizeResourceMap(playerRecord?.logistics?.baseResourcePool),
+          systemItemInventories: undefined,
           systemPools: Object.fromEntries(
             Object.entries(playerRecord?.logistics?.systemPools ?? {}).map(([starId, poolEntry]) => [
               starId,

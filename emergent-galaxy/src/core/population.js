@@ -5,10 +5,30 @@ const BASE_FILL_RATE = 0.0136;
 const HABITABILITY_GROWTH_EXPONENT = 0.25;
 const DISPLAY_PTF_MULTIPLIER = 0.5;
 const DISPLAY_PT90_MULTIPLIER = 1.1;
+const DEVELOPMENT_POPULATION_DIVISOR = 1000;
+const DEVELOPMENT_INFRASTRUCTURE_LEVEL_WEIGHT = 100;
+const DEVELOPMENT_RESOURCE_ABUNDANCE_DIVISOR = 10;
 export const CAPITAL_MINIMUM_POPULATION = 100000;
+const MINED_RESOURCE_NAMES = new Set(['Metals', 'Rare Earth Elements', 'Uranium']);
 
 function getInfrastructureLevel(planet, key) {
   return getEffectiveInfrastructureLevel(planet, key);
+}
+
+function getBuiltInfrastructureLevel(planet, key) {
+  return Math.max(0, Math.floor(Number(planet?.infrastructure?.[key]) || 0));
+}
+
+function getResourceInfrastructureKey(resourceName) {
+  if (resourceName === 'Food') {
+    return 'farming';
+  }
+
+  if (MINED_RESOURCE_NAMES.has(resourceName)) {
+    return 'mining';
+  }
+
+  return null;
 }
 
 export function calculatePlanetPopulationCap(planet) {
@@ -153,6 +173,35 @@ export function estimateStarDisplayPeriodsToNinety(star, maxPeriods = 100000, gr
   return Math.max(0, Math.round(periods * DISPLAY_PT90_MULTIPLIER));
 }
 
+export function calculatePlanetDevelopment(planet) {
+  const populationScore =
+    Math.max(0, Math.round(Number(planet?.population) || 0)) / DEVELOPMENT_POPULATION_DIVISOR;
+  const infrastructureScore = Object.keys(planet?.infrastructure ?? {}).reduce(
+    (sum, key) => sum + getBuiltInfrastructureLevel(planet, key) * DEVELOPMENT_INFRASTRUCTURE_LEVEL_WEIGHT,
+    0
+  );
+  const resourceScore = (planet?.prominentResources ?? []).reduce((sum, resource) => {
+    const infrastructureKey = getResourceInfrastructureKey(resource.name);
+    if (!infrastructureKey) {
+      return sum;
+    }
+
+    const exploitedAbundance =
+      Math.max(0, Number(resource.abundance) || 0) *
+      getBuiltInfrastructureLevel(planet, infrastructureKey);
+    return sum + exploitedAbundance / DEVELOPMENT_RESOURCE_ABUNDANCE_DIVISOR;
+  }, 0);
+
+  return Math.max(0, Math.round(populationScore + infrastructureScore + resourceScore));
+}
+
+export function calculateStarDevelopment(star) {
+  return (star?.planets ?? []).reduce(
+    (sum, planet) => sum + calculatePlanetDevelopment(planet),
+    0
+  );
+}
+
 export function settlePlanetPopulation(planet, completedIntervals = 1, growthMultiplier = 1) {
   const normalizedIntervals = Math.max(0, Math.floor(completedIntervals));
   const populationCap = calculatePlanetPopulationCap(planet);
@@ -184,6 +233,7 @@ export function recalculateStarDerivedStats(star) {
           planets.length
       )
     : 0;
+  star.development = calculateStarDevelopment(star);
 }
 
 export function ensureStarMinimumPopulation(star, minimumPopulation = CAPITAL_MINIMUM_POPULATION) {

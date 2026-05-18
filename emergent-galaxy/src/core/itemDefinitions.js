@@ -12,7 +12,7 @@ export const ITEM_DEFINITIONS = [
     category: 'expansion',
     description: 'Used to establish a full colony on a viable world.',
     productionCost: 48,
-    storageSize: 50,
+    storageSize: 5,
     resourceCost: {
       Credits: 120,
       Metals: 45,
@@ -32,6 +32,7 @@ export const ITEM_DEFINITIONS = [
     category: 'planetary',
     description: 'Used to prepare harsh worlds for future development.',
     productionCost: 84,
+    storageSize: 5,
     resourceCost: {
       Credits: 220,
       Metals: 80,
@@ -51,7 +52,7 @@ export const ITEM_DEFINITIONS = [
     category: 'expansion',
     description: 'Used to establish a specialized outpost such as mining or logistics.',
     productionCost: 36,
-    storageSize: 50,
+    storageSize: 5,
     resourceCost: {
       Credits: 90,
       Metals: 60,
@@ -70,7 +71,7 @@ export const ITEM_DEFINITIONS = [
     category: 'planetary',
     description: 'Used to establish or reinforce mining operations on resource-rich worlds.',
     productionCost: 40,
-    storageSize: 50,
+    storageSize: 5,
     resourceCost: {
       Credits: 110,
       Metals: 75,
@@ -89,6 +90,7 @@ export const ITEM_DEFINITIONS = [
     category: 'military',
     description: 'Used to reduce or resist hostile pressure in a system.',
     productionCost: 32,
+    storageSize: 5,
     resourceCost: {
       Credits: 100,
       Metals: 70,
@@ -106,7 +108,7 @@ export const ITEM_DEFINITIONS = [
     category: 'logistics',
     description: 'Used to prepare experimental long-range transit infrastructure.',
     productionCost: 120,
-    storageSize: 60,
+    storageSize: 5,
     resourceCost: {
       Credits: 320,
       Metals: 120,
@@ -139,23 +141,4 @@ export function cloneItemInventory(source = {}) {
     ...createEmptyItemInventory(),
     ...source,
   };
-}
-
-export function createEmptySystemItemInventory() {
-  return {
-    items: createEmptyItemInventory(),
-  };
-}
-
-export function cloneSystemItemInventories(systemItemInventories = {}, ownedStarIds = null) {
-  const nextSystemItemInventories = {};
-  const starIds = ownedStarIds ? Array.from(ownedStarIds) : Object.keys(systemItemInventories);
-
-  for (const starId of starIds) {
-    nextSystemItemInventories[starId] = {
-      items: cloneItemInventory(systemItemInventories?.[starId]?.items ?? systemItemInventories?.[starId]),
-    };
-  }
-
-  return nextSystemItemInventories;
 }

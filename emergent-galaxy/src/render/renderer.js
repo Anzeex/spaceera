@@ -6,6 +6,7 @@ import { getWeightedResourceAmount } from '../core/systemPools.js';
 import {
   calculatePlanetPopulationCap,
   calculatePlanetPopulationGrowth,
+  calculateStarDevelopment,
   calculateStarPopulationCap,
   calculateStarPopulationGrowth,
   estimatePlanetDisplayPeriodsToFill,
@@ -179,12 +180,41 @@ function computeVoronoiCell(star, allStars, bounds) {
   return cell;
 }
 
-function buildVoronoiCells(stars) {
+function createEmptyVoronoiData() {
+  return {
+    bounds: null,
+    cellsByStarId: new Map(),
+    edgeMap: new Map(),
+    adjacentPairs: [],
+  };
+}
+
+function getTerritoryStarIds(territories) {
+  const starIds = new Set();
+
+  for (const territory of territories.values()) {
+    for (const starId of territory.stars ?? []) {
+      starIds.add(starId);
+    }
+  }
+
+  return starIds;
+}
+
+function buildVoronoiCellsForStarIds(stars, targetStarIds) {
+  if (!targetStarIds?.size) {
+    return createEmptyVoronoiData();
+  }
+
   const bounds = getGalaxyBounds(stars);
   const cellsByStarId = new Map();
   const starById = new Map();
 
   for (const star of stars) {
+    if (!targetStarIds.has(star.id)) {
+      continue;
+    }
+
     starById.set(star.id, star);
     const cell = computeVoronoiCell(star, stars, bounds);
     cellsByStarId.set(star.id, cell);
@@ -1004,14 +1034,9 @@ function drawMoveMissionRoute(ctx, camera, viewport, state, routeStarIds = [], r
 }
 
 export function createRenderer(state) {
-  let cachedVoronoiStars = null;
-  let cachedVoronoiRevision = 0;
-  let cachedVoronoi = {
-    bounds: null,
-    cellsByStarId: new Map(),
-    edgeMap: new Map(),
-    adjacentPairs: [],
-  };
+  let cachedTerritoryVoronoiStars = null;
+  let cachedTerritoryVoronoiRevision = -1;
+  let cachedTerritoryVoronoi = createEmptyVoronoiData();
   let cachedTerritorySignature = '';
   let cachedTerritoryRenderData = {
     loopsByTerritoryId: new Map(),
@@ -1020,6 +1045,9 @@ export function createRenderer(state) {
     territoryRgbById: new Map(),
     ownedStarIds: new Set(),
   };
+  let cachedSelectedCellStars = null;
+  let cachedSelectedCellBounds = null;
+  let cachedSelectedCellsByStarId = new Map();
   let cachedTerritoryMembershipSignature = '';
   let cachedTerritoryMembershipData = {
     starTerritoryByStarId: new Map(),
@@ -1038,6 +1066,10 @@ export function createRenderer(state) {
   let starCollectButtonBounds = null;
   let starCapitalButtonBounds = null;
   let moveMissionDialogBounds = null;
+  let attackMissionDialogBounds = null;
+  let tradeMissionDialogBounds = null;
+  let activeTradeRouteBounds = [];
+  let piracyZoneBounds = [];
   let moveMissionShipBounds = [];
   let motionVisualBlend = 0;
   let lastMotionBlendTimestamp = performance.now();
@@ -1075,13 +1107,42 @@ export function createRenderer(state) {
     state.ctx.scale(dpr, dpr);
   }
 
-  function ensureVoronoiCache(stars) {
-    if (stars !== cachedVoronoiStars) {
-      cachedVoronoi = buildVoronoiCells(stars);
-      cachedVoronoiStars = stars;
-      cachedVoronoiRevision += 1;
+  function ensureTerritoryVoronoiCache(stars) {
+    const territoryRevision = state.territoryRevision ?? 0;
+
+    if (
+      stars !== cachedTerritoryVoronoiStars ||
+      territoryRevision !== cachedTerritoryVoronoiRevision
+    ) {
+      cachedTerritoryVoronoi = buildVoronoiCellsForStarIds(
+        stars,
+        getTerritoryStarIds(state.territories)
+      );
+      cachedTerritoryVoronoiStars = stars;
+      cachedTerritoryVoronoiRevision = territoryRevision;
       cachedTerritorySignature = '';
     }
+  }
+
+  function getSelectedCellsByStarId(stars, selectedStar) {
+    if (!selectedStar) {
+      return null;
+    }
+
+    if (stars !== cachedSelectedCellStars) {
+      cachedSelectedCellStars = stars;
+      cachedSelectedCellBounds = getGalaxyBounds(stars);
+      cachedSelectedCellsByStarId = new Map();
+    }
+
+    if (!cachedSelectedCellsByStarId.has(selectedStar.id)) {
+      cachedSelectedCellsByStarId.set(
+        selectedStar.id,
+        computeVoronoiCell(selectedStar, stars, cachedSelectedCellBounds)
+      );
+    }
+
+    return cachedSelectedCellsByStarId;
   }
 
   function getSystemPoolUsedCapacity(poolResources) {
@@ -1102,10 +1163,10 @@ export function createRenderer(state) {
   }
 
   function ensureTerritoryRenderCache() {
-    const territorySignature = `${cachedVoronoiRevision}|${state.territoryRevision ?? 0}`;
+    const territorySignature = `${cachedTerritoryVoronoiRevision}|${state.territoryRevision ?? 0}`;
 
     if (territorySignature !== cachedTerritorySignature) {
-      cachedTerritoryRenderData = buildTerritoryRenderData(cachedVoronoi.edgeMap, state);
+      cachedTerritoryRenderData = buildTerritoryRenderData(cachedTerritoryVoronoi.edgeMap, state);
       cachedTerritorySignature = territorySignature;
     }
   }
@@ -1124,7 +1185,7 @@ export function createRenderer(state) {
 
     for (const ship of state.playerState?.ships ?? []) {
       const starId = ship?.position ?? ship?.starId ?? null;
-      if (!starId || starId === 'Moving') {
+      if (!starId || starId === 'Moving' || starId === 'Trading' || starId === 'Piracy') {
         continue;
       }
 
@@ -1419,6 +1480,504 @@ export function createRenderer(state) {
     }
   }
 
+  function drawAttackMissionOverlay(ctx, camera, viewport, width, height) {
+    attackMissionDialogBounds = null;
+
+    const attackMission = state.attackMission;
+    if (!attackMission?.active || !attackMission.targetStarId) {
+      return;
+    }
+
+    const targetStar = state.starsById?.get(attackMission.targetStarId);
+    if (!targetStar) {
+      return;
+    }
+
+    const targetPoint = worldToScreen(camera, viewport, targetStar.x, targetStar.y);
+    const pulse = 0.5 + Math.sin(performance.now() / 160) * 0.5;
+    const ringRadius = Math.max(20, targetStar.radius * camera.zoom * 5.6);
+
+    ctx.save();
+    ctx.lineWidth = 2.2;
+    ctx.strokeStyle = `rgba(251, 113, 133, ${0.62 + pulse * 0.22})`;
+    ctx.beginPath();
+    ctx.arc(targetPoint.x, targetPoint.y, ringRadius + pulse * 6, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.setLineDash([8, 7]);
+    ctx.strokeStyle = 'rgba(255, 217, 194, 0.72)';
+    ctx.beginPath();
+    ctx.arc(targetPoint.x, targetPoint.y, ringRadius * 0.68, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+
+    state.invalidateRender?.();
+
+    const boxWidth = 306;
+    const boxHeight = attackMission.message ? 162 : 140;
+    const boxX = Math.min(width - boxWidth - 14, Math.max(14, targetPoint.x + 24));
+    const boxY = Math.min(height - boxHeight - 14, Math.max(14, targetPoint.y - boxHeight - 22));
+    const padding = 12;
+    const buttonY = boxY + boxHeight - padding - 30;
+    const cancelButton = {
+      x: boxX + padding,
+      y: buttonY,
+      width: 78,
+      height: 30,
+    };
+    const confirmButton = {
+      x: boxX + boxWidth - padding - 94,
+      y: buttonY,
+      width: 94,
+      height: 30,
+    };
+
+    ctx.save();
+    ctx.fillStyle = 'rgba(12, 7, 18, 0.94)';
+    ctx.strokeStyle = 'rgba(251, 113, 133, 0.62)';
+    ctx.lineWidth = 1;
+    drawInfoBox(ctx, boxX, boxY, boxWidth, boxHeight, 10);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.textBaseline = 'top';
+    ctx.textAlign = 'left';
+    ctx.font = '700 11px Arial';
+    ctx.fillStyle = '#fb7185';
+    ctx.fillText('Attack Mission', boxX + padding, boxY + padding);
+    ctx.font = '12px Arial';
+    ctx.fillStyle = '#eef4ff';
+    ctx.fillText(`Target: ${targetStar.name}`, boxX + padding, boxY + padding + 24);
+    ctx.fillStyle = 'rgba(232,239,255,0.62)';
+    ctx.fillText(`Defender: ${attackMission.defenderName ?? targetStar.owner ?? 'Unknown'}`, boxX + padding, boxY + padding + 46);
+
+    if (attackMission.message) {
+      ctx.fillStyle = '#fca5a5';
+      ctx.fillText(attackMission.message, boxX + padding, boxY + padding + 70);
+    } else {
+      ctx.fillStyle = 'rgba(255, 217, 194, 0.78)';
+      ctx.fillText('Confirm to capture this system.', boxX + padding, boxY + padding + 70);
+    }
+
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.06)';
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.16)';
+    drawInfoBox(ctx, cancelButton.x, cancelButton.y, cancelButton.width, cancelButton.height, 7);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = 'rgba(232,239,255,0.72)';
+    ctx.font = '700 11px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText('Cancel', cancelButton.x + cancelButton.width / 2, cancelButton.y + 9);
+
+    ctx.fillStyle = 'rgba(251, 113, 133, 0.18)';
+    ctx.strokeStyle = 'rgba(251, 113, 133, 0.54)';
+    drawInfoBox(ctx, confirmButton.x, confirmButton.y, confirmButton.width, confirmButton.height, 7);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = '#fecdd3';
+    ctx.fillText('Confirm', confirmButton.x + confirmButton.width / 2, confirmButton.y + 9);
+    ctx.restore();
+
+    attackMissionDialogBounds = {
+      cancel: cancelButton,
+      confirm: confirmButton,
+    };
+  }
+
+  function getActiveTradeRoutes() {
+    const routesById = new Map();
+    const ships = state.playerState?.ships ?? [];
+
+    for (const ship of ships) {
+      const position = ship?.position ?? ship?.starId ?? null;
+      if (position !== 'Trading' || !ship.tradeOriginStarId || !ship.tradeDestinationStarId) {
+        continue;
+      }
+
+      const originStar = state.starsById?.get(ship.tradeOriginStarId);
+      const destinationStar = state.starsById?.get(ship.tradeDestinationStarId);
+      if (!originStar || !destinationStar) {
+        continue;
+      }
+
+      const routeId = ship.tradeRouteId ?? `trade:${[originStar.id, destinationStar.id].sort().join('|')}`;
+      const shipCount = Math.max(1, Math.floor(Number(ship.count) || 1));
+      const existingRoute = routesById.get(routeId);
+      if (existingRoute) {
+        existingRoute.count += shipCount;
+        existingRoute.ship = {
+          ...existingRoute.ship,
+          count: Math.max(1, Math.floor(Number(existingRoute.ship?.count) || 1)) + shipCount,
+        };
+        continue;
+      }
+
+      routesById.set(routeId, {
+        routeId,
+        originStar,
+        destinationStar,
+        count: shipCount,
+        ship: {
+          ...ship,
+          position: 'Trading',
+          count: shipCount,
+          tradeRouteId: routeId,
+          tradeOriginStarId: originStar.id,
+          tradeDestinationStarId: destinationStar.id,
+          tradeOriginName: originStar.name,
+          tradeDestinationName: destinationStar.name,
+        },
+      });
+    }
+
+    return Array.from(routesById.values());
+  }
+
+  function drawActiveTradeRoutes(ctx, camera, viewport) {
+    activeTradeRouteBounds = [];
+    const routes = getActiveTradeRoutes();
+    if (!routes.length) {
+      return;
+    }
+
+    ctx.save();
+    ctx.lineCap = 'round';
+
+    for (const route of routes) {
+      const originPoint = worldToScreen(camera, viewport, route.originStar.x, route.originStar.y);
+      const destinationPoint = worldToScreen(camera, viewport, route.destinationStar.x, route.destinationStar.y);
+
+      ctx.lineWidth = Math.min(4.2, 1.8 + route.count * 0.45);
+      ctx.setLineDash([10, 8]);
+      ctx.strokeStyle = 'rgba(134, 239, 172, 0.68)';
+      ctx.shadowColor = 'rgba(134, 239, 172, 0.34)';
+      ctx.shadowBlur = 7;
+      ctx.beginPath();
+      ctx.moveTo(originPoint.x, originPoint.y);
+      ctx.lineTo(destinationPoint.x, destinationPoint.y);
+      ctx.stroke();
+
+      activeTradeRouteBounds.push({
+        routeId: route.routeId,
+        ship: route.ship,
+        x1: originPoint.x,
+        y1: originPoint.y,
+        x2: destinationPoint.x,
+        y2: destinationPoint.y,
+      });
+    }
+
+    ctx.restore();
+  }
+
+  function getActivePiracyZones() {
+    const zones = [];
+    const ships = state.playerState?.ships ?? [];
+
+    for (const ship of ships) {
+      const position = ship?.position ?? ship?.starId ?? null;
+      if (position !== 'Piracy' || !ship.piracyCenterStarId) {
+        continue;
+      }
+
+      const centerStar = state.starsById?.get(ship.piracyCenterStarId);
+      if (!centerStar) {
+        continue;
+      }
+
+      zones.push({
+        id: ship.piracyMissionId ?? `piracy:${ship.piracyCenterStarId}`,
+        centerStar,
+        radiusLightYears: Math.max(0, Number(ship.piracyRadiusLightYears) || 1000),
+        efficiency: Math.max(0, Number(ship.piracyEfficiency) || 0),
+        stolenCredits: Math.max(0, Number(ship.piracyStolenCredits) || 0),
+        ship: {
+          ...ship,
+          position: 'Piracy',
+        },
+      });
+    }
+
+    return zones;
+  }
+
+  function drawPiracyZones(ctx, camera, viewport) {
+    piracyZoneBounds = [];
+    const zones = getActivePiracyZones();
+    if (!zones.length) {
+      return;
+    }
+
+    ctx.save();
+    for (const zone of zones) {
+      const centerPoint = worldToScreen(camera, viewport, zone.centerStar.x, zone.centerStar.y);
+      const radiusWorldUnits = zone.radiusLightYears /  (50000 / 18000);
+      const radiusPixels = radiusWorldUnits * camera.zoom;
+
+      ctx.setLineDash([8, 8]);
+      ctx.lineWidth = 1.8;
+      ctx.strokeStyle = 'rgba(251, 113, 133, 0.72)';
+      ctx.fillStyle = 'rgba(251, 113, 133, 0.075)';
+      ctx.shadowColor = 'rgba(251, 113, 133, 0.28)';
+      ctx.shadowBlur = 12;
+      ctx.beginPath();
+      ctx.arc(centerPoint.x, centerPoint.y, radiusPixels, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.setLineDash([]);
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = '#fecdd3';
+      ctx.font = '800 10px Arial';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('P', centerPoint.x, centerPoint.y);
+
+      piracyZoneBounds.push({
+        id: zone.id,
+        ship: zone.ship,
+        x: centerPoint.x,
+        y: centerPoint.y,
+        radius: Math.max(12, radiusPixels),
+      });
+    }
+    ctx.restore();
+  }
+
+  function getPointSegmentDistanceSq(pointX, pointY, x1, y1, x2, y2) {
+    const dx = x2 - x1;
+    const dy = y2 - y1;
+    const lengthSq = dx * dx + dy * dy;
+    if (lengthSq <= 0) {
+      const pointDx = pointX - x1;
+      const pointDy = pointY - y1;
+      return pointDx * pointDx + pointDy * pointDy;
+    }
+
+    const t = Math.max(0, Math.min(1, ((pointX - x1) * dx + (pointY - y1) * dy) / lengthSq));
+    const projectionX = x1 + t * dx;
+    const projectionY = y1 + t * dy;
+    const pointDx = pointX - projectionX;
+    const pointDy = pointY - projectionY;
+    return pointDx * pointDx + pointDy * pointDy;
+  }
+
+  function getClickedActiveTradeRoute(screenX, screenY) {
+    for (let index = activeTradeRouteBounds.length - 1; index >= 0; index -= 1) {
+      const routeBounds = activeTradeRouteBounds[index];
+      if (
+        getPointSegmentDistanceSq(
+          screenX,
+          screenY,
+          routeBounds.x1,
+          routeBounds.y1,
+          routeBounds.x2,
+          routeBounds.y2
+        ) <= 8 * 8
+      ) {
+        return routeBounds;
+      }
+    }
+
+    return null;
+  }
+
+  function getTradeMissionEndpointPoint(tradeMission, endpoint, star) {
+    if (tradeMission.draggingEndpoint === endpoint) {
+      return endpoint === 'origin'
+        ? tradeMission.originMarkerWorld ?? star
+        : tradeMission.destinationMarkerWorld ?? star;
+    }
+
+    return star;
+  }
+
+  function drawTradeMissionEndpoint(ctx, point, label, color, isDragging = false) {
+    ctx.save();
+    ctx.shadowColor = `${color}aa`;
+    ctx.shadowBlur = isDragging ? 18 : 12;
+    ctx.fillStyle = 'rgba(5, 10, 22, 0.96)';
+    ctx.strokeStyle = color;
+    ctx.lineWidth = isDragging ? 3 : 2;
+    ctx.beginPath();
+    ctx.arc(point.x, point.y, isDragging ? 11 : 9, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = color;
+    ctx.font = '800 10px Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(label, point.x, point.y);
+    ctx.restore();
+  }
+
+  function drawTradeMissionOverlay(ctx, camera, viewport, width, height) {
+    tradeMissionDialogBounds = null;
+
+    const tradeMission = state.tradeMission;
+    if (!tradeMission?.active) {
+      return;
+    }
+
+    const originStar = state.starsById?.get(tradeMission.originStarId);
+    const destinationStar = state.starsById?.get(tradeMission.destinationStarId);
+    if (!originStar || !destinationStar) {
+      return;
+    }
+
+    const originWorld = getTradeMissionEndpointPoint(tradeMission, 'origin', originStar);
+    const destinationWorld = getTradeMissionEndpointPoint(tradeMission, 'destination', destinationStar);
+    const originPoint = worldToScreen(camera, viewport, originWorld.x, originWorld.y);
+    const destinationPoint = worldToScreen(camera, viewport, destinationWorld.x, destinationWorld.y);
+    const metrics = tradeMission.metrics ?? {};
+    const isValid = Boolean(metrics.valid);
+    const routeColor = isValid ? '#86efac' : '#fb7185';
+    const midPoint = {
+      x: (originPoint.x + destinationPoint.x) / 2,
+      y: (originPoint.y + destinationPoint.y) / 2,
+    };
+
+    ctx.save();
+    ctx.lineWidth = 3;
+    ctx.lineCap = 'round';
+    ctx.setLineDash(isValid ? [12, 8] : [5, 7]);
+    ctx.strokeStyle = isValid ? 'rgba(134, 239, 172, 0.86)' : 'rgba(251, 113, 133, 0.78)';
+    ctx.shadowColor = isValid ? 'rgba(134, 239, 172, 0.5)' : 'rgba(251, 113, 133, 0.45)';
+    ctx.shadowBlur = 10;
+    ctx.beginPath();
+    ctx.moveTo(originPoint.x, originPoint.y);
+    ctx.lineTo(destinationPoint.x, destinationPoint.y);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.shadowBlur = 0;
+    drawTradeMissionEndpoint(
+      ctx,
+      originPoint,
+      'A',
+      '#86efac',
+      tradeMission.draggingEndpoint === 'origin'
+    );
+    drawTradeMissionEndpoint(
+      ctx,
+      destinationPoint,
+      'B',
+      '#67e8f9',
+      tradeMission.draggingEndpoint === 'destination'
+    );
+    ctx.restore();
+
+    const boxWidth = 326;
+    const boxHeight = tradeMission.message ? 208 : 186;
+    const routeDx = destinationPoint.x - originPoint.x;
+    const routeDy = destinationPoint.y - originPoint.y;
+    const routeLength = Math.hypot(routeDx, routeDy);
+    const normal = routeLength > 0
+      ? { x: -routeDy / routeLength, y: routeDx / routeLength }
+      : { x: 1, y: 0 };
+    const boxClearance =
+      38 +
+      Math.abs(normal.x) * boxWidth / 2 +
+      Math.abs(normal.y) * boxHeight / 2;
+    const margin = 14;
+    function getTradeBoxCandidate(sign) {
+      const centerX = midPoint.x + normal.x * boxClearance * sign;
+      const centerY = midPoint.y + normal.y * boxClearance * sign;
+      const rawX = centerX - boxWidth / 2;
+      const rawY = centerY - boxHeight / 2;
+      const x = Math.min(width - boxWidth - margin, Math.max(margin, rawX));
+      const y = Math.min(height - boxHeight - margin, Math.max(margin, rawY));
+      return {
+        x,
+        y,
+        overflow: Math.abs(x - rawX) + Math.abs(y - rawY),
+      };
+    }
+    const positiveCandidate = getTradeBoxCandidate(1);
+    const negativeCandidate = getTradeBoxCandidate(-1);
+    const tradeBox =
+      positiveCandidate.overflow <= negativeCandidate.overflow
+        ? positiveCandidate
+        : negativeCandidate;
+    const boxX = tradeBox.x;
+    const boxY = tradeBox.y;
+    const padding = 12;
+    const buttonY = boxY + boxHeight - padding - 30;
+    const cancelButton = {
+      x: boxX + padding,
+      y: buttonY,
+      width: 78,
+      height: 30,
+    };
+    const commitButton = {
+      x: boxX + boxWidth - padding - 104,
+      y: buttonY,
+      width: 104,
+      height: 30,
+      disabled: !isValid || Number(metrics.credits) <= 0,
+    };
+
+    ctx.save();
+    ctx.fillStyle = 'rgba(5, 18, 16, 0.94)';
+    ctx.strokeStyle = isValid ? 'rgba(134, 239, 172, 0.58)' : 'rgba(251, 113, 133, 0.62)';
+    ctx.lineWidth = 1;
+    drawInfoBox(ctx, boxX, boxY, boxWidth, boxHeight, 10);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.textBaseline = 'top';
+    ctx.textAlign = 'left';
+    ctx.font = '700 11px Arial';
+    ctx.fillStyle = routeColor;
+    ctx.fillText('Trade Route', boxX + padding, boxY + padding);
+    ctx.font = '12px Arial';
+    ctx.fillStyle = '#eef4ff';
+    ctx.fillText(`${originStar.name} -> ${destinationStar.name}`, boxX + padding, boxY + padding + 24);
+    ctx.fillStyle = 'rgba(232,239,255,0.68)';
+    ctx.fillText(`Distance ${metrics.distanceText ?? '-'} / ${metrics.maxDistanceText ?? '5,000 ly'}`, boxX + padding, boxY + padding + 46);
+    ctx.fillText(`Development ${formatNumber(metrics.originDevelopment)} -> ${formatNumber(metrics.destinationDevelopment)}`, boxX + padding, boxY + padding + 66);
+    ctx.fillStyle = isValid ? '#bbf7d0' : '#fca5a5';
+    ctx.font = '700 12px Arial';
+    ctx.fillText(
+      isValid
+        ? `Revenue ${formatNumber(metrics.credits)} Credits`
+        : 'Route exceeds trade range',
+      boxX + padding,
+      boxY + padding + 90
+    );
+    ctx.fillStyle = 'rgba(232,239,255,0.48)';
+    ctx.font = '11px Arial';
+    ctx.fillText('Drag A or B to change systems.', boxX + padding, boxY + padding + 114);
+
+    if (tradeMission.message) {
+      ctx.fillStyle = tradeMission.message.includes('Earned') ? '#bbf7d0' : '#fca5a5';
+      ctx.fillText(tradeMission.message, boxX + padding, boxY + padding + 136);
+    }
+
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.06)';
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.16)';
+    drawInfoBox(ctx, cancelButton.x, cancelButton.y, cancelButton.width, cancelButton.height, 7);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = 'rgba(232,239,255,0.72)';
+    ctx.font = '700 11px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText('Cancel', cancelButton.x + cancelButton.width / 2, cancelButton.y + 9);
+
+    ctx.fillStyle = commitButton.disabled ? 'rgba(255,255,255,0.06)' : 'rgba(134, 239, 172, 0.17)';
+    ctx.strokeStyle = commitButton.disabled ? 'rgba(255,255,255,0.12)' : 'rgba(134, 239, 172, 0.52)';
+    drawInfoBox(ctx, commitButton.x, commitButton.y, commitButton.width, commitButton.height, 7);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = commitButton.disabled ? 'rgba(232,239,255,0.34)' : '#bbf7d0';
+    ctx.fillText('Start Trade', commitButton.x + commitButton.width / 2, commitButton.y + 9);
+    ctx.restore();
+
+    tradeMissionDialogBounds = {
+      cancel: cancelButton,
+      commit: commitButton,
+    };
+  }
+
   function render() {
     const now = performance.now();
     const elapsedSeconds = Math.min(0.1, (now - lastMotionBlendTimestamp) / 1000);
@@ -1450,12 +2009,15 @@ export function createRenderer(state) {
       : galaxy.stars;
 
     const useBlurTerritories = state.showBlurTerritories;
-    let cellsByStarId = null;
     let adjacentPairs = [];
     let loopsByTerritoryId = null;
     let smoothedLoopsByTerritoryId = null;
     let starTerritoryByStarId = null;
     let territoryRgbById = null;
+    const selected = state.starsById?.get(selection.selectedStarId) || null;
+    const selectedCellsByStarId = useBlurTerritories
+      ? null
+      : getSelectedCellsByStarId(galaxy.stars, selected);
 
     if (useBlurTerritories) {
       ensureTerritoryMembershipCache();
@@ -1464,9 +2026,9 @@ export function createRenderer(state) {
         territoryRgbById,
       } = cachedTerritoryMembershipData);
     } else {
-      ensureVoronoiCache(galaxy.stars);
+      ensureTerritoryVoronoiCache(galaxy.stars);
       ensureTerritoryRenderCache();
-      ({ cellsByStarId, adjacentPairs } = cachedVoronoi);
+      ({ adjacentPairs } = cachedTerritoryVoronoi);
       ({
         loopsByTerritoryId,
         smoothedLoopsByTerritoryId,
@@ -1481,8 +2043,6 @@ export function createRenderer(state) {
     ctx.fillRect(0, 0, width, height);
 
     drawStarConnections(ctx, camera, viewport, adjacentPairs, selection.hoveredStarId, starTerritoryByStarId, state);
-
-    const selected = state.starsById?.get(selection.selectedStarId) || null;
 
     if (lastSelectedStarId !== selection.selectedStarId) {
       isPlanetListOpen = false;
@@ -1520,8 +2080,11 @@ export function createRenderer(state) {
 
     // Optional selected-system highlight
     if (!useBlurTerritories) {
-      drawSelectedCell(ctx, camera, viewport, selected, cellsByStarId, state);
+      drawSelectedCell(ctx, camera, viewport, selected, selectedCellsByStarId, state);
     }
+
+    drawActiveTradeRoutes(ctx, camera, viewport);
+    drawPiracyZones(ctx, camera, viewport);
 
     const auraOpacityMultiplier = Math.max(0, 1 - motionVisualBlend);
     const shouldDrawTerritoryAuras =
@@ -1606,6 +2169,7 @@ export function createRenderer(state) {
       const canSetCapital = canCollectFromStar && !selectedIsCapital;
       const starPopulationCap = calculateStarPopulationCap(selected);
       const starPopulationGrowth = calculateStarPopulationGrowth(selected, capitalGrowthMultiplier);
+      const starDevelopment = calculateStarDevelopment(selected);
       const starPeriodsToFill = estimateStarDisplayPeriodsToFill(selected, 100000, capitalGrowthMultiplier);
       const starPeriodsToNinety = estimateStarDisplayPeriodsToNinety(selected, 100000, capitalGrowthMultiplier);
       const starTimingLine = `PTF: ${Number.isFinite(starPeriodsToFill) ? formatNumber(starPeriodsToFill) : '--'} | PT90%: ${Number.isFinite(starPeriodsToNinety) ? formatNumber(starPeriodsToNinety) : '--'}`;
@@ -1618,6 +2182,7 @@ export function createRenderer(state) {
         `Population Cap: ${formatNumber(starPopulationCap)}`,
         ...(state.showPopulationTiming ? [starTimingLine] : []),
         `Defense: ${selected.systemDefense}`,
+        `Development: ${formatNumber(starDevelopment)}`,
         `Pool Used: ${formatNumber(selectedPoolUsed)}/${formatNumber(selectedPoolCapacity)}`,
         `Stored: ${selectedPoolSummary}`,
         `Planets: ${selected.planets.length}`,
@@ -1992,10 +2557,66 @@ export function createRenderer(state) {
     }
 
     drawMoveMissionOverlay(ctx, camera, viewport, width, height);
+    drawTradeMissionOverlay(ctx, camera, viewport, width, height);
+    drawAttackMissionOverlay(ctx, camera, viewport, width, height);
 
   }
 
   function handleCanvasClick(screenX, screenY) {
+    if (tradeMissionDialogBounds) {
+      const { cancel, commit } = tradeMissionDialogBounds;
+      const inCancel =
+        Boolean(cancel) &&
+        screenX >= cancel.x &&
+        screenX <= cancel.x + cancel.width &&
+        screenY >= cancel.y &&
+        screenY <= cancel.y + cancel.height;
+      const inCommit =
+        Boolean(commit) &&
+        screenX >= commit.x &&
+        screenX <= commit.x + commit.width &&
+        screenY >= commit.y &&
+        screenY <= commit.y + commit.height;
+
+      if (inCancel) {
+        state.onTradeMissionCancel?.();
+        return true;
+      }
+
+      if (inCommit) {
+        if (!commit.disabled) {
+          state.onTradeMissionCommit?.();
+        }
+        return true;
+      }
+    }
+
+    if (attackMissionDialogBounds) {
+      const { cancel, confirm } = attackMissionDialogBounds;
+      const inCancel =
+        Boolean(cancel) &&
+        screenX >= cancel.x &&
+        screenX <= cancel.x + cancel.width &&
+        screenY >= cancel.y &&
+        screenY <= cancel.y + cancel.height;
+      const inConfirm =
+        Boolean(confirm) &&
+        screenX >= confirm.x &&
+        screenX <= confirm.x + confirm.width &&
+        screenY >= confirm.y &&
+        screenY <= confirm.y + confirm.height;
+
+      if (inCancel) {
+        state.onAttackMissionCancel?.();
+        return true;
+      }
+
+      if (inConfirm) {
+        state.onAttackMissionConfirm?.();
+        return true;
+      }
+    }
+
     if (moveMissionDialogBounds) {
       const { cancel, calculate, move } = moveMissionDialogBounds;
       const inCancel =
@@ -2045,6 +2666,23 @@ export function createRenderer(state) {
 
       if (inShipIcon) {
         state.onMoveMissionOpenFleet?.(shipBounds.ship, shipBounds.missionId);
+        return true;
+      }
+    }
+
+    const clickedTradeRoute = getClickedActiveTradeRoute(screenX, screenY);
+    if (clickedTradeRoute) {
+      state.onTradeRouteOpenFleet?.(clickedTradeRoute.ship, clickedTradeRoute.routeId);
+      return true;
+    }
+
+    for (let index = piracyZoneBounds.length - 1; index >= 0; index -= 1) {
+      const zoneBounds = piracyZoneBounds[index];
+      const dx = screenX - zoneBounds.x;
+      const dy = screenY - zoneBounds.y;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+      if (Math.abs(distance - zoneBounds.radius) <= 14 || distance <= 14) {
+        state.onPiracyZoneOpenFleet?.(zoneBounds.ship);
         return true;
       }
     }

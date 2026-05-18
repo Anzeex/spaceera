@@ -9,6 +9,8 @@ import {
 
 const PROFILE_BANNER_URL = '/top-banner.png';
 const MAX_PROFILE_IMAGE_BYTES = 100 * 1024;
+const COLONY_KIT_ITEM_ID = 'colony-kit';
+const MAX_TRADE_ROUTE_SHIPS = 3;
 
 function dataUrlByteLength(dataUrl) {
   const payload = String(dataUrl || '').split(',')[1] ?? '';
@@ -102,6 +104,65 @@ function renderItemIcon(item, size = 24) {
       {icon.symbol ?? '?'}
     </span>
   );
+}
+
+function getInventoryItemCount(items = {}, itemId) {
+  return Math.max(0, Math.floor(Number(items?.[itemId]) || 0));
+}
+
+function addInventoryCounts(target, source = {}) {
+  for (const [itemId, value] of Object.entries(source ?? {})) {
+    target[itemId] = getInventoryItemCount(target, itemId) + getInventoryItemCount(source, itemId);
+  }
+  return target;
+}
+
+function hasInventoryCounts(items = {}) {
+  return Object.values(items ?? {}).some((value) => (Number(value) || 0) > 0);
+}
+
+function getShipCargoItems(ship = {}) {
+  return ship?.cargo?.items ?? ship?.cargoItems ?? {};
+}
+
+function getItemStorageSize(itemDefinitions = [], itemId) {
+  return Math.max(0, Number(itemDefinitions.find((item) => item.id === itemId)?.storageSize) || 0);
+}
+
+function getInventoryStorageUsed(items = {}, itemDefinitions = []) {
+  return Object.entries(items ?? {}).reduce(
+    (sum, [itemId, count]) => sum + getInventoryItemCount(items, itemId) * getItemStorageSize(itemDefinitions, itemId),
+    0
+  );
+}
+
+function getShipCargoCapacity(ship = {}) {
+  const count = Math.max(1, Math.floor(Number(ship?.count) || 1));
+  return Math.max(0, Number(ship?.traits?.cargoCapacity) || 0) * count;
+}
+
+function getBestHabitabilityPlanet(star) {
+  const planets = Array.isArray(star?.planets) ? star.planets : [];
+  if (!planets.length) {
+    return null;
+  }
+
+  return planets.reduce((best, planet) => {
+    const bestHabitability = Number(best?.habitability) || 0;
+    const planetHabitability = Number(planet?.habitability) || 0;
+    return planetHabitability > bestHabitability ? planet : best;
+  }, planets[0]);
+}
+
+function getTotalStoredItemCount(playerState, itemId) {
+  let total = getInventoryItemCount(playerState?.items, itemId);
+
+  const ships = playerState?.ships ?? playerState?.fleet?.ships ?? [];
+  for (const ship of Array.isArray(ships) ? ships : []) {
+    total += getInventoryItemCount(getShipCargoItems(ship), itemId);
+  }
+
+  return total;
 }
 
 function PlayerSummaryCard({ playerState, playerSummary, onProfileImageUpload, canEditProfileImage = true }) {
@@ -209,7 +270,6 @@ function PlayerSummaryCard({ playerState, playerSummary, onProfileImageUpload, c
 function InventoryView({ resourceDisplay, playerState, itemDefinitions }) {
   const resources = playerState?.resources ?? {};
   const production = playerState?.hourlyProduction ?? {};
-  const items = playerState?.items ?? {};
   const ships = playerState?.ships ?? playerState?.fleet?.ships ?? [];
 
   if (!playerState) {
@@ -264,7 +324,7 @@ function InventoryView({ resourceDisplay, playerState, itemDefinitions }) {
                 <span>{item.name}</span>
               </span>
               <span style={{ display: 'grid', justifyItems: 'end', gap: 2 }}>
-                <strong>{compactNumber(items[item.id])}</strong>
+                <strong>{compactNumber(getTotalStoredItemCount(playerState, item.id))}</strong>
                 <small style={{ color: 'rgba(255,255,255,0.46)', fontSize: 10 }}>
                   {compactNumber(item.storageSize)} space
                 </small>
@@ -273,6 +333,7 @@ function InventoryView({ resourceDisplay, playerState, itemDefinitions }) {
           ))}
         </div>
       </section>
+
     </div>
   );
 }
@@ -303,7 +364,7 @@ function ProductionView({
     productionCost: item.productionCost,
     resourceCost: item.resourceCost,
     item,
-    ownedCount: playerState?.items?.[item.id] ?? 0,
+    ownedCount: getTotalStoredItemCount(playerState, item.id),
   }));
   const templateTargets = shipTemplates.map((template) => {
     const resourceTotal = Object.values(template.cost ?? {}).reduce((sum, value) => sum + (Number(value) || 0), 0);
@@ -1165,6 +1226,57 @@ function getShipModelKey(ship, index) {
   return String(ship?.templateId ?? ship?.id ?? ship?.name ?? ship?.type ?? `ship-${index}`);
 }
 
+function encodeShipMissionPart(value) {
+  return encodeURIComponent(value == null ? '__none__' : String(value));
+}
+
+function decodeShipMissionPart(value) {
+  if (value == null || value === '') {
+    return null;
+  }
+
+  const decodedValue = decodeURIComponent(value ?? '');
+  return decodedValue === '__none__' ? null : decodedValue;
+}
+
+function getShipStackMissionId(ship) {
+  return [
+    'ship-stack',
+    encodeShipMissionPart(getShipModelKey(ship, 0)),
+    encodeShipMissionPart(getShipPositionId(ship)),
+    encodeShipMissionPart(ship?.moveMissionId ?? null),
+    encodeShipMissionPart(ship?.tradeRouteId ?? null),
+    encodeShipMissionPart(ship?.piracyMissionId ?? null),
+  ].join(':');
+}
+
+function resolveShipStackMissionId(activeShipId, groups = []) {
+  if (!activeShipId?.startsWith('ship-stack:')) {
+    return null;
+  }
+
+  const [, modelKey, position, moveMissionId, tradeRouteId, piracyMissionId] = activeShipId.split(':');
+  const decodedModelKey = decodeShipMissionPart(modelKey);
+  const decodedPosition = decodeShipMissionPart(position);
+  const decodedMoveMissionId = decodeShipMissionPart(moveMissionId);
+  const decodedTradeRouteId = decodeShipMissionPart(tradeRouteId);
+  const decodedPiracyMissionId = decodeShipMissionPart(piracyMissionId);
+  const group = groups.find((entry) => (
+    entry.modelKey === decodedModelKey &&
+    (entry.position ?? null) === decodedPosition &&
+    (entry.moveMissionId ?? null) === decodedMoveMissionId &&
+    (entry.tradeRouteId ?? null) === decodedTradeRouteId &&
+    (entry.piracyMissionId ?? null) === decodedPiracyMissionId
+  ));
+
+  return group
+    ? {
+        ...group.ship,
+        count: group.count,
+      }
+    : null;
+}
+
 function getFleetGroups(ships = []) {
   const shipList = Array.isArray(ships) ? ships : [];
   const groups = [];
@@ -1174,7 +1286,9 @@ function getFleetGroups(ships = []) {
     const modelKey = getShipModelKey(ship, index);
     const position = getShipPositionId(ship);
     const moveMissionKey = position === 'Moving' ? ship.moveMissionId ?? `moving-${index}` : '';
-    const groupKey = `${modelKey}::${position ?? 'unknown'}::${moveMissionKey}`;
+    const tradeRouteKey = position === 'Trading' ? ship.tradeRouteId ?? `trading-${index}` : '';
+    const piracyMissionKey = position === 'Piracy' ? ship.piracyMissionId ?? `piracy-${index}` : '';
+    const groupKey = `${modelKey}::${position ?? 'unknown'}::${moveMissionKey}::${tradeRouteKey}::${piracyMissionKey}`;
     let group = groupsByKey.get(groupKey);
 
     if (!group) {
@@ -1183,7 +1297,10 @@ function getFleetGroups(ships = []) {
         modelKey,
         position,
         moveMissionId: ship.moveMissionId ?? null,
+        tradeRouteId: ship.tradeRouteId ?? null,
+        piracyMissionId: ship.piracyMissionId ?? null,
         count: 0,
+        cargoItems: {},
         ship: {
           ...ship,
           position,
@@ -1195,12 +1312,18 @@ function getFleetGroups(ships = []) {
     }
 
     group.count += getShipCount(ship.count);
+    addInventoryCounts(group.cargoItems, getShipCargoItems(ship));
+    const hasCargo = hasInventoryCounts(group.cargoItems);
     group.ship = {
       ...group.ship,
       ...ship,
       position,
       count: group.count,
+      ...(hasCargo ? { cargo: { items: { ...group.cargoItems } } } : { cargo: undefined }),
     };
+    if (!hasCargo) {
+      delete group.ship.cargo;
+    }
   });
 
   return groups.map((group) => ({
@@ -1209,7 +1332,10 @@ function getFleetGroups(ships = []) {
       ...group.ship,
       position: group.position,
       moveMissionId: group.moveMissionId,
+      tradeRouteId: group.tradeRouteId,
+      piracyMissionId: group.piracyMissionId,
       count: group.count,
+      ...(hasInventoryCounts(group.cargoItems) ? { cargo: { items: { ...group.cargoItems } } } : {}),
     },
   }));
 }
@@ -1233,6 +1359,11 @@ function resolveMissionShip(activeShipId, ships = []) {
   }
 
   const groups = getFleetGroups(ships);
+  const stackedShip = resolveShipStackMissionId(activeShipId, groups);
+  if (stackedShip) {
+    return stackedShip;
+  }
+
   for (const group of groups) {
     if (activeShipId === group.id) {
       return {
@@ -1284,9 +1415,21 @@ function resolveMissionShip(activeShipId, ships = []) {
     : null;
 }
 
-function formatShipPosition(position, stars = []) {
+function getStarName(starId, stars = []) {
+  return stars.find((entry) => entry.id === starId)?.name ?? (starId ? `Star ${String(starId).slice(0, 6)}` : 'Unknown');
+}
+
+function formatShipPosition(position, stars = [], ship = {}) {
   if (position === 'Moving') {
     return 'Moving';
+  }
+
+  if (position === 'Trading') {
+    return `Trading between ${getStarName(ship.tradeOriginStarId, stars)} and ${getStarName(ship.tradeDestinationStarId, stars)}`;
+  }
+
+  if (position === 'Piracy') {
+    return `Piracy near ${getStarName(ship.piracyCenterStarId, stars)}`;
   }
 
   const star = stars.find((entry) => entry.id === position);
@@ -1297,10 +1440,12 @@ function formatShipPosition(position, stars = []) {
   return position ? `Star ${String(position).slice(0, 6)}` : 'Unknown';
 }
 
-function ShipPositionButton({ position, stars = [], onOpenStarSystem }) {
+function ShipPositionButton({ position, ship = {}, stars = [], onOpenStarSystem }) {
   const isMoving = position === 'Moving';
-  const star = !isMoving ? stars.find((entry) => entry.id === position) : null;
-  const label = formatShipPosition(position, stars);
+  const isTrading = position === 'Trading';
+  const isPiracy = position === 'Piracy';
+  const star = !isMoving && !isTrading && !isPiracy ? stars.find((entry) => entry.id === position) : null;
+  const label = formatShipPosition(position, stars, ship);
   const canOpen = Boolean(star && onOpenStarSystem);
 
   return (
@@ -1324,7 +1469,7 @@ function ShipPositionButton({ position, stars = [], onOpenStarSystem }) {
         fontSize: 12,
         fontWeight: 800,
         cursor: canOpen ? 'pointer' : 'default',
-        opacity: canOpen || isMoving ? 1 : 0.74,
+        opacity: canOpen || isMoving || isTrading || isPiracy ? 1 : 0.74,
         textAlign: 'left',
       }}
     >
@@ -1401,7 +1546,15 @@ function FleetStatCell({ traitKey, value }) {
   );
 }
 
-function ShipFleetView({ playerState, stars = [], highlightedFleetShip = null, onStartMission, onOpenStarSystem }) {
+function ShipFleetView({
+  playerState,
+  stars = [],
+  highlightedFleetShip = null,
+  onStartMission,
+  onCancelTradeRoute,
+  onCancelPiracyMission,
+  onOpenStarSystem,
+}) {
   const ships = playerState?.ships ?? playerState?.fleet?.ships ?? [];
   const fleetGroups = getFleetGroups(ships);
   const [selectedUnitsByGroup, setSelectedUnitsByGroup] = useState({});
@@ -1420,7 +1573,14 @@ function ShipFleetView({ playerState, stars = [], highlightedFleetShip = null, o
     }, 1000);
 
     return () => window.clearTimeout(timeoutId);
-  }, [highlightedFleetShip?.modelKey, highlightedFleetShip?.position, highlightedFleetShip?.moveMissionId]);
+  }, [
+    highlightedFleetShip?.modelKey,
+    highlightedFleetShip?.position,
+    highlightedFleetShip?.moveMissionId,
+    highlightedFleetShip?.tradeRouteId,
+    highlightedFleetShip?.piracyMissionId,
+    highlightedFleetShip?.highlightToken,
+  ]);
 
   useEffect(() => {
     if (!highlightedGroupRef.current) {
@@ -1428,7 +1588,15 @@ function ShipFleetView({ playerState, stars = [], highlightedFleetShip = null, o
     }
 
     highlightedGroupRef.current.scrollIntoView({ block: 'center', behavior: 'smooth' });
-  }, [visibleHighlight?.modelKey, visibleHighlight?.position, visibleHighlight?.moveMissionId, fleetGroups.length]);
+  }, [
+    visibleHighlight?.modelKey,
+    visibleHighlight?.position,
+    visibleHighlight?.moveMissionId,
+    visibleHighlight?.tradeRouteId,
+    visibleHighlight?.piracyMissionId,
+    visibleHighlight?.highlightToken,
+    fleetGroups.length,
+  ]);
 
   function getSelectedUnits(group) {
     return Array.from(new Set(selectedUnitsByGroup[group.id] ?? []))
@@ -1474,7 +1642,15 @@ function ShipFleetView({ playerState, stars = [], highlightedFleetShip = null, o
           {fleetGroups.map((group) => {
             const traits = group.ship.traits ?? {};
             const selectedUnits = getSelectedUnits(group);
-            const missionTargetId = getFleetGroupSelectionId(group, selectedUnits);
+            const missionTargetId = selectedUnits.length
+              ? getFleetGroupSelectionId(group, selectedUnits)
+              : getShipStackMissionId(group.ship);
+            const groupCargoItems = getShipCargoItems(group.ship);
+            const hasGroupCargo = hasInventoryCounts(groupCargoItems);
+            const groupCargoCount = Object.values(groupCargoItems).reduce(
+              (sum, value) => sum + Math.max(0, Math.floor(Number(value) || 0)),
+              0
+            );
             const isHighlighted =
               visibleHighlight?.modelKey === group.modelKey &&
               (visibleHighlight?.position ?? null) === (group.position ?? null) &&
@@ -1482,10 +1658,22 @@ function ShipFleetView({ playerState, stars = [], highlightedFleetShip = null, o
                 !visibleHighlight?.moveMissionId ||
                 visibleHighlight.moveMissionId === group.moveMissionId ||
                 visibleHighlight.moveMissionId === group.ship.moveMissionId
+              ) &&
+              (
+                !visibleHighlight?.tradeRouteId ||
+                visibleHighlight.tradeRouteId === group.tradeRouteId ||
+                visibleHighlight.tradeRouteId === group.ship.tradeRouteId
+              ) &&
+              (
+                !visibleHighlight?.piracyMissionId ||
+                visibleHighlight.piracyMissionId === group.piracyMissionId ||
+                visibleHighlight.piracyMissionId === group.ship.piracyMissionId
               );
+            const isTrading = group.position === 'Trading';
+            const isPiracy = group.position === 'Piracy';
             return (
               <div
-                key={group.id}
+                key={`${group.id}-${isHighlighted ? visibleHighlight?.highlightToken ?? 'highlight' : 'idle'}`}
                 ref={isHighlighted ? highlightedGroupRef : null}
                 className={`fleet-group${isHighlighted ? ' fleet-group--highlighted' : ''}`}
               >
@@ -1495,43 +1683,70 @@ function ShipFleetView({ playerState, stars = [], highlightedFleetShip = null, o
                     <span>{formatShipCount(group.count)}</span>
                     <ShipPositionButton
                       position={group.position}
+                      ship={group.ship}
                       stars={stars}
                       onOpenStarSystem={onOpenStarSystem}
                     />
                   </div>
-                  <a
-                    href={getMissionHref(missionTargetId)}
-                    onClick={(event) => {
-                      event.preventDefault();
-                      onStartMission?.(missionTargetId);
-                    }}
-                    className="fleet-mission-link fleet-mission-link--primary"
-                  >
-                    Start Mission
-                  </a>
+                  <div className="fleet-group__actions">
+                    {isTrading ? (
+                      <button
+                        type="button"
+                        className="fleet-mission-link fleet-mission-link--primary fleet-mission-link--danger"
+                        onClick={() => onCancelTradeRoute?.(group.ship)}
+                      >
+                        Cancel Trade
+                      </button>
+                    ) : null}
+                    {isPiracy ? (
+                      <button
+                        type="button"
+                        className="fleet-mission-link fleet-mission-link--primary fleet-mission-link--danger"
+                        onClick={() => onCancelPiracyMission?.(group.ship)}
+                      >
+                        Cancel Piracy
+                      </button>
+                    ) : null}
+                    <a
+                      href={getMissionHref(missionTargetId)}
+                      onClick={(event) => {
+                        event.preventDefault();
+                        onStartMission?.(missionTargetId);
+                      }}
+                      className="fleet-mission-link fleet-mission-link--primary"
+                    >
+                      Start Mission
+                    </a>
+                  </div>
                 </div>
 
-                <div className="fleet-unit-list" aria-label={`${group.ship.name ?? group.ship.type ?? 'Ship'} ships`}>
-                  {Array.from({ length: group.count }, (_, unitIndex) => {
-                    const unitNumber = unitIndex + 1;
-                    const unitId = getFleetGroupUnitId(group, unitNumber);
-                    const isSelected = selectedUnits.includes(unitNumber);
-                    return (
-                      <label
-                        key={unitId}
-                        className={`fleet-unit-row${isSelected ? ' fleet-unit-row--selected' : ''}`}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={isSelected}
-                          onChange={() => toggleSelectedUnit(group, unitNumber)}
-                          aria-label={`Select ship ${unitNumber}`}
-                        />
-                        <span className="fleet-unit-row__number">{unitNumber}</span>
-                      </label>
-                    );
-                  })}
-                </div>
+                {hasGroupCargo ? (
+                  <div className="menu-subtle" style={{ fontSize: 11, marginTop: 8 }}>
+                    Carrying {compactNumber(groupCargoCount)} item{groupCargoCount === 1 ? '' : 's'} | loaded stacks move together
+                  </div>
+                ) : (
+                  <div className="fleet-unit-list" aria-label={`${group.ship.name ?? group.ship.type ?? 'Ship'} ships`}>
+                    {Array.from({ length: group.count }, (_, unitIndex) => {
+                      const unitNumber = unitIndex + 1;
+                      const unitId = getFleetGroupUnitId(group, unitNumber);
+                      const isSelected = selectedUnits.includes(unitNumber);
+                      return (
+                        <label
+                          key={unitId}
+                          className={`fleet-unit-row${isSelected ? ' fleet-unit-row--selected' : ''}`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => toggleSelectedUnit(group, unitNumber)}
+                            aria-label={`Select ship ${unitNumber}`}
+                          />
+                          <span className="fleet-unit-row__number">{unitNumber}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                )}
 
                 <div className="fleet-stat-grid">
                   {SHIP_TRAIT_KEYS.map((traitKey) => (
@@ -1553,7 +1768,442 @@ function ShipFleetView({ playerState, stars = [], highlightedFleetShip = null, o
   );
 }
 
-function ShipMissionView({ ship, stars = [], onMissionAction, onOpenStarSystem, onBack }) {
+function CargoMissionView({
+  ship,
+  playerState,
+  itemDefinitions = [],
+  stars = [],
+  onCargoTransfer,
+  onShipChanged,
+  onOpenStarSystem,
+  onBack,
+}) {
+  const [feedback, setFeedback] = useState('');
+  const shipPosition = getShipPositionId(ship);
+  const stationedStar = shipPosition && shipPosition !== 'Moving'
+    ? stars.find((entry) => entry.id === shipPosition)
+    : null;
+  const ownedStarIds = new Set(playerState?.territory?.stars ?? []);
+  const isInOwnedSystem = Boolean(stationedStar && ownedStarIds.has(stationedStar.id));
+  const reserveItems = playerState?.items ?? {};
+  const cargoItems = getShipCargoItems(ship);
+  const createDraftInventory = (source = {}) => (
+    Object.fromEntries(itemDefinitions.map((item) => [item.id, getInventoryItemCount(source, item.id)]))
+  );
+  const createDraftState = () => ({
+    reserve: createDraftInventory(reserveItems),
+    cargo: createDraftInventory(cargoItems),
+  });
+  const [draft, setDraft] = useState(createDraftState);
+  const draftSourceKey = JSON.stringify({
+    ship: ship?.id ?? ship?.templateId ?? ship?.name ?? '',
+    position: shipPosition,
+    reserveItems,
+    cargoItems,
+  });
+  const cargoUsed = getInventoryStorageUsed(draft.cargo, itemDefinitions);
+  const cargoCapacity = getShipCargoCapacity(ship);
+  const remainingCargo = Math.max(0, cargoCapacity - cargoUsed);
+  const hasChanges = itemDefinitions.some((item) => (
+    getInventoryItemCount(draft.reserve, item.id) !== getInventoryItemCount(reserveItems, item.id) ||
+    getInventoryItemCount(draft.cargo, item.id) !== getInventoryItemCount(cargoItems, item.id)
+  ));
+
+  useEffect(() => {
+    if (!feedback) {
+      return undefined;
+    }
+
+    const timeoutId = window.setTimeout(() => setFeedback(''), 2200);
+    return () => window.clearTimeout(timeoutId);
+  }, [feedback]);
+
+  useEffect(() => {
+    setDraft(createDraftState());
+  }, [draftSourceKey]);
+
+  function adjustDraftItem(itemId, delta) {
+    if (!isInOwnedSystem) {
+      setFeedback('Cargo transfers require this ship to be stationed in one of your systems.');
+      return;
+    }
+
+    const item = itemDefinitions.find((entry) => entry.id === itemId);
+    const itemSize = Math.max(0, Number(item?.storageSize) || 0);
+    const next = {
+      reserve: { ...draft.reserve },
+      cargo: { ...draft.cargo },
+    };
+
+    if (delta > 0) {
+      const availableInReserve = getInventoryItemCount(next.reserve, itemId);
+      const nextCargoUsed = getInventoryStorageUsed(next.cargo, itemDefinitions) + itemSize;
+
+      if (availableInReserve <= 0) {
+        setFeedback(`${item?.name ?? 'Item'} is not available in your inventory.`);
+        return;
+      }
+
+      if (nextCargoUsed > cargoCapacity) {
+        setFeedback(`Not enough cargo space for ${item?.name ?? 'that item'}.`);
+        return;
+      }
+
+      next.reserve[itemId] = availableInReserve - 1;
+      next.cargo[itemId] = getInventoryItemCount(next.cargo, itemId) + 1;
+      setDraft(next);
+      setFeedback('');
+      return;
+    }
+
+    const carriedCount = getInventoryItemCount(next.cargo, itemId);
+    if (carriedCount <= 0) {
+      setFeedback(`${item?.name ?? 'Item'} is not in this cargo hold.`);
+      return;
+    }
+
+    next.cargo[itemId] = carriedCount - 1;
+    next.reserve[itemId] = getInventoryItemCount(next.reserve, itemId) + 1;
+    setDraft(next);
+    setFeedback('');
+  }
+
+  function resetDraft() {
+    setDraft(createDraftState());
+    setFeedback('Cargo changes reset.');
+  }
+
+  function saveDraft() {
+    const result = onCargoTransfer?.({
+      ship,
+      reserveItems: draft.reserve,
+      cargoItems: draft.cargo,
+    });
+
+    if (result?.ship) {
+      onShipChanged?.(result.ship);
+    }
+
+    setFeedback(result?.message ?? (result?.ok ? 'Cargo saved.' : 'Cargo transfer failed.'));
+  }
+
+  return (
+    <div className="menu-stack">
+      <button
+        type="button"
+        onClick={onBack}
+        style={{
+          minHeight: 32,
+          borderRadius: 9,
+          border: '1px solid rgba(148,163,184,0.16)',
+          background: 'rgba(255,255,255,0.04)',
+          color: '#cfd7e4',
+          fontSize: 12,
+          fontWeight: 800,
+          cursor: 'pointer',
+        }}
+      >
+        Back to Missions
+      </button>
+
+      <section className="menu-section">
+        <div className="menu-section__title">Cargo Hold</div>
+        <div style={{ display: 'grid', gap: 8 }}>
+          <div className="menu-row">
+            <span className="menu-row__label">Storage</span>
+            <strong>{compactNumber(cargoUsed)} / {compactNumber(cargoCapacity)}</strong>
+          </div>
+          <ShipPositionButton
+            position={shipPosition}
+            ship={ship}
+            stars={stars}
+            onOpenStarSystem={onOpenStarSystem}
+          />
+          {!isInOwnedSystem ? (
+            <div className="menu-empty" style={{ color: '#fecdd3', borderColor: 'rgba(251,113,133,0.2)' }}>
+              Cargo transfers require this ship to be stationed in one of your systems.
+            </div>
+          ) : null}
+          {feedback ? (
+            <div
+              style={{
+                padding: '8px 10px',
+                borderRadius: 8,
+                border: '1px solid rgba(103,232,249,0.2)',
+                background: 'rgba(8, 47, 73, 0.42)',
+                color: '#cffafe',
+                fontSize: 11,
+                fontWeight: 800,
+                lineHeight: 1.25,
+              }}
+            >
+              {feedback}
+            </div>
+          ) : null}
+        </div>
+      </section>
+
+      <section className="menu-section">
+        <div className="menu-section__title">Items</div>
+        <div className="menu-list">
+          {itemDefinitions.map((item) => {
+            const availableCount = getInventoryItemCount(draft.reserve, item.id);
+            const carriedCount = getInventoryItemCount(draft.cargo, item.id);
+            const itemSize = Math.max(0, Number(item.storageSize) || 0);
+            const canAdd = isInOwnedSystem && availableCount > 0 && itemSize <= remainingCargo;
+            const canRemove = isInOwnedSystem && carriedCount > 0;
+
+            return (
+              <div
+                key={item.id}
+                className="menu-row"
+                style={{
+                  gridTemplateColumns: 'minmax(0, 1fr) auto',
+                  alignItems: 'center',
+                  gap: 10,
+                }}
+              >
+                <span className="menu-row__label">
+                  {renderItemIcon(item, 28)}
+                  <span style={{ display: 'grid', gap: 2, minWidth: 0 }}>
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.name}</span>
+                    <small style={{ color: 'rgba(255,255,255,0.48)', fontSize: 10 }}>
+                      Available {compactNumber(availableCount)} | Cargo {compactNumber(carriedCount)} | {compactNumber(itemSize)} space
+                    </small>
+                  </span>
+                </span>
+                <span style={{ display: 'inline-flex', gap: 6 }}>
+                  <button
+                    type="button"
+                    onClick={() => adjustDraftItem(item.id, -1)}
+                    disabled={!canRemove}
+                    title={`Remove ${item.name} from cargo`}
+                    aria-label={`Remove ${item.name} from cargo`}
+                    style={{
+                      width: 32,
+                      height: 32,
+                      borderRadius: 8,
+                      border: `1px solid ${canRemove ? 'rgba(134,239,172,0.32)' : 'rgba(148,163,184,0.12)'}`,
+                      background: canRemove ? 'rgba(134,239,172,0.12)' : 'rgba(255,255,255,0.03)',
+                      color: canRemove ? '#dcfce7' : 'rgba(148,163,184,0.58)',
+                      fontSize: 16,
+                      fontWeight: 900,
+                      cursor: canRemove ? 'pointer' : 'not-allowed',
+                    }}
+                  >
+                    -
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => adjustDraftItem(item.id, 1)}
+                    disabled={!canAdd}
+                    title={!canAdd && availableCount > 0 ? 'Not enough cargo space' : `Add ${item.name} to cargo`}
+                    aria-label={`Add ${item.name} to cargo`}
+                    style={{
+                      width: 32,
+                      height: 32,
+                      borderRadius: 8,
+                      border: `1px solid ${canAdd ? 'rgba(103,232,249,0.32)' : 'rgba(148,163,184,0.12)'}`,
+                      background: canAdd ? 'rgba(103,232,249,0.12)' : 'rgba(255,255,255,0.03)',
+                      color: canAdd ? '#cffafe' : 'rgba(148,163,184,0.58)',
+                      fontSize: 16,
+                      fontWeight: 900,
+                      cursor: canAdd ? 'pointer' : 'not-allowed',
+                    }}
+                  >
+                    +
+                  </button>
+                </span>
+              </div>
+            );
+          })}
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 10 }}>
+          <button
+            type="button"
+            onClick={resetDraft}
+            disabled={!hasChanges}
+            style={{
+              minHeight: 34,
+              borderRadius: 9,
+              border: '1px solid rgba(148,163,184,0.16)',
+              background: 'rgba(255,255,255,0.04)',
+              color: hasChanges ? '#cfd7e4' : 'rgba(148,163,184,0.52)',
+              fontSize: 12,
+              fontWeight: 850,
+              cursor: hasChanges ? 'pointer' : 'not-allowed',
+            }}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={saveDraft}
+            disabled={!hasChanges || !isInOwnedSystem}
+            style={{
+              minHeight: 34,
+              borderRadius: 9,
+              border: `1px solid ${hasChanges && isInOwnedSystem ? 'rgba(103,232,249,0.32)' : 'rgba(148,163,184,0.12)'}`,
+              background: hasChanges && isInOwnedSystem ? 'rgba(103,232,249,0.14)' : 'rgba(255,255,255,0.03)',
+              color: hasChanges && isInOwnedSystem ? '#cffafe' : 'rgba(148,163,184,0.52)',
+              fontSize: 12,
+              fontWeight: 900,
+              cursor: hasChanges && isInOwnedSystem ? 'pointer' : 'not-allowed',
+            }}
+          >
+            Save
+          </button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function ColonizationConfirmationDialog({ star, effects = [], onCancel, onConfirm }) {
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="colonization-confirm-title"
+      onClick={onCancel}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 90,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'flex-end',
+        padding: '18px',
+        background: 'rgba(2, 6, 23, 0.58)',
+        backdropFilter: 'blur(6px)',
+      }}
+    >
+      <div
+        onClick={(event) => event.stopPropagation()}
+        style={{
+          width: 'min(360px, calc(100vw - 36px))',
+          maxHeight: 'calc(100vh - 36px)',
+          overflowY: 'auto',
+          borderRadius: 12,
+          border: '1px solid rgba(190,242,100,0.28)',
+          background: 'linear-gradient(180deg, rgba(15,23,42,0.98), rgba(8,13,26,0.98))',
+          boxShadow: '0 24px 70px rgba(0,0,0,0.48), 0 0 28px rgba(190,242,100,0.08)',
+          padding: 14,
+        }}
+      >
+        <div
+          id="colonization-confirm-title"
+          style={{
+            color: '#bef264',
+            fontSize: 14,
+            fontWeight: 900,
+            lineHeight: 1.2,
+          }}
+        >
+          Confirm Colonization
+        </div>
+        <div style={{ color: '#eef4ff', fontSize: 12, fontWeight: 850, marginTop: 8 }}>
+          {star?.name ?? 'Target system'}
+        </div>
+        <div style={{ color: 'rgba(226,232,240,0.62)', fontSize: 11, lineHeight: 1.45, marginTop: 4 }}>
+          This mission will immediately establish a colony and consume the loaded Colony Kit.
+        </div>
+
+        <div style={{ display: 'grid', gap: 7, marginTop: 12 }}>
+          {effects.map((effect) => (
+            <div
+              key={effect}
+              style={{
+                display: 'grid',
+                gridTemplateColumns: '18px minmax(0, 1fr)',
+                gap: 8,
+                alignItems: 'start',
+                padding: '8px 9px',
+                borderRadius: 8,
+                border: '1px solid rgba(148,163,184,0.13)',
+                background: 'rgba(255,255,255,0.035)',
+              }}
+            >
+              <span
+                aria-hidden="true"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: 18,
+                  height: 18,
+                  borderRadius: 999,
+                  background: 'rgba(190,242,100,0.14)',
+                  color: '#d9f99d',
+                  fontSize: 11,
+                  fontWeight: 950,
+                  lineHeight: 1,
+                }}
+              >
+                +
+              </span>
+              <span style={{ color: 'rgba(241,245,249,0.82)', fontSize: 11, lineHeight: 1.35, fontWeight: 760 }}>
+                {effect}
+              </span>
+            </div>
+          ))}
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 14 }}>
+          <button
+            type="button"
+            onClick={onCancel}
+            style={{
+              minHeight: 34,
+              borderRadius: 9,
+              border: '1px solid rgba(148,163,184,0.18)',
+              background: 'rgba(255,255,255,0.045)',
+              color: '#cfd7e4',
+              fontSize: 12,
+              fontWeight: 850,
+              cursor: 'pointer',
+            }}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            style={{
+              minHeight: 34,
+              borderRadius: 9,
+              border: '1px solid rgba(190,242,100,0.42)',
+              background: 'rgba(190,242,100,0.16)',
+              color: '#ecfccb',
+              fontSize: 12,
+              fontWeight: 950,
+              cursor: 'pointer',
+            }}
+          >
+            Confirm
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ShipMissionView({
+  ship,
+  playerState,
+  itemDefinitions = [],
+  stars = [],
+  onMissionAction,
+  onCargoTransfer,
+  onOpenStarSystem,
+  onBack,
+}) {
+  const [missionFeedback, setMissionFeedback] = useState('');
+  const [feedbackMissionId, setFeedbackMissionId] = useState('');
+  const [activeMissionPanel, setActiveMissionPanel] = useState(null);
+  const [cargoShipOverride, setCargoShipOverride] = useState(null);
+  const [pendingConfirmation, setPendingConfirmation] = useState(null);
+  const missionShip = activeMissionPanel === 'cargo-items' ? cargoShipOverride ?? ship : ship;
   const traits = ship?.traits ?? {};
   const missionUnitLabel = Array.isArray(ship?.missionUnitNumbers) && ship.missionUnitNumbers.length
     ? ` #${ship.missionUnitNumbers.join(', #')}`
@@ -1561,17 +2211,310 @@ function ShipMissionView({ ship, stars = [], onMissionAction, onOpenStarSystem, 
       ? ` #${ship.missionUnitNumber}`
       : '';
   const shipName = `${ship?.name ?? ship?.type ?? 'Ship'}${missionUnitLabel}`;
+  const shipPosition = getShipPositionId(ship);
+  const stationedStar = shipPosition && shipPosition !== 'Moving'
+    ? stars.find((entry) => entry.id === shipPosition)
+    : null;
+  const ownedStarIds = new Set(playerState?.territory?.stars ?? []);
+  const isStationedInEnemySystem = Boolean(
+    stationedStar &&
+    !ownedStarIds.has(stationedStar.id) &&
+    stationedStar.owner &&
+    stationedStar.owner !== 'Unclaimed'
+  );
+  const isStationedInForeignTerritory = Boolean(
+    stationedStar &&
+    !ownedStarIds.has(stationedStar.id) &&
+    stationedStar.owner &&
+    stationedStar.owner !== 'Unclaimed'
+  );
+  const isStationedInOwnedSystem = Boolean(stationedStar && ownedStarIds.has(stationedStar.id));
+  const isStationedInUncolonizedSystem = Boolean(
+    stationedStar &&
+    !ownedStarIds.has(stationedStar.id) &&
+    (!stationedStar.owner || stationedStar.owner === 'Unclaimed')
+  );
+  const hasPotentialTradeRoute = Boolean(
+    playerState &&
+    ownedStarIds.size > 0 &&
+    stars.some((star) =>
+      !ownedStarIds.has(star.id) &&
+      star.owner &&
+      star.owner !== 'Unclaimed'
+    )
+  );
+  const hasColonyKit = getInventoryItemCount(getShipCargoItems(ship), COLONY_KIT_ITEM_ID) > 0;
+  const tradeShipCount = Math.max(1, Math.floor(Number(ship?.count) || 1));
+  const canUseShipForTrade = tradeShipCount <= MAX_TRADE_ROUTE_SHIPS && shipPosition !== 'Moving';
+  const colonizationPlanet = getBestHabitabilityPlanet(stationedStar);
+  const colonizationEffects = [
+    stationedStar ? `Claim ${stationedStar.name} for your faction.` : 'Claim the target system.',
+    colonizationPlanet
+      ? `Found colony on ${colonizationPlanet.name}, the highest-habitability planet (${compactNumber(colonizationPlanet.habitability)}).`
+      : 'Found colony on the highest-habitability planet.',
+    'Consume 1 Colony Kit from this ship cargo.',
+    'Set colony population to 50K.',
+    'Set every supported infrastructure type on the colony planet to level 1.',
+  ];
   const missionOptions = [
     { id: 'move-ship', name: 'Move', tone: '#7dd3fc', detail: 'Move this ship to another system.', available: true },
-    { id: 'warfare', name: 'Attack', tone: '#fb7185', detail: 'Use this ship for combat.', available: false },
-    { id: 'transport', name: 'Transport', tone: '#67e8f9', detail: 'Move resources between places.', available: false },
-    { id: 'colonization', name: 'Colonize', tone: '#bef264', detail: 'Start or support a new colony.', available: false },
-    { id: 'raiding', name: 'Raid', tone: '#fca5a5', detail: 'Steal from routes, pools, or systems.', available: false },
+    {
+      id: 'attack-system',
+      name: 'Attack',
+      tone: '#fb7185',
+      detail: isStationedInEnemySystem
+        ? `Capture ${stationedStar.name}.`
+        : 'Station this ship in an enemy system.',
+      available: true,
+    },
+    {
+      id: 'cargo-items',
+      name: 'Cargo',
+      tone: '#67e8f9',
+      detail: isStationedInOwnedSystem
+        ? `Pick up or drop off items at ${stationedStar.name}.`
+        : 'Station this ship in one of your systems.',
+      available: isStationedInOwnedSystem,
+    },
+    {
+      id: 'colonization',
+      name: 'Colonize',
+      tone: '#bef264',
+      detail: isStationedInUncolonizedSystem
+        ? hasColonyKit
+          ? `Found a colony at ${stationedStar.name}.`
+          : 'Load a Colony Kit into this ship.'
+        : 'Station this ship in an unclaimed system.',
+      available: isStationedInUncolonizedSystem && hasColonyKit,
+    },
+    {
+      id: 'piracy',
+      name: 'Piracy',
+      tone: '#fca5a5',
+      detail: isStationedInForeignTerritory
+        ? 'Create a 1,000 ly piracy zone around this system.'
+        : 'Station this ship in another territory.',
+      available: isStationedInForeignTerritory,
+    },
     { id: 'blockade', name: 'Blockade', tone: '#fbbf24', detail: 'Disrupt a system or its trade.', available: false },
     { id: 'population-movement', name: 'Move Population', tone: '#c4b5fd', detail: 'Move population between planets or systems.', available: false },
-    { id: 'trade', name: 'Trade', tone: '#86efac', detail: 'Generate credits over time.', available: false },
+    {
+      id: 'trade',
+      name: 'Trade',
+      tone: '#86efac',
+      detail: shipPosition === 'Moving'
+        ? 'Trade requires a ship that is not moving.'
+        : !canUseShipForTrade
+        ? `Trade routes can use max ${MAX_TRADE_ROUTE_SHIPS} ships.`
+        : hasPotentialTradeRoute
+          ? 'Set a route between your systems and another player.'
+          : 'Requires one of your systems and another player.',
+      available: hasPotentialTradeRoute && canUseShipForTrade,
+    },
     { id: 'protect-trade', name: 'Protect Trade', tone: '#93c5fd', detail: 'Protect trade from raids.', available: false },
   ];
+
+  function getUnavailableMissionFeedback(missionId) {
+    if (missionId === 'cargo-items') {
+      if (!stationedStar) {
+        return 'Cargo requires a stationed ship.';
+      }
+
+      return 'Cargo transfers require one of your systems.';
+    }
+
+    if (missionId === 'colonization') {
+      if (!stationedStar) {
+        return 'Colonization requires a stationed ship.';
+      }
+
+      if (ownedStarIds.has(stationedStar.id)) {
+        return 'You already own this system.';
+      }
+
+      if (stationedStar.owner && stationedStar.owner !== 'Unclaimed') {
+        return 'Colonization requires an unclaimed system.';
+      }
+
+      if (!hasColonyKit) {
+        return 'Load a Colony Kit into this ship before colonizing.';
+      }
+
+      return 'This system cannot be colonized.';
+    }
+
+    if (missionId === 'trade') {
+      if (!playerState) {
+        return 'Log in to plan trade routes.';
+      }
+
+      if (ownedStarIds.size <= 0) {
+        return 'Trade requires one of your systems.';
+      }
+
+      if (tradeShipCount > MAX_TRADE_ROUTE_SHIPS) {
+        return `Trade routes can use max ${MAX_TRADE_ROUTE_SHIPS} ships.`;
+      }
+
+      if (shipPosition === 'Moving') {
+        return 'Trade requires a ship that is not moving.';
+      }
+
+      return 'Trade requires another player within 5,000 ly.';
+    }
+
+    if (missionId === 'piracy') {
+      if (!stationedStar) {
+        return 'Piracy requires a stationed ship.';
+      }
+
+      if (!isStationedInForeignTerritory) {
+        return 'Piracy must be placed in another territory.';
+      }
+
+      return 'This system cannot host piracy.';
+    }
+
+    if (missionId !== 'attack-system') {
+      return 'Mission is not available yet.';
+    }
+
+    if (!stationedStar) {
+      return 'Attack requires a stationed ship.';
+    }
+
+    if (ownedStarIds.has(stationedStar.id)) {
+      return 'You already own this system.';
+    }
+
+    if (!stationedStar.owner || stationedStar.owner === 'Unclaimed') {
+      return 'Unclaimed systems cannot be attacked.';
+    }
+
+    return 'This system cannot be attacked.';
+  }
+
+  function handleMissionClick(mission) {
+    function handleActionResult(result) {
+      if (result?.ok === false) {
+        setMissionFeedback(result.message ?? getUnavailableMissionFeedback(mission.id));
+        setFeedbackMissionId(mission.id);
+      }
+    }
+
+    if (mission.id === 'cargo-items') {
+      if (!isStationedInOwnedSystem) {
+        setMissionFeedback(getUnavailableMissionFeedback(mission.id));
+        setFeedbackMissionId(mission.id);
+        return;
+      }
+
+      setCargoShipOverride(ship);
+      setActiveMissionPanel('cargo-items');
+      setMissionFeedback('');
+      setFeedbackMissionId('');
+      return;
+    }
+
+    if (mission.id === 'colonization') {
+      if (!mission.available) {
+        setMissionFeedback(getUnavailableMissionFeedback(mission.id));
+        setFeedbackMissionId(mission.id);
+        return;
+      }
+
+      setPendingConfirmation('colonization');
+      setMissionFeedback('');
+      setFeedbackMissionId('');
+      return;
+    }
+
+    if (mission.id === 'attack-system' && !isStationedInEnemySystem) {
+      setMissionFeedback(getUnavailableMissionFeedback(mission.id));
+      setFeedbackMissionId(mission.id);
+      return;
+    }
+
+    if (!mission.available) {
+      setMissionFeedback(getUnavailableMissionFeedback(mission.id));
+      setFeedbackMissionId(mission.id);
+      return;
+    }
+
+    setMissionFeedback('');
+    setFeedbackMissionId('');
+    handleActionResult(onMissionAction?.(mission.id, ship));
+  }
+
+  function confirmPendingMission() {
+    if (pendingConfirmation !== 'colonization') {
+      setPendingConfirmation(null);
+      return;
+    }
+
+    const result = onMissionAction?.('colonization', ship);
+    if (result?.ok === false) {
+      setPendingConfirmation(null);
+      setMissionFeedback(result.message ?? getUnavailableMissionFeedback('colonization'));
+      setFeedbackMissionId('colonization');
+      return;
+    }
+
+    setPendingConfirmation(null);
+    setMissionFeedback('');
+    setFeedbackMissionId('');
+  }
+
+  useEffect(() => {
+    if (!missionFeedback) {
+      return undefined;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setMissionFeedback('');
+      setFeedbackMissionId('');
+    }, 1800);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [missionFeedback]);
+
+  useEffect(() => {
+    setCargoShipOverride(null);
+    setActiveMissionPanel(null);
+    setPendingConfirmation(null);
+    setMissionFeedback('');
+    setFeedbackMissionId('');
+  }, [ship?.id, ship?.templateId, ship?.position, ship?.moveMissionId, ship?.tradeRouteId]);
+
+  useEffect(() => {
+    if (!pendingConfirmation) {
+      return undefined;
+    }
+
+    function handleKeyDown(event) {
+      if (event.key === 'Escape') {
+        setPendingConfirmation(null);
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [pendingConfirmation]);
+
+  if (activeMissionPanel === 'cargo-items') {
+    return (
+      <CargoMissionView
+        ship={missionShip}
+        playerState={playerState}
+        itemDefinitions={itemDefinitions}
+        stars={stars}
+        onCargoTransfer={onCargoTransfer}
+        onShipChanged={setCargoShipOverride}
+        onOpenStarSystem={onOpenStarSystem}
+        onBack={() => setActiveMissionPanel(null)}
+      />
+    );
+  }
 
   return (
     <div className="menu-stack">
@@ -1617,6 +2560,7 @@ function ShipMissionView({ ship, stars = [], onMissionAction, onOpenStarSystem, 
         <div style={{ marginTop: 8 }}>
           <ShipPositionButton
             position={ship?.position}
+            ship={ship}
             stars={stars}
             onOpenStarSystem={onOpenStarSystem}
           />
@@ -1628,41 +2572,80 @@ function ShipMissionView({ ship, stars = [], onMissionAction, onOpenStarSystem, 
         <div style={{ display: 'grid', gap: 8 }}>
           {missionOptions.map((mission) => {
             const isAvailable = mission.available;
+            const showFeedback = feedbackMissionId === mission.id && Boolean(missionFeedback);
             return (
-              <button
-                key={mission.id}
-                type="button"
-                disabled={!isAvailable}
-                onClick={() => {
-                  if (isAvailable) {
-                    onMissionAction?.(mission.id, ship);
-                  }
-                }}
-                style={{
-                  display: 'grid',
-                  gap: 4,
-                  width: '100%',
-                  padding: '11px 12px',
-                  borderRadius: 10,
-                  border: `1px solid ${isAvailable ? `${mission.tone}28` : 'rgba(148,163,184,0.12)'}`,
-                  background: isAvailable
-                    ? `linear-gradient(180deg, ${mission.tone}14, rgba(255,255,255,0.025))`
-                    : 'linear-gradient(180deg, rgba(148,163,184,0.06), rgba(255,255,255,0.018))',
-                  color: isAvailable ? '#eef4ff' : 'rgba(148,163,184,0.58)',
-                  textAlign: 'left',
-                  cursor: isAvailable ? 'pointer' : 'not-allowed',
-                  opacity: isAvailable ? 1 : 0.56,
-                }}
-              >
-                <strong style={{ color: isAvailable ? mission.tone : 'rgba(148,163,184,0.7)' }}>{mission.name}</strong>
-                <span style={{ color: isAvailable ? 'rgba(255,255,255,0.58)' : 'rgba(148,163,184,0.52)', fontSize: 11 }}>
-                  {mission.detail}
-                </span>
-              </button>
+              <div key={mission.id} style={{ position: 'relative', minWidth: 0 }}>
+                <button
+                  type="button"
+                  onClick={() => handleMissionClick(mission)}
+                  style={{
+                    display: 'grid',
+                    gap: 4,
+                    width: '100%',
+                    padding: '11px 12px',
+                    borderRadius: 10,
+                    border: `1px solid ${
+                      showFeedback
+                        ? 'rgba(251,113,133,0.95)'
+                        : isAvailable
+                          ? `${mission.tone}28`
+                          : 'rgba(148,163,184,0.12)'
+                    }`,
+                    background: isAvailable
+                      ? `linear-gradient(180deg, ${mission.tone}14, rgba(255,255,255,0.025))`
+                      : 'linear-gradient(180deg, rgba(148,163,184,0.06), rgba(255,255,255,0.018))',
+                    boxShadow: showFeedback
+                      ? '0 0 0 2px rgba(251,113,133,0.22), 0 0 18px rgba(251,113,133,0.28)'
+                      : 'none',
+                    color: isAvailable ? '#eef4ff' : 'rgba(148,163,184,0.58)',
+                    textAlign: 'left',
+                    cursor: 'pointer',
+                    opacity: isAvailable ? 1 : 0.56,
+                    animation: showFeedback ? 'attackMissionInvalidPulse 0.42s ease-in-out 0s 3' : 'none',
+                  }}
+                >
+                  <strong style={{ color: isAvailable ? mission.tone : 'rgba(148,163,184,0.7)' }}>{mission.name}</strong>
+                  <span style={{ color: isAvailable ? 'rgba(255,255,255,0.58)' : 'rgba(148,163,184,0.52)', fontSize: 11 }}>
+                    {mission.detail}
+                  </span>
+                </button>
+                {showFeedback ? (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: 'calc(100% + 6px)',
+                      left: 8,
+                      right: 8,
+                      zIndex: 20,
+                      padding: '8px 10px',
+                      borderRadius: 8,
+                      border: '1px solid rgba(251,113,133,0.34)',
+                      background: 'rgba(36, 10, 18, 0.96)',
+                      boxShadow: '0 12px 28px rgba(0,0,0,0.38), 0 0 16px rgba(251,113,133,0.16)',
+                      color: '#fecdd3',
+                      fontSize: 11,
+                      fontWeight: 800,
+                      lineHeight: 1.25,
+                      pointerEvents: 'none',
+                    }}
+                  >
+                    {missionFeedback}
+                  </div>
+                ) : null}
+              </div>
             );
           })}
         </div>
       </section>
+
+      {pendingConfirmation === 'colonization' ? (
+        <ColonizationConfirmationDialog
+          star={stationedStar}
+          effects={colonizationEffects}
+          onCancel={() => setPendingConfirmation(null)}
+          onConfirm={confirmPendingMission}
+        />
+      ) : null}
     </div>
   );
 }
@@ -2021,6 +3004,7 @@ function ShipDesignerView({ resourceDisplay = [], templates = [], onCreateTempla
 function ShipsView({
   playerState,
   resourceDisplay = [],
+  itemDefinitions = [],
   stars = [],
   templates = [],
   activeView = 'designer',
@@ -2028,6 +3012,9 @@ function ShipsView({
   highlightedFleetShip = null,
   onViewChange,
   onMissionAction,
+  onCancelTradeRoute,
+  onCancelPiracyMission,
+  onCargoTransfer,
   onCreateTemplate,
   onDeleteTemplate,
   onOpenStarSystem,
@@ -2050,8 +3037,11 @@ function ShipsView({
       {activeTab === 'mission' ? (
         <ShipMissionView
           ship={missionShip}
+          playerState={playerState}
+          itemDefinitions={itemDefinitions}
           stars={stars}
           onMissionAction={onMissionAction}
+          onCargoTransfer={onCargoTransfer}
           onOpenStarSystem={onOpenStarSystem}
           onBack={() => onViewChange?.('fleet')}
         />
@@ -2064,6 +3054,8 @@ function ShipsView({
               stars={stars}
               highlightedFleetShip={highlightedFleetShip}
               onStartMission={(shipId) => onViewChange?.('mission', shipId)}
+              onCancelTradeRoute={onCancelTradeRoute}
+              onCancelPiracyMission={onCancelPiracyMission}
               onOpenStarSystem={onOpenStarSystem}
             />
           ) : (
@@ -2112,6 +3104,8 @@ export function RightSideMenu(props) {
     highlightedFleetShip = null,
     onShipViewChange,
     onMissionAction,
+    onCancelTradeRoute,
+    onCancelPiracyMission,
     stars = [],
     onCreateShipTemplate,
     onDeleteShipTemplate,
@@ -2207,6 +3201,7 @@ export function RightSideMenu(props) {
         <ShipsView
           playerState={playerState}
           resourceDisplay={resourceDisplay}
+          itemDefinitions={itemDefinitions}
           stars={stars}
           templates={shipTemplates}
           activeView={shipView}
@@ -2214,6 +3209,9 @@ export function RightSideMenu(props) {
           highlightedFleetShip={highlightedFleetShip}
           onViewChange={onShipViewChange}
           onMissionAction={onMissionAction}
+          onCancelTradeRoute={onCancelTradeRoute}
+          onCancelPiracyMission={onCancelPiracyMission}
+          onCargoTransfer={props.onCargoTransfer}
           onCreateTemplate={handleCreateShipTemplate}
           onDeleteTemplate={handleDeleteShipTemplate}
           onOpenStarSystem={onOpenStarSystem}

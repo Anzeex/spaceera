@@ -21,6 +21,7 @@ import {
   RESOURCE_STANDARD_PRICES,
 } from './economyConfig.js';
 import {
+  cloneItemInventory,
   getItemDefinition,
   getItemStorageSize,
   ITEM_DEFINITIONS,
@@ -36,7 +37,9 @@ import {
 } from './infrastructureCosts.js';
 import {
   calculatePlanetPopulationCap,
+  calculateStarDevelopment,
   ensureStarMinimumPopulation,
+  recalculateStarDerivedStats,
   settleStarPopulation,
 } from './population.js';
 import { getWeightedResourceAmount } from './systemPools.js';
@@ -69,6 +72,28 @@ const RESOURCE_UPDATE_INTERVALS_MS = {
 const BASE_PRODUCTION_OFFLINE_PERIOD_CAP = 10;
 const PERFORMANCE_GRAPH_REDRAW_INTERVAL_MS = 250;
 const PROFILE_BANNER_URL = '/top-banner.png';
+const BLUR_TERRITORIES_STORAGE_KEY = 'spaceera.blurTerritories';
+const COLONY_KIT_ITEM_ID = 'colony-kit';
+const COLONY_STARTING_POPULATION = 50000;
+const COLONY_BASE_INFRASTRUCTURE_KEYS = ['industrial', 'energy', 'storage', 'defense'];
+const COLONY_MINED_RESOURCE_NAMES = new Set(['Rare Earth Elements', 'Metals', 'Uranium']);
+
+function readStoredBoolean(key, fallbackValue = false) {
+  try {
+    const value = window.localStorage.getItem(key);
+    return value === null ? fallbackValue : value === 'true';
+  } catch {
+    return fallbackValue;
+  }
+}
+
+function writeStoredBoolean(key, value) {
+  try {
+    window.localStorage.setItem(key, value ? 'true' : 'false');
+  } catch {
+    // Ignore localStorage issues; the setting still applies for this session.
+  }
+}
 
 function applyResourceIconStyles(node, resource, size = 16, mode = 'badge') {
   node.textContent = resource.iconPath ? '' : resource.icon;
@@ -111,6 +136,7 @@ export function createGame(container, galaxyOptions = {}) {
     ...galaxyOptions,
     seed: persistentSeed,
   };
+  const initialShowBlurTerritories = readStoredBoolean(BLUR_TERRITORIES_STORAGE_KEY, false);
 
   const canvas = document.createElement('canvas');
   container.appendChild(canvas);
@@ -1185,7 +1211,7 @@ export function createGame(container, galaxyOptions = {}) {
 
   const blurTerritoriesCheckbox = document.createElement('input');
   blurTerritoriesCheckbox.type = 'checkbox';
-  blurTerritoriesCheckbox.checked = false;
+  blurTerritoriesCheckbox.checked = initialShowBlurTerritories;
   blurTerritoriesCheckbox.style.marginRight = '6px';
 
   blurTerritoriesLabel.appendChild(blurTerritoriesCheckbox);
@@ -1259,7 +1285,7 @@ export function createGame(container, galaxyOptions = {}) {
     showPerformanceGraph: true,
     performanceMode: false,
     isCameraMoving: false,
-    showBlurTerritories: false,
+    showBlurTerritories: initialShowBlurTerritories,
     showPopulationTiming: false,
     playerState: null,
     suppressCanvasClick: false,
@@ -1286,6 +1312,16 @@ export function createGame(container, galaxyOptions = {}) {
     onMoveMissionCommitMove: null,
     onMoveMissionCancel: null,
     onMoveMissionOpenFleet: null,
+    onAttackMissionConfirm: null,
+    onAttackMissionCancel: null,
+    onTradeMissionCommit: null,
+    onTradeMissionCancel: null,
+    onTradeRouteOpenFleet: null,
+    onPiracyZoneOpenFleet: null,
+    handleTradeMissionPointerDown: null,
+    handleTradeMissionPointerMove: null,
+    handleTradeMissionPointerUp: null,
+    handleTradeMissionPointerCancel: null,
     handleMoveMissionPointerDown: null,
     handleMoveMissionPointerMove: null,
     handleMoveMissionPointerUp: null,
@@ -1297,6 +1333,8 @@ export function createGame(container, galaxyOptions = {}) {
     useReactSystemPanel: true,
     moveMission: null,
     moveMissions: [],
+    attackMission: null,
+    tradeMission: null,
     invalidateRender: () => {},
   };
   const baselineState = captureBaselineState(state.galaxy);
@@ -1342,6 +1380,7 @@ export function createGame(container, galaxyOptions = {}) {
 
   blurTerritoriesCheckbox.addEventListener('change', () => {
     state.showBlurTerritories = blurTerritoriesCheckbox.checked;
+    writeStoredBoolean(BLUR_TERRITORIES_STORAGE_KEY, state.showBlurTerritories);
     state.invalidateRender();
   });
 
@@ -1693,6 +1732,8 @@ export function createGame(container, galaxyOptions = {}) {
 
         planet.infrastructure = { ...committedInfrastructure };
       }
+
+      recalculateStarDerivedStats(star);
     }
 
     if (state.playerState) {
@@ -1714,7 +1755,7 @@ export function createGame(container, galaxyOptions = {}) {
     return revertPendingInfrastructureChanges();
   }
 
-  state.getSerializablePlayerState = () => {
+  state.getSerializablePlayerState = ({ includePendingInfrastructure = false } = {}) => {
     const playerId = state.currentPlayerId ?? state.currentTerritoryId;
     if (!playerId || !state.playerState) {
       return null;
@@ -1726,7 +1767,7 @@ export function createGame(container, galaxyOptions = {}) {
 
     const { playerName, ...playerState } = state.playerState;
     const territory = state.territories.get(playerId);
-    const serializableResources = state.hasPendingInfrastructureChanges
+    const serializableResources = state.hasPendingInfrastructureChanges && !includePendingInfrastructure
       ? getCommittedPlayerResources()
       : cloneResources(playerState.resources);
 
@@ -1747,9 +1788,12 @@ export function createGame(container, galaxyOptions = {}) {
     };
   };
 
-  state.getSerializableGalaxyState = (serializableBaselineState) => {
+  state.getSerializableGalaxyState = (
+    serializableBaselineState,
+    { includePendingInfrastructure = false } = {}
+  ) => {
     const nextState = serializeGameState(state, serializableBaselineState);
-    if (!state.hasPendingInfrastructureChanges) {
+    if (!state.hasPendingInfrastructureChanges || includePendingInfrastructure) {
       return nextState;
     }
 
@@ -1793,6 +1837,26 @@ export function createGame(container, galaxyOptions = {}) {
 
       if (Object.keys(starDiff.planets).length === 0) {
         delete starDiff.planets;
+      }
+
+      if ('development' in starDiff) {
+        const star = state.starsById.get(starId);
+        const baselineDevelopment = serializableBaselineState.stars.get(starId)?.development ?? 0;
+        const committedDevelopment = star
+          ? calculateStarDevelopment({
+              ...star,
+              planets: (star.planets ?? []).map((planet) => ({
+                ...planet,
+                infrastructure: state.infrastructureBaselineByPlanetId.get(planet.id) ?? planet.infrastructure,
+              })),
+            })
+          : baselineDevelopment;
+
+        if (committedDevelopment !== baselineDevelopment) {
+          starDiff.development = committedDevelopment;
+        } else {
+          delete starDiff.development;
+        }
       }
 
       if (Object.keys(starDiff).length === 0) {
@@ -1908,6 +1972,115 @@ export function createGame(container, galaxyOptions = {}) {
     return ship?.position ?? ship?.starId ?? null;
   }
 
+  function getInventoryItemCount(items = {}, itemId) {
+    return Math.max(0, Math.floor(Number(items?.[itemId]) || 0));
+  }
+
+  function hasInventoryItems(items = {}) {
+    return Object.values(items ?? {}).some((value) => (Number(value) || 0) > 0);
+  }
+
+  function cloneShipCargoItems(ship = {}) {
+    return cloneItemInventory(ship?.cargo?.items ?? ship?.cargoItems);
+  }
+
+  function getItemInventoryStorageUsed(items = {}) {
+    return Object.entries(items ?? {}).reduce(
+      (sum, [itemId, count]) => sum + getInventoryItemCount(items, itemId) * getItemStorageSize(itemId),
+      0
+    );
+  }
+
+  function getShipCargoCapacity(ship = {}) {
+    const shipCount = Math.max(1, Math.floor(Number(ship?.count) || 1));
+    return Math.max(0, Number(ship?.traits?.cargoCapacity) || 0) * shipCount;
+  }
+
+  function setShipCargoItems(ship, items = {}) {
+    const nextShip = { ...ship };
+    const cargoItems = cloneItemInventory(items);
+    delete nextShip.cargoItems;
+
+    if (hasInventoryItems(cargoItems)) {
+      nextShip.cargo = {
+        ...(ship?.cargo ?? {}),
+        items: cargoItems,
+      };
+    } else {
+      delete nextShip.cargo;
+    }
+
+    return nextShip;
+  }
+
+  function addItemInventoryCounts(target, source = {}) {
+    for (const [itemId] of Object.entries(source ?? {})) {
+      target[itemId] = getInventoryItemCount(target, itemId) + getInventoryItemCount(source, itemId);
+    }
+    return target;
+  }
+
+  function getShipStackKey(ship) {
+    const position = getShipFleetPosition(ship);
+    return [
+      getShipFleetModelKey(ship),
+      position ?? '',
+      ship?.moveMissionId ?? '',
+      position === 'Trading' ? ship?.tradeRouteId ?? '' : '',
+      position === 'Piracy' ? ship?.piracyMissionId ?? '' : '',
+    ].join('::');
+  }
+
+  function mergeShipStackRecords(left, right) {
+    const mergedCargoItems = cloneShipCargoItems(left);
+    addItemInventoryCounts(mergedCargoItems, cloneShipCargoItems(right));
+
+    return setShipCargoItems(
+      {
+        ...left,
+        count:
+          Math.max(1, Math.floor(Number(left?.count) || 1)) +
+          Math.max(1, Math.floor(Number(right?.count) || 1)),
+      },
+      mergedCargoItems
+    );
+  }
+
+  function compactFleetShips(ships = []) {
+    const compactedShips = [];
+    const compactedByKey = new Map();
+
+    for (const ship of ships ?? []) {
+      if (!ship) {
+        continue;
+      }
+
+      const normalizedShip = setShipCargoItems(
+        {
+          ...ship,
+          count: Math.max(1, Math.floor(Number(ship.count) || 1)),
+        },
+        cloneShipCargoItems(ship)
+      );
+      const stackKey = getShipStackKey(normalizedShip);
+      const existingShip = compactedByKey.get(stackKey);
+
+      if (existingShip) {
+        const mergedShip = mergeShipStackRecords(existingShip, normalizedShip);
+        const existingIndex = compactedShips.indexOf(existingShip);
+        if (existingIndex >= 0) {
+          compactedShips[existingIndex] = mergedShip;
+        }
+        compactedByKey.set(stackKey, mergedShip);
+      } else {
+        compactedByKey.set(stackKey, normalizedShip);
+        compactedShips.push(normalizedShip);
+      }
+    }
+
+    return compactedShips;
+  }
+
   function isSameFleetPosition(left, right) {
     if (left == null || right == null) {
       return left == null && right == null;
@@ -1922,15 +2095,29 @@ export function createGame(container, galaxyOptions = {}) {
       delete rightPanel.dataset.fleetHighlightModelKey;
       delete rightPanel.dataset.fleetHighlightPosition;
       delete rightPanel.dataset.fleetHighlightMoveMissionId;
+      delete rightPanel.dataset.fleetHighlightTradeRouteId;
+      delete rightPanel.dataset.fleetHighlightPiracyMissionId;
+      delete rightPanel.dataset.fleetHighlightToken;
       return;
     }
 
     rightPanel.dataset.fleetHighlightModelKey = modelKey;
     rightPanel.dataset.fleetHighlightPosition = getShipFleetPosition(ship) ?? '__unknown__';
+    rightPanel.dataset.fleetHighlightToken = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
     if (ship?.moveMissionId) {
       rightPanel.dataset.fleetHighlightMoveMissionId = ship.moveMissionId;
     } else {
       delete rightPanel.dataset.fleetHighlightMoveMissionId;
+    }
+    if (ship?.tradeRouteId) {
+      rightPanel.dataset.fleetHighlightTradeRouteId = ship.tradeRouteId;
+    } else {
+      delete rightPanel.dataset.fleetHighlightTradeRouteId;
+    }
+    if (ship?.piracyMissionId) {
+      rightPanel.dataset.fleetHighlightPiracyMissionId = ship.piracyMissionId;
+    } else {
+      delete rightPanel.dataset.fleetHighlightPiracyMissionId;
     }
   }
 
@@ -1945,7 +2132,24 @@ export function createGame(container, galaxyOptions = {}) {
       modelKey,
       position: storedPosition === '__unknown__' ? null : storedPosition ?? null,
       moveMissionId: rightPanel.dataset.fleetHighlightMoveMissionId ?? null,
+      tradeRouteId: rightPanel.dataset.fleetHighlightTradeRouteId ?? null,
+      piracyMissionId: rightPanel.dataset.fleetHighlightPiracyMissionId ?? null,
+      highlightToken: rightPanel.dataset.fleetHighlightToken ?? null,
     };
+  }
+
+  function encodeShipMissionPart(value) {
+    return encodeURIComponent(value == null ? '__none__' : String(value));
+  }
+
+  function getShipStackMissionId(ship) {
+    return [
+      'ship-stack',
+      encodeShipMissionPart(getShipFleetModelKey(ship)),
+      encodeShipMissionPart(getShipFleetPosition(ship)),
+      encodeShipMissionPart(ship?.moveMissionId ?? null),
+      encodeShipMissionPart(ship?.tradeRouteId ?? null),
+    ].join(':');
   }
 
   function getStarDistance(left, right) {
@@ -2009,6 +2213,13 @@ export function createGame(container, galaxyOptions = {}) {
   const MOVE_LIGHT_YEARS_PER_DAY_PER_SPEED = 7;
   const MOVE_REAL_MS_PER_TRAVEL_DAY = 1000;
   const MIN_MOVE_TRAVEL_DURATION_MS = 1200;
+  const MAX_TRADE_ROUTE_LIGHT_YEARS = 5000;
+  const MAX_TRADE_ROUTE_SHIPS = 3;
+  const TRADE_MIN_DISTANCE_MULTIPLIER = 0.25;
+  const TRADE_REVENUE_MULTIPLIER = 0.18;
+  const PIRACY_RADIUS_LIGHT_YEARS = 1000;
+  const PIRACY_MIN_EFFICIENCY = 0.04;
+  const PIRACY_MAX_EFFICIENCY = 0.65;
 
   function pushRouteHeap(heap, node) {
     heap.push(node);
@@ -2597,6 +2808,28 @@ export function createGame(container, galaxyOptions = {}) {
       delete nextShip.moveArrivesAtMs;
     }
 
+    if (nextShip.position !== 'Trading') {
+      delete nextShip.tradeRouteId;
+      delete nextShip.tradeOriginStarId;
+      delete nextShip.tradeDestinationStarId;
+      delete nextShip.tradeOriginName;
+      delete nextShip.tradeDestinationName;
+      delete nextShip.tradeRevenueCredits;
+      delete nextShip.tradeDistanceLightYears;
+    }
+
+    if (nextShip.position !== 'Piracy') {
+      delete nextShip.piracyMissionId;
+      delete nextShip.piracyCenterStarId;
+      delete nextShip.piracyCenterName;
+      delete nextShip.piracyTerritoryId;
+      delete nextShip.piracyTerritoryName;
+      delete nextShip.piracyRadiusLightYears;
+      delete nextShip.piracyEfficiency;
+      delete nextShip.piracyStolenCredits;
+      delete nextShip.piracyAffectedRouteCount;
+    }
+
     return nextShip;
   }
 
@@ -2606,7 +2839,15 @@ export function createGame(container, galaxyOptions = {}) {
     const sourceMoveMissionId = Object.prototype.hasOwnProperty.call(options, 'sourceMoveMissionId')
       ? options.sourceMoveMissionId
       : ship?.moveMissionId ?? null;
+    const sourceTradeRouteId = Object.prototype.hasOwnProperty.call(options, 'sourceTradeRouteId')
+      ? options.sourceTradeRouteId
+      : ship?.tradeRouteId ?? null;
     const destinationMoveMissionId = options.destinationMoveMissionId ?? null;
+    const destinationTradeRouteId = options.destinationTradeRouteId ?? options.destinationMetadata?.tradeRouteId ?? null;
+    const sourcePiracyMissionId = Object.prototype.hasOwnProperty.call(options, 'sourcePiracyMissionId')
+      ? options.sourcePiracyMissionId
+      : ship?.piracyMissionId ?? null;
+    const destinationPiracyMissionId = options.destinationPiracyMissionId ?? options.destinationMetadata?.piracyMissionId ?? null;
     const destinationMetadata = options.destinationMetadata ?? {};
     const allowCreateFallback = options.allowCreateFallback !== false;
     const moveCount = Math.max(1, Math.floor(Number(ship.count) || 1));
@@ -2614,12 +2855,15 @@ export function createGame(container, galaxyOptions = {}) {
     const nextShips = [];
     let movedShip = null;
     let movedCountTotal = 0;
+    const sourceShips = compactFleetShips(ships ?? []);
 
-    for (const entry of ships ?? []) {
+    for (const entry of sourceShips) {
       const entryMatches =
         getShipFleetModelKey(entry) === modelKey &&
         isSameFleetPosition(getShipFleetPosition(entry), originPosition) &&
         (!sourceMoveMissionId || entry.moveMissionId === sourceMoveMissionId) &&
+        (!sourceTradeRouteId || entry.tradeRouteId === sourceTradeRouteId) &&
+        (!sourcePiracyMissionId || entry.piracyMissionId === sourcePiracyMissionId) &&
         remainingToMove > 0;
 
       if (!entryMatches) {
@@ -2629,19 +2873,28 @@ export function createGame(container, galaxyOptions = {}) {
 
       const entryCount = Math.max(1, Math.floor(Number(entry.count) || 1));
       const movedCount = Math.min(entryCount, remainingToMove);
+      const entryCargoItems = cloneShipCargoItems(entry);
+      if (hasInventoryItems(entryCargoItems) && movedCount < entryCount) {
+        nextShips.push(entry);
+        continue;
+      }
+
       remainingToMove -= movedCount;
       movedCountTotal += movedCount;
-      movedShip = applyMoveMissionShipMetadata(
+      const movedEntry = applyMoveMissionShipMetadata(
         {
           ...entry,
           position: destinationPosition,
-          count: (Number(movedShip?.count) || 0) + movedCount,
+          count: movedCount,
         },
         {
           ...destinationMetadata,
           moveMissionId: destinationMoveMissionId ?? destinationMetadata.moveMissionId,
+          tradeRouteId: destinationTradeRouteId ?? destinationMetadata.tradeRouteId,
+          piracyMissionId: destinationPiracyMissionId ?? destinationMetadata.piracyMissionId,
         }
       );
+      movedShip = movedShip ? mergeShipStackRecords(movedShip, movedEntry) : movedEntry;
 
       if (entryCount > movedCount) {
         nextShips.push({
@@ -2662,6 +2915,8 @@ export function createGame(container, galaxyOptions = {}) {
         {
           ...destinationMetadata,
           moveMissionId: destinationMoveMissionId ?? destinationMetadata.moveMissionId,
+          tradeRouteId: destinationTradeRouteId ?? destinationMetadata.tradeRouteId,
+          piracyMissionId: destinationPiracyMissionId ?? destinationMetadata.piracyMissionId,
         }
       );
     }
@@ -2674,16 +2929,19 @@ export function createGame(container, galaxyOptions = {}) {
       (entry) =>
         getShipFleetModelKey(entry) === modelKey &&
         isSameFleetPosition(getShipFleetPosition(entry), destinationPosition) &&
-        (!destinationMoveMissionId || entry.moveMissionId === destinationMoveMissionId)
+        (!destinationMoveMissionId || entry.moveMissionId === destinationMoveMissionId) &&
+        (!destinationTradeRouteId || entry.tradeRouteId === destinationTradeRouteId) &&
+        (!destinationPiracyMissionId || entry.piracyMissionId === destinationPiracyMissionId)
     );
 
     if (existingDestinationShip) {
-      existingDestinationShip.count = Math.max(1, Math.floor(Number(existingDestinationShip.count) || 1)) + movedCountTotal;
+      const mergedDestinationShip = mergeShipStackRecords(existingDestinationShip, movedShip);
+      Object.assign(existingDestinationShip, mergedDestinationShip);
     } else {
       nextShips.push(movedShip);
     }
 
-    return { ships: nextShips, movedCount: movedCountTotal };
+    return { ships: compactFleetShips(nextShips), movedCount: movedCountTotal };
   }
 
   function moveShipInventoryToDestination(ship, destinationStarId, options = {}) {
@@ -2702,6 +2960,1074 @@ export function createGame(container, galaxyOptions = {}) {
     };
     state.cachedPlayerStates.set(state.currentPlayerId, structuredClone(state.playerState));
     void sync.pushState();
+  }
+
+  function getStationedShipCountAtStar(ship, starId) {
+    if (!state.playerState || !ship || !starId) {
+      return 0;
+    }
+
+    const modelKey = getShipFleetModelKey(ship);
+    if (!modelKey) {
+      return 0;
+    }
+
+    return (state.playerState.ships ?? []).reduce((count, fleetShip) => {
+      if (
+        getShipFleetModelKey(fleetShip) === modelKey &&
+        isSameFleetPosition(getShipFleetPosition(fleetShip), starId)
+      ) {
+        return count + Math.max(1, Math.floor(Number(fleetShip.count) || 1));
+      }
+
+      return count;
+    }, 0);
+  }
+
+  function canShipAttackStar(ship, starId) {
+    if (!state.currentPlayerId || !state.playerState || !ship || !starId) {
+      return false;
+    }
+
+    if (getShipFleetPosition(ship) === 'Moving') {
+      return false;
+    }
+
+    const occupiedTerritory = findTerritoryByStarId(starId);
+    if (!occupiedTerritory || occupiedTerritory.territoryId === state.currentPlayerId) {
+      return false;
+    }
+
+    const requiredShipCount = Math.max(1, Math.floor(Number(ship.count) || 1));
+    return getStationedShipCountAtStar(ship, starId) >= requiredShipCount;
+  }
+
+  function getMissionFleetShipIndex(ship, sourceShips = []) {
+    if (!ship) {
+      return -1;
+    }
+
+    const modelKey = getShipFleetModelKey(ship);
+    const position = getShipFleetPosition(ship);
+    return sourceShips.findIndex(
+      (entry) =>
+        getShipFleetModelKey(entry) === modelKey &&
+        isSameFleetPosition(getShipFleetPosition(entry), position) &&
+        (!ship.moveMissionId || entry.moveMissionId === ship.moveMissionId) &&
+        (!ship.tradeRouteId || entry.tradeRouteId === ship.tradeRouteId)
+    );
+  }
+
+  function hasMissionShipCargoItem(ship, itemId, count = 1) {
+    if (!state.playerState || !ship || !itemId) {
+      return false;
+    }
+
+    const sourceShips = compactFleetShips(state.playerState.ships ?? []);
+    const shipIndex = getMissionFleetShipIndex(ship, sourceShips);
+    if (shipIndex < 0) {
+      return false;
+    }
+
+    return getInventoryItemCount(cloneShipCargoItems(sourceShips[shipIndex]), itemId) >= count;
+  }
+
+  function consumeMissionShipCargoItem(ship, itemId, count = 1) {
+    if (!state.playerState || !ship || !itemId) {
+      return { ok: false, message: 'No ship selected for this mission.' };
+    }
+
+    const sourceShips = compactFleetShips(state.playerState.ships ?? []);
+    const shipIndex = getMissionFleetShipIndex(ship, sourceShips);
+    if (shipIndex < 0) {
+      return { ok: false, message: 'Mission ship could not be found.' };
+    }
+
+    const sourceShip = sourceShips[shipIndex];
+    const cargoItems = cloneShipCargoItems(sourceShip);
+    const availableCount = getInventoryItemCount(cargoItems, itemId);
+    if (availableCount < count) {
+      const itemName = getItemDefinition(itemId)?.name ?? itemId;
+      return { ok: false, message: `${itemName} is not loaded on this ship.` };
+    }
+
+    cargoItems[itemId] = availableCount - count;
+    const updatedShip = setShipCargoItems(sourceShip, cargoItems);
+    const nextShips = sourceShips.map((entry, index) => (index === shipIndex ? updatedShip : entry));
+
+    return {
+      ok: true,
+      ships: compactFleetShips(nextShips),
+      ship: updatedShip,
+    };
+  }
+
+  function isUncolonizedStar(star) {
+    return Boolean(
+      star &&
+      !findTerritoryByStarId(star.id) &&
+      (!star.owner || star.owner === 'Unclaimed')
+    );
+  }
+
+  function getBestColonizationPlanet(star) {
+    const planets = Array.isArray(star?.planets) ? star.planets : [];
+    if (!planets.length) {
+      return null;
+    }
+
+    return planets.reduce((best, planet) => {
+      const bestHabitability = Number(best?.habitability) || 0;
+      const planetHabitability = Number(planet?.habitability) || 0;
+      return planetHabitability > bestHabitability ? planet : best;
+    }, planets[0]);
+  }
+
+  function applyColonyKitToPlanet(planet) {
+    if (!planet) {
+      return;
+    }
+
+    const infrastructure = {
+      ...(planet.infrastructure ?? {}),
+    };
+
+    for (const infrastructureKey of COLONY_BASE_INFRASTRUCTURE_KEYS) {
+      infrastructure[infrastructureKey] = infrastructure[infrastructureKey] ?? 0;
+    }
+
+    if (!('cities' in infrastructure) && !('orbitalPopulation' in infrastructure)) {
+      infrastructure[planet.type === 'Gas Giant' ? 'orbitalPopulation' : 'cities'] = 0;
+    }
+
+    if ((planet.prominentResources ?? []).some((resource) => COLONY_MINED_RESOURCE_NAMES.has(resource.name))) {
+      infrastructure.mining = infrastructure.mining ?? 0;
+    }
+
+    if ((planet.prominentResources ?? []).some((resource) => resource.name === 'Food' && resource.abundance > 0)) {
+      infrastructure.farming = infrastructure.farming ?? 0;
+    }
+
+    for (const infrastructureKey of Object.keys(infrastructure)) {
+      infrastructure[infrastructureKey] = Math.max(
+        1,
+        Math.floor(Number(infrastructure[infrastructureKey]) || 0)
+      );
+    }
+
+    planet.infrastructure = infrastructure;
+    planet.population = COLONY_STARTING_POPULATION;
+  }
+
+  function canShipColonizeStar(ship, starId) {
+    if (!state.currentPlayerId || !state.playerState || !ship || !starId) {
+      return false;
+    }
+
+    if (getShipFleetPosition(ship) === 'Moving' || getShipFleetPosition(ship) !== starId) {
+      return false;
+    }
+
+    const targetStar = state.starsById?.get(starId);
+    if (!isUncolonizedStar(targetStar) || !getBestColonizationPlanet(targetStar)) {
+      return false;
+    }
+
+    const requiredShipCount = Math.max(1, Math.floor(Number(ship.count) || 1));
+    return (
+      getStationedShipCountAtStar(ship, starId) >= requiredShipCount &&
+      hasMissionShipCargoItem(ship, COLONY_KIT_ITEM_ID)
+    );
+  }
+
+  function isCurrentPlayerOwnedStar(starId) {
+    if (!state.currentPlayerId || !starId) {
+      return false;
+    }
+
+    return findTerritoryByStarId(starId)?.territoryId === state.currentPlayerId;
+  }
+
+  function getPlayerTotalItemCount(itemId) {
+    let total = getInventoryItemCount(state.playerState?.items, itemId);
+
+    for (const ship of state.playerState?.ships ?? []) {
+      total += getInventoryItemCount(cloneShipCargoItems(ship), itemId);
+    }
+
+    return total;
+  }
+
+  function updateMissionShipCargo(ship, updater) {
+    if (!state.playerState || !ship) {
+      return { ok: false, message: 'No ship selected for cargo.' };
+    }
+
+    const modelKey = getShipFleetModelKey(ship);
+    const position = getShipFleetPosition(ship);
+    const selectedCount = Math.max(1, Math.floor(Number(ship.count) || 1));
+    const sourceShips = compactFleetShips(state.playerState.ships ?? []);
+    const shipIndex = sourceShips.findIndex(
+      (entry) =>
+        getShipFleetModelKey(entry) === modelKey &&
+        isSameFleetPosition(getShipFleetPosition(entry), position) &&
+        (!ship.moveMissionId || entry.moveMissionId === ship.moveMissionId)
+    );
+
+    if (shipIndex < 0) {
+      return { ok: false, message: 'Cargo ship stack could not be found.' };
+    }
+
+    const sourceShip = sourceShips[shipIndex];
+    const sourceCount = Math.max(1, Math.floor(Number(sourceShip.count) || 1));
+    if (selectedCount !== sourceCount) {
+      return { ok: false, message: 'Cargo uses the whole ship stack. Start Cargo without selecting individual ships.' };
+    }
+
+    const updateResult = updater(cloneShipCargoItems(sourceShip), sourceShip);
+    if (!updateResult?.ok) {
+      return updateResult ?? { ok: false, message: 'Cargo transfer failed.' };
+    }
+
+    const updatedShip = setShipCargoItems(sourceShip, updateResult.items);
+    const nextShips = sourceShips.map((entry, index) => (index === shipIndex ? updatedShip : entry));
+
+    return {
+      ok: true,
+      ships: compactFleetShips(nextShips),
+      ship: updatedShip,
+      message: updateResult.message ?? 'Cargo updated.',
+    };
+  }
+
+  function handleCargoItemTransfer({ ship, reserveItems: nextReserveSource, cargoItems: nextCargoSource } = {}) {
+    if (!state.playerState || !state.currentPlayerId) {
+      return { ok: false, message: 'Log in to use cargo.' };
+    }
+
+    const starId = getShipFleetPosition(ship);
+    if (!starId || starId === 'Moving') {
+      return { ok: false, message: 'Cargo requires a stationed ship.' };
+    }
+
+    const star = state.starsById?.get(starId);
+    if (!star || !isCurrentPlayerOwnedStar(starId)) {
+      return { ok: false, message: 'Cargo transfers require one of your systems.' };
+    }
+
+    const reserveItems = cloneItemInventory(state.playerState.items);
+    const currentCargoItems = cloneShipCargoItems(ship);
+    const nextReserveItems = cloneItemInventory(nextReserveSource);
+    const nextCargoItems = cloneItemInventory(nextCargoSource);
+
+    if (getItemInventoryStorageUsed(nextCargoItems) > getShipCargoCapacity(ship)) {
+      return { ok: false, message: 'Cargo exceeds this ship stack storage.' };
+    }
+
+    let hasChanges = false;
+    for (const item of ITEM_DEFINITIONS) {
+      const itemId = item.id;
+      const currentTotal =
+        getInventoryItemCount(reserveItems, itemId) +
+        getInventoryItemCount(currentCargoItems, itemId);
+      const nextTotal =
+        getInventoryItemCount(nextReserveItems, itemId) +
+        getInventoryItemCount(nextCargoItems, itemId);
+
+      if (currentTotal !== nextTotal) {
+        return { ok: false, message: `${item.name} counts changed before cargo could be saved.` };
+      }
+
+      hasChanges = hasChanges ||
+        getInventoryItemCount(reserveItems, itemId) !== getInventoryItemCount(nextReserveItems, itemId) ||
+        getInventoryItemCount(currentCargoItems, itemId) !== getInventoryItemCount(nextCargoItems, itemId);
+    }
+
+    if (!hasChanges) {
+      return { ok: false, message: 'No cargo changes to save.' };
+    }
+
+    const transferResult = updateMissionShipCargo(ship, () => {
+      return {
+        ok: true,
+        items: nextCargoItems,
+        message: `Cargo saved at ${star.name}.`,
+      };
+    });
+
+    if (!transferResult.ok) {
+      return transferResult;
+    }
+
+    state.playerState = {
+      ...state.playerState,
+      items: nextReserveItems,
+      ships: transferResult.ships,
+    };
+    renderPlayerResources();
+    state.invalidateRender();
+    cacheAndSyncPlayerState();
+
+    return {
+      ok: true,
+      message: transferResult.message,
+      ship: transferResult.ship,
+    };
+  }
+
+  function getStarDistanceLightYears(left, right) {
+    return getStarDistance(left, right) * LIGHT_YEARS_PER_WORLD_UNIT;
+  }
+
+  function getCurrentPlayerOwnedTradeStars() {
+    if (!state.currentPlayerId) {
+      return [];
+    }
+
+    const territory = state.territories.get(state.currentPlayerId);
+    const ownedStarIds = territory?.stars ?? new Set();
+    return state.galaxy.stars.filter((star) => ownedStarIds.has(star.id));
+  }
+
+  function isForeignPlayerTradeStar(star) {
+    if (!star || !state.currentPlayerId) {
+      return false;
+    }
+
+    const occupiedTerritory = findTerritoryByStarId(star.id);
+    return Boolean(
+      occupiedTerritory &&
+      occupiedTerritory.territoryId !== state.currentPlayerId
+    );
+  }
+
+  function getForeignPlayerTradeStars() {
+    return state.galaxy.stars.filter((star) => isForeignPlayerTradeStar(star));
+  }
+
+  function getTradeRoutePairKey(originStarId, destinationStarId) {
+    return [originStarId, destinationStarId].filter(Boolean).sort().join('|');
+  }
+
+  function getTradeRouteId(originStarId, destinationStarId) {
+    const pairKey = getTradeRoutePairKey(originStarId, destinationStarId);
+    return pairKey ? `trade:${pairKey}` : '';
+  }
+
+  function getActiveTradeRouteShipCount(originStarId, destinationStarId, excludeTradeRouteId = null) {
+    const pairKey = getTradeRoutePairKey(originStarId, destinationStarId);
+    if (!pairKey) {
+      return 0;
+    }
+
+    return (state.playerState?.ships ?? []).reduce((count, ship) => {
+      if (getShipFleetPosition(ship) !== 'Trading') {
+        return count;
+      }
+
+      if (excludeTradeRouteId && ship.tradeRouteId === excludeTradeRouteId) {
+        return count;
+      }
+
+      const shipPairKey = getTradeRoutePairKey(ship.tradeOriginStarId, ship.tradeDestinationStarId);
+      if (shipPairKey !== pairKey) {
+        return count;
+      }
+
+      return count + Math.max(1, Math.floor(Number(ship.count) || 1));
+    }, 0);
+  }
+
+  function calculateTradeRouteMetrics(originStar, destinationStar) {
+    const distanceLightYears = getStarDistanceLightYears(originStar, destinationStar);
+    const originDevelopment = calculateStarDevelopment(originStar);
+    const destinationDevelopment = calculateStarDevelopment(destinationStar);
+    const distanceRatio = Math.max(
+      0,
+      Math.min(1, distanceLightYears / MAX_TRADE_ROUTE_LIGHT_YEARS)
+    );
+    const distanceMultiplier = Math.max(
+      TRADE_MIN_DISTANCE_MULTIPLIER,
+      1 - distanceRatio * (1 - TRADE_MIN_DISTANCE_MULTIPLIER)
+    );
+    const developmentScore = Math.sqrt(
+      Math.max(0, originDevelopment) * Math.max(0, destinationDevelopment)
+    );
+    const credits = Math.max(
+      0,
+      Math.round(developmentScore * distanceMultiplier * TRADE_REVENUE_MULTIPLIER)
+    );
+
+    return {
+      valid: Boolean(
+        originStar &&
+        destinationStar &&
+        isCurrentPlayerOwnedStar(originStar.id) &&
+        isForeignPlayerTradeStar(destinationStar) &&
+        distanceLightYears <= MAX_TRADE_ROUTE_LIGHT_YEARS
+      ),
+      credits,
+      distanceLightYears,
+      distanceText: formatMoveDistance(distanceLightYears),
+      maxDistanceText: formatMoveDistance(MAX_TRADE_ROUTE_LIGHT_YEARS),
+      originDevelopment,
+      destinationDevelopment,
+      distanceMultiplier,
+    };
+  }
+
+  function createTradeRoutePlan(originStar, destinationStar) {
+    if (!originStar || !destinationStar) {
+      return null;
+    }
+
+    const metrics = calculateTradeRouteMetrics(originStar, destinationStar);
+    return {
+      originStar,
+      destinationStar,
+      metrics,
+      score: metrics.valid
+        ? metrics.credits * 100000 - metrics.distanceLightYears
+        : -Infinity,
+    };
+  }
+
+  function findBestTradeRoute(preferredOriginStarId = null) {
+    const ownedStars = getCurrentPlayerOwnedTradeStars();
+    const foreignStars = getForeignPlayerTradeStars();
+    if (!ownedStars.length || !foreignStars.length) {
+      return null;
+    }
+
+    const preferredOrigin = preferredOriginStarId
+      ? ownedStars.find((star) => star.id === preferredOriginStarId)
+      : null;
+    const originStars = preferredOrigin ? [preferredOrigin] : ownedStars;
+    let bestPlan = null;
+
+    for (const originStar of originStars) {
+      for (const destinationStar of foreignStars) {
+        const plan = createTradeRoutePlan(originStar, destinationStar);
+        if (!plan?.metrics.valid) {
+          continue;
+        }
+
+        if (!bestPlan || plan.score > bestPlan.score) {
+          bestPlan = plan;
+        }
+      }
+    }
+
+    if (bestPlan || !preferredOrigin) {
+      return bestPlan;
+    }
+
+    return findBestTradeRoute(null);
+  }
+
+  function applyTradeRoutePlanToMission(mission, plan, message = '') {
+    return {
+      ...mission,
+      status: plan?.metrics.valid ? 'ready' : 'invalid',
+      originStarId: plan?.originStar?.id ?? mission.originStarId,
+      destinationStarId: plan?.destinationStar?.id ?? mission.destinationStarId,
+      originMarkerWorld: plan?.originStar
+        ? { x: plan.originStar.x, y: plan.originStar.y }
+        : mission.originMarkerWorld,
+      destinationMarkerWorld: plan?.destinationStar
+        ? { x: plan.destinationStar.x, y: plan.destinationStar.y }
+        : mission.destinationMarkerWorld,
+      metrics: plan?.metrics ?? mission.metrics ?? null,
+      message,
+      draggingEndpoint: null,
+    };
+  }
+
+  function startTradeMission(ship) {
+    if (!state.currentPlayerId || !state.playerState) {
+      return { ok: false, message: 'Log in to plan trade routes.' };
+    }
+
+    if (Math.max(1, Math.floor(Number(ship?.count) || 1)) > MAX_TRADE_ROUTE_SHIPS) {
+      return { ok: false, message: `Trade routes can use max ${MAX_TRADE_ROUTE_SHIPS} ships.` };
+    }
+
+    if (getShipFleetPosition(ship) === 'Moving') {
+      return { ok: false, message: 'Trade requires a ship that is not moving.' };
+    }
+
+    const preferredOriginStarId = isCurrentPlayerOwnedStar(getShipFleetPosition(ship))
+      ? getShipFleetPosition(ship)
+      : null;
+    const plan = findBestTradeRoute(preferredOriginStarId);
+    if (!plan) {
+      return {
+        ok: false,
+        message: `No trade route found within ${formatMoveDistance(MAX_TRADE_ROUTE_LIGHT_YEARS)}.`,
+      };
+    }
+
+    state.tradeMission = applyTradeRoutePlanToMission(
+      {
+        id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        active: true,
+        ship: structuredClone(ship),
+        missionShipId: getShipPanelShipId(),
+      },
+      plan
+    );
+    state.selection.selectedStarId = plan.originStar.id;
+    state.selectedPlanetId = null;
+    setRightPanelOpen(false);
+    focusCameraOnStar(plan.originStar);
+    state.invalidateRender();
+    return { ok: true };
+  }
+
+  function getTradeEndpointCandidates(endpoint, otherStarId = null) {
+    const otherStar = otherStarId ? state.starsById.get(otherStarId) : null;
+    const candidates = endpoint === 'origin'
+      ? getCurrentPlayerOwnedTradeStars()
+      : getForeignPlayerTradeStars();
+
+    return candidates.filter((star) => {
+      if (!star || star.id === otherStarId) {
+        return false;
+      }
+
+      return !otherStar ||
+        getStarDistanceLightYears(star, otherStar) <= MAX_TRADE_ROUTE_LIGHT_YEARS;
+    });
+  }
+
+  function findClosestTradeEndpointStar(worldPoint, endpoint, otherStarId = null) {
+    const candidates = getTradeEndpointCandidates(endpoint, otherStarId);
+    if (!candidates.length) {
+      return null;
+    }
+
+    let closest = null;
+    let closestDistSq = Infinity;
+    for (const star of candidates) {
+      const dx = star.x - worldPoint.x;
+      const dy = star.y - worldPoint.y;
+      const distSq = dx * dx + dy * dy;
+      if (distSq < closestDistSq) {
+        closest = star;
+        closestDistSq = distSq;
+      }
+    }
+
+    return closest;
+  }
+
+  function updateTradeMissionEndpointFromWorld(endpoint, worldPoint) {
+    const tradeMission = state.tradeMission;
+    if (!tradeMission?.active) {
+      return false;
+    }
+
+    const otherStarId = endpoint === 'origin'
+      ? tradeMission.destinationStarId
+      : tradeMission.originStarId;
+    const selectedStar = findClosestTradeEndpointStar(worldPoint, endpoint, otherStarId);
+    if (!selectedStar) {
+      const currentPlan = createTradeRoutePlan(
+        state.starsById.get(tradeMission.originStarId),
+        state.starsById.get(tradeMission.destinationStarId)
+      );
+      state.tradeMission = applyTradeRoutePlanToMission(
+        tradeMission,
+        currentPlan,
+        endpoint === 'origin'
+          ? 'No owned system in range of that partner.'
+          : 'No partner system within 5,000 ly.'
+      );
+      state.invalidateRender();
+      return false;
+    }
+
+    const originStar = endpoint === 'origin'
+      ? selectedStar
+      : state.starsById.get(tradeMission.originStarId);
+    const destinationStar = endpoint === 'destination'
+      ? selectedStar
+      : state.starsById.get(tradeMission.destinationStarId);
+    const plan = createTradeRoutePlan(originStar, destinationStar);
+    state.tradeMission = applyTradeRoutePlanToMission(tradeMission, plan);
+    state.selection.selectedStarId = originStar?.id ?? state.selection.selectedStarId;
+    state.invalidateRender();
+    return true;
+  }
+
+  function cancelTradeMission() {
+    state.tradeMission = null;
+    rightPanel.dataset.panel = 'ship-designer';
+    setRightPanelOpen(true);
+    state.invalidateRender();
+  }
+
+  function commitTradeMission() {
+    const tradeMission = state.tradeMission;
+    if (!tradeMission?.active || !state.playerState) {
+      return;
+    }
+
+    if (Math.max(1, Math.floor(Number(tradeMission.ship?.count) || 1)) > MAX_TRADE_ROUTE_SHIPS) {
+      state.tradeMission = {
+        ...tradeMission,
+        message: `Trade routes can use max ${MAX_TRADE_ROUTE_SHIPS} ships.`,
+      };
+      state.invalidateRender();
+      return;
+    }
+
+    const originStar = state.starsById.get(tradeMission.originStarId);
+    const destinationStar = state.starsById.get(tradeMission.destinationStarId);
+    const plan = createTradeRoutePlan(originStar, destinationStar);
+    if (!plan?.metrics.valid || plan.metrics.credits <= 0) {
+      state.tradeMission = {
+        ...tradeMission,
+        metrics: plan?.metrics ?? tradeMission.metrics,
+        message: plan?.metrics.valid
+          ? 'This route needs more development to be profitable.'
+          : 'Trade routes must stay within 5,000 ly.',
+      };
+      state.invalidateRender();
+      return;
+    }
+
+    const routeShipCount = Math.max(1, Math.floor(Number(tradeMission.ship?.count) || 1));
+    const tradeRouteId = getTradeRouteId(originStar.id, destinationStar.id);
+    const sourceTradeRouteId = tradeMission.ship?.tradeRouteId ?? null;
+    const existingRouteShipCount = getActiveTradeRouteShipCount(
+      originStar.id,
+      destinationStar.id,
+      sourceTradeRouteId === tradeRouteId ? sourceTradeRouteId : null
+    );
+
+    if (existingRouteShipCount + routeShipCount > MAX_TRADE_ROUTE_SHIPS) {
+      state.tradeMission = {
+        ...tradeMission,
+        metrics: plan.metrics,
+        message: `Trade routes can use max ${MAX_TRADE_ROUTE_SHIPS} ships.`,
+      };
+      state.invalidateRender();
+      return;
+    }
+
+    const moveResult = moveShipStackToPosition(state.playerState.ships ?? [], tradeMission.ship, 'Trading', {
+      originPosition: getShipFleetPosition(tradeMission.ship),
+      sourceMoveMissionId: tradeMission.ship?.moveMissionId ?? null,
+      sourceTradeRouteId,
+      destinationTradeRouteId: tradeRouteId,
+      allowCreateFallback: false,
+      destinationMetadata: {
+        tradeRouteId,
+        tradeOriginStarId: originStar.id,
+        tradeDestinationStarId: destinationStar.id,
+        tradeOriginName: originStar.name,
+        tradeDestinationName: destinationStar.name,
+        tradeRevenueCredits: plan.metrics.credits,
+        tradeDistanceLightYears: plan.metrics.distanceLightYears,
+      },
+    });
+
+    if (moveResult.movedCount <= 0) {
+      state.tradeMission = {
+        ...tradeMission,
+        metrics: plan.metrics,
+        message: 'Could not assign that ship to this route.',
+      };
+      state.invalidateRender();
+      return;
+    }
+
+    const tradingShip = {
+      ...tradeMission.ship,
+      position: 'Trading',
+      count: moveResult.movedCount,
+      tradeRouteId,
+      tradeOriginStarId: originStar.id,
+      tradeDestinationStarId: destinationStar.id,
+      tradeOriginName: originStar.name,
+      tradeDestinationName: destinationStar.name,
+      tradeRevenueCredits: plan.metrics.credits,
+      tradeDistanceLightYears: plan.metrics.distanceLightYears,
+    };
+
+    state.playerState = {
+      ...state.playerState,
+      ships: moveResult.ships,
+      resources: {
+        ...cloneResources(state.playerState.resources),
+        Credits: (Number(state.playerState.resources?.Credits) || 0) + plan.metrics.credits,
+      },
+    };
+    state.tradeMission = null;
+    setHighlightedFleetShip(tradingShip);
+    setShipPanelView('fleet');
+    setShipPanelShipId('');
+    renderPlayerResources();
+    cacheAndSyncPlayerState();
+    rightPanel.dataset.panel = 'ship-designer';
+    setRightPanelOpen(true);
+    state.invalidateRender();
+  }
+
+  function cancelTradeRoute(ship) {
+    if (!state.playerState || !ship || getShipFleetPosition(ship) !== 'Trading') {
+      return { ok: false, message: 'No active trade route selected.' };
+    }
+
+    const originStarId = ship.tradeOriginStarId;
+    const originStar = state.starsById?.get(originStarId);
+    if (!originStar) {
+      return { ok: false, message: 'Trade origin could not be found.' };
+    }
+
+    const moveResult = moveShipStackToPosition(state.playerState.ships ?? [], ship, originStar.id, {
+      originPosition: 'Trading',
+      sourceMoveMissionId: ship.moveMissionId ?? null,
+      sourceTradeRouteId: ship.tradeRouteId ?? null,
+      allowCreateFallback: false,
+    });
+
+    if (moveResult.movedCount <= 0) {
+      return { ok: false, message: 'Could not cancel that trade route.' };
+    }
+
+    const returnedShip = {
+      ...ship,
+      position: originStar.id,
+      count: moveResult.movedCount,
+    };
+    delete returnedShip.tradeRouteId;
+    delete returnedShip.tradeOriginStarId;
+    delete returnedShip.tradeDestinationStarId;
+    delete returnedShip.tradeOriginName;
+    delete returnedShip.tradeDestinationName;
+    delete returnedShip.tradeRevenueCredits;
+    delete returnedShip.tradeDistanceLightYears;
+
+    state.playerState = {
+      ...state.playerState,
+      ships: moveResult.ships,
+    };
+    setHighlightedFleetShip(returnedShip);
+    setShipPanelView('fleet');
+    setShipPanelShipId('');
+    cacheAndSyncPlayerState();
+    renderRightSideMenu({ force: true });
+    state.invalidateRender();
+
+    return {
+      ok: true,
+      message: `Trade cancelled. ${ship.name ?? ship.type ?? 'Ship'} returned to ${originStar.name}.`,
+      ship: returnedShip,
+    };
+  }
+
+  function getShipTraitValue(ship, traitKey) {
+    return Math.max(0, Number(ship?.traits?.[traitKey]) || 0);
+  }
+
+  function calculatePiracyEfficiency(pirateShip, tradeShip) {
+    const piratePower =
+      getShipTraitValue(pirateShip, 'combatPower') * 1.4 +
+      getShipMoveSpeedRating(pirateShip);
+    const tradeDefense =
+      getShipTraitValue(tradeShip, 'defense') * 1.15 +
+      getShipMoveSpeedRating(tradeShip) +
+      getShipTraitValue(tradeShip, 'stealth') * 1.2;
+    const rawEfficiency = piratePower / Math.max(1, piratePower + tradeDefense);
+    return Math.max(PIRACY_MIN_EFFICIENCY, Math.min(PIRACY_MAX_EFFICIENCY, rawEfficiency));
+  }
+
+  function isTradeRouteInPiracyRadius(tradeShip, centerStar) {
+    const radiusWorldUnits = PIRACY_RADIUS_LIGHT_YEARS / LIGHT_YEARS_PER_WORLD_UNIT;
+    const originStar = state.starsById?.get(tradeShip.tradeOriginStarId);
+    const destinationStar = state.starsById?.get(tradeShip.tradeDestinationStarId);
+    return [originStar, destinationStar].filter(Boolean).some(
+      (star) => getStarDistance(star, centerStar) <= radiusWorldUnits
+    );
+  }
+
+  function calculatePiracyRaidSummary(pirateShip, centerStar) {
+    let stolenCredits = 0;
+    let affectedRouteCount = 0;
+    let weightedEfficiency = 0;
+
+    for (const tradeShip of state.playerState?.ships ?? []) {
+      if (getShipFleetPosition(tradeShip) !== 'Trading' || !isTradeRouteInPiracyRadius(tradeShip, centerStar)) {
+        continue;
+      }
+
+      const efficiency = calculatePiracyEfficiency(pirateShip, tradeShip);
+      const routeRevenue = Math.max(0, Math.round(Number(tradeShip.tradeRevenueCredits) || 0));
+      const stolenFromRoute = Math.max(0, Math.round(routeRevenue * efficiency));
+      if (stolenFromRoute <= 0) {
+        continue;
+      }
+
+      stolenCredits += stolenFromRoute;
+      affectedRouteCount += 1;
+      weightedEfficiency += efficiency;
+    }
+
+    return {
+      stolenCredits,
+      affectedRouteCount,
+      efficiency: affectedRouteCount > 0
+        ? weightedEfficiency / affectedRouteCount
+        : calculatePiracyEfficiency(pirateShip, {}),
+    };
+  }
+
+  function startPiracyMission(ship) {
+    if (!state.currentPlayerId || !state.playerState) {
+      return { ok: false, message: 'Log in to start piracy.' };
+    }
+
+    const targetStarId = getShipFleetPosition(ship);
+    const targetStar = state.starsById?.get(targetStarId);
+    const occupiedTerritory = targetStar ? findTerritoryByStarId(targetStar.id) : null;
+    if (!targetStar || !occupiedTerritory || occupiedTerritory.territoryId === state.currentPlayerId) {
+      return { ok: false, message: 'Piracy must be placed in another territory.' };
+    }
+
+    const missionId = `piracy:${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const raidSummary = calculatePiracyRaidSummary(ship, targetStar);
+    const moveResult = moveShipStackToPosition(state.playerState.ships ?? [], ship, 'Piracy', {
+      originPosition: targetStar.id,
+      sourceMoveMissionId: ship.moveMissionId ?? null,
+      sourceTradeRouteId: ship.tradeRouteId ?? null,
+      allowCreateFallback: false,
+      destinationMetadata: {
+        piracyMissionId: missionId,
+        piracyCenterStarId: targetStar.id,
+        piracyCenterName: targetStar.name,
+        piracyTerritoryId: occupiedTerritory.territoryId,
+        piracyTerritoryName: occupiedTerritory.territory.name,
+        piracyRadiusLightYears: PIRACY_RADIUS_LIGHT_YEARS,
+        piracyEfficiency: raidSummary.efficiency,
+        piracyStolenCredits: raidSummary.stolenCredits,
+        piracyAffectedRouteCount: raidSummary.affectedRouteCount,
+      },
+    });
+
+    if (moveResult.movedCount <= 0) {
+      return { ok: false, message: 'Could not assign that ship to piracy.' };
+    }
+
+    const piracyShip = {
+      ...ship,
+      position: 'Piracy',
+      count: moveResult.movedCount,
+      piracyMissionId: missionId,
+      piracyCenterStarId: targetStar.id,
+      piracyCenterName: targetStar.name,
+      piracyTerritoryId: occupiedTerritory.territoryId,
+      piracyTerritoryName: occupiedTerritory.territory.name,
+      piracyRadiusLightYears: PIRACY_RADIUS_LIGHT_YEARS,
+      piracyEfficiency: raidSummary.efficiency,
+      piracyStolenCredits: raidSummary.stolenCredits,
+      piracyAffectedRouteCount: raidSummary.affectedRouteCount,
+    };
+
+    state.playerState = {
+      ...state.playerState,
+      ships: moveResult.ships,
+      resources: {
+        ...cloneResources(state.playerState.resources),
+        Credits: (Number(state.playerState.resources?.Credits) || 0) + raidSummary.stolenCredits,
+      },
+    };
+    setHighlightedFleetShip(piracyShip);
+    setShipPanelView('fleet');
+    setShipPanelShipId('');
+    renderPlayerResources();
+    cacheAndSyncPlayerState();
+    rightPanel.dataset.panel = 'ship-designer';
+    setRightPanelOpen(true);
+    state.invalidateRender();
+
+    return {
+      ok: true,
+      message: raidSummary.stolenCredits > 0
+        ? `Piracy stole ${formatWholeNumber(raidSummary.stolenCredits)} Credits.`
+        : 'Piracy zone established.',
+      ship: piracyShip,
+    };
+  }
+
+  function cancelPiracyMission(ship) {
+    if (!state.playerState || !ship || getShipFleetPosition(ship) !== 'Piracy') {
+      return { ok: false, message: 'No active piracy mission selected.' };
+    }
+
+    const centerStar = state.starsById?.get(ship.piracyCenterStarId);
+    if (!centerStar) {
+      return { ok: false, message: 'Piracy center could not be found.' };
+    }
+
+    const moveResult = moveShipStackToPosition(state.playerState.ships ?? [], ship, centerStar.id, {
+      originPosition: 'Piracy',
+      sourceMoveMissionId: ship.moveMissionId ?? null,
+      sourcePiracyMissionId: ship.piracyMissionId ?? null,
+      allowCreateFallback: false,
+    });
+
+    if (moveResult.movedCount <= 0) {
+      return { ok: false, message: 'Could not cancel that piracy mission.' };
+    }
+
+    const returnedShip = {
+      ...ship,
+      position: centerStar.id,
+      count: moveResult.movedCount,
+    };
+    delete returnedShip.piracyMissionId;
+    delete returnedShip.piracyCenterStarId;
+    delete returnedShip.piracyCenterName;
+    delete returnedShip.piracyTerritoryId;
+    delete returnedShip.piracyTerritoryName;
+    delete returnedShip.piracyRadiusLightYears;
+    delete returnedShip.piracyEfficiency;
+    delete returnedShip.piracyStolenCredits;
+    delete returnedShip.piracyAffectedRouteCount;
+
+    state.playerState = {
+      ...state.playerState,
+      ships: moveResult.ships,
+    };
+    setHighlightedFleetShip(returnedShip);
+    setShipPanelView('fleet');
+    setShipPanelShipId('');
+    cacheAndSyncPlayerState();
+    renderRightSideMenu({ force: true });
+    state.invalidateRender();
+
+    return { ok: true, message: `Piracy cancelled. ${ship.name ?? ship.type ?? 'Ship'} returned to ${centerStar.name}.` };
+  }
+
+  function startAttackMission(ship) {
+    const targetStarId = getShipFleetPosition(ship);
+    const targetStar = state.starsById?.get(targetStarId);
+    const occupiedTerritory = targetStar ? findTerritoryByStarId(targetStar.id) : null;
+    if (!targetStar || !occupiedTerritory || !canShipAttackStar(ship, targetStar.id)) {
+      return;
+    }
+
+    state.attackMission = {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      active: true,
+      status: 'ready',
+      ship: structuredClone(ship),
+      targetStarId: targetStar.id,
+      targetStarName: targetStar.name,
+      defenderTerritoryId: occupiedTerritory.territoryId,
+      defenderName: occupiedTerritory.territory.name,
+      message: '',
+    };
+    state.selection.selectedStarId = targetStar.id;
+    state.selectedPlanetId = null;
+    setRightPanelOpen(false);
+    focusCameraOnStar(targetStar);
+    state.invalidateRender();
+  }
+
+  function commitColonizationMission(ship) {
+    if (!state.currentPlayerId || !state.playerState) {
+      return { ok: false, message: 'Log in to colonize systems.' };
+    }
+
+    if (state.hasPendingInfrastructureChanges) {
+      return { ok: false, message: 'Save or cancel pending infrastructure changes before colonizing.' };
+    }
+
+    const targetStarId = getShipFleetPosition(ship);
+    if (!targetStarId || targetStarId === 'Moving') {
+      return { ok: false, message: 'Colonization requires a stationed ship.' };
+    }
+
+    const targetStar = state.starsById?.get(targetStarId);
+    if (!targetStar) {
+      return { ok: false, message: 'Colonization target could not be found.' };
+    }
+
+    if (!isUncolonizedStar(targetStar)) {
+      return { ok: false, message: 'Colonization requires an unclaimed system.' };
+    }
+
+    const targetPlanet = getBestColonizationPlanet(targetStar);
+    if (!targetPlanet) {
+      return { ok: false, message: 'This system has no planet to colonize.' };
+    }
+
+    const colonyKitName = getItemDefinition(COLONY_KIT_ITEM_ID)?.name ?? 'Colony Kit';
+    if (!hasMissionShipCargoItem(ship, COLONY_KIT_ITEM_ID)) {
+      return { ok: false, message: `${colonyKitName} must be loaded on this ship.` };
+    }
+
+    if (!canShipColonizeStar(ship, targetStar.id)) {
+      return { ok: false, message: 'This ship cannot colonize that system.' };
+    }
+
+    const territory = ensurePlayerTerritory(state.currentPlayerId);
+    if (!territory) {
+      return { ok: false, message: 'Player territory could not be prepared.' };
+    }
+
+    const cargoResult = consumeMissionShipCargoItem(ship, COLONY_KIT_ITEM_ID);
+    if (!cargoResult.ok) {
+      return cargoResult;
+    }
+
+    territory.stars.add(targetStar.id);
+    targetStar.faction = territory.faction;
+    targetStar.owner = territory.faction;
+    applyColonyKitToPlanet(targetPlanet);
+    recalculateStarDerivedStats(targetStar);
+    normalizeTerritoryCapital(territory);
+
+    state.playerState = {
+      ...state.playerState,
+      ships: cargoResult.ships,
+      territory: getRuntimeTerritoryRecord(territory),
+      playerName: territory.name ?? state.playerState.playerName,
+    };
+
+    state.cachedPlayerStates.set(state.currentPlayerId, structuredClone(state.playerState));
+    markTerritoryRenderDataDirty();
+    markTerritoryChangesDirty();
+    updateTerritorySelector();
+    updateLocalPlayerProduction();
+    renderPlayerResources();
+    state.selection.selectedStarId = targetStar.id;
+    state.selectedPlanetId = targetPlanet.id;
+    focusCameraOnStar(targetStar);
+    pushRightPanelHistory('system');
+    rightPanel.dataset.panel = 'system';
+    setRightPanelOpen(true);
+    state.invalidateRender();
+
+    const territoryRevisionAtSaveStart = state.territoryRevision;
+    void sync.pushState().then(() => {
+      if (state.territoryRevision === territoryRevisionAtSaveStart) {
+        state.hasPendingTerritoryChanges = false;
+      }
+      if (state.currentPlayerId && state.playerState) {
+        state.cachedPlayerStates.set(state.currentPlayerId, structuredClone(state.playerState));
+      }
+    });
+
+    return {
+      ok: true,
+      message: `${targetStar.name} colonized on ${targetPlanet.name}.`,
+      star: targetStar,
+      planet: targetPlanet,
+    };
   }
 
   function startMoveMission(ship) {
@@ -2782,6 +4108,88 @@ export function createGame(container, galaxyOptions = {}) {
     rightPanel.dataset.panel = 'ship-designer';
     setRightPanelOpen(true);
     state.invalidateRender();
+  }
+
+  function cancelAttackMission() {
+    state.attackMission = null;
+    rightPanel.dataset.panel = 'ship-designer';
+    setRightPanelOpen(true);
+    state.invalidateRender();
+  }
+
+  function updateCachedTerritoryForPlayer(territoryId, territory) {
+    const cachedPlayerState = state.cachedPlayerStates.get(territoryId);
+    if (!cachedPlayerState) {
+      return;
+    }
+
+    state.cachedPlayerStates.set(territoryId, {
+      ...cachedPlayerState,
+      territory: territory ? getRuntimeTerritoryRecord(territory) : null,
+    });
+  }
+
+  async function commitAttackMission() {
+    const attackMission = state.attackMission;
+    if (!attackMission?.active || !attackMission.targetStarId || !state.currentPlayerId) {
+      return;
+    }
+
+    if (!canShipAttackStar(attackMission.ship, attackMission.targetStarId)) {
+      state.attackMission = {
+        ...attackMission,
+        message: 'Attack requires a stationed ship in an enemy system.',
+      };
+      state.invalidateRender();
+      return;
+    }
+
+    const targetStar = state.starsById?.get(attackMission.targetStarId);
+    const defender = findTerritoryByStarId(attackMission.targetStarId);
+    const attackerTerritory = ensurePlayerTerritory(state.currentPlayerId);
+    if (!targetStar || !defender || !attackerTerritory || defender.territoryId === attackerTerritory.id) {
+      state.attackMission = null;
+      state.invalidateRender();
+      return;
+    }
+
+    defender.territory.stars.delete(targetStar.id);
+    normalizeTerritoryCapital(defender.territory);
+    ensureTerritoryCapitalMinimumPopulation(defender.territory);
+
+    attackerTerritory.stars.add(targetStar.id);
+    targetStar.faction = attackerTerritory.faction;
+    targetStar.owner = attackerTerritory.faction;
+    normalizeTerritoryCapital(attackerTerritory);
+    ensureTerritoryCapitalMinimumPopulation(attackerTerritory);
+
+    updateCachedTerritoryForPlayer(defender.territoryId, defender.territory);
+    updateCachedTerritoryForPlayer(attackerTerritory.id, attackerTerritory);
+
+    if (state.playerState) {
+      state.playerState = {
+        ...state.playerState,
+        territory: getRuntimeTerritoryRecord(attackerTerritory),
+        playerName: attackerTerritory.name ?? state.playerState.playerName,
+      };
+    }
+
+    state.attackMission = null;
+    markTerritoryRenderDataDirty();
+    markTerritoryChangesDirty();
+    updateTerritorySelector();
+    updateLocalPlayerProduction();
+    renderPlayerResources();
+    state.invalidateRender();
+
+    const territoryRevisionAtSaveStart = state.territoryRevision;
+    await sync.pushState();
+    if (state.territoryRevision === territoryRevisionAtSaveStart) {
+      state.hasPendingTerritoryChanges = false;
+    }
+    if (state.currentPlayerId && state.playerState) {
+      state.cachedPlayerStates.set(state.currentPlayerId, structuredClone(state.playerState));
+    }
   }
 
   function interpolateRoutePoint(routeStarIds, progress) {
@@ -3586,6 +4994,10 @@ export function createGame(container, galaxyOptions = {}) {
             pushRightPanelSnapshot(previousSnapshot);
           }
 
+          if (view === 'mission') {
+            setHighlightedFleetShip(null);
+          }
+
           setShipPanelView(view);
           setShipPanelShipId(view === 'mission' ? shipId : '');
           renderRightSideMenu();
@@ -3594,8 +5006,20 @@ export function createGame(container, galaxyOptions = {}) {
         onMissionAction: (missionId, ship) => {
           if (missionId === 'move-ship') {
             startMoveMission(ship);
+          } else if (missionId === 'attack-system') {
+            startAttackMission(ship);
+          } else if (missionId === 'colonization') {
+            return commitColonizationMission(ship);
+          } else if (missionId === 'trade') {
+            return startTradeMission(ship);
+          } else if (missionId === 'piracy') {
+            return startPiracyMission(ship);
           }
+          return undefined;
         },
+        onCancelTradeRoute: (ship) => cancelTradeRoute(ship),
+        onCancelPiracyMission: (ship) => cancelPiracyMission(ship),
+        onCargoTransfer: handleCargoItemTransfer,
         stars: state.galaxy?.stars ?? [],
         onCreateShipTemplate: (template) => {
           if (!state.playerState) {
@@ -3647,6 +5071,7 @@ export function createGame(container, galaxyOptions = {}) {
             setShipPanelView('fleet');
             setShipPanelShipId('');
             openRightPanelWithHistory('ship-designer');
+            writeDeepLink({ replace: true });
             state.invalidateRender();
           },
           onOpenStarSystem: (starId) => {
@@ -3742,11 +5167,22 @@ export function createGame(container, galaxyOptions = {}) {
     if (state.currentPlayerId) {
       ensurePlayerTerritory(state.currentPlayerId);
       state.currentTerritoryId = state.currentPlayerId;
+      const territory = state.territories.get(state.currentPlayerId);
+      if (territory && state.playerState) {
+        state.playerState = {
+          ...state.playerState,
+          territory: getRuntimeTerritoryRecord(territory),
+          playerName: territory.name ?? state.playerState.playerName,
+        };
+        state.cachedPlayerStates.set(state.currentPlayerId, structuredClone(state.playerState));
+      }
     }
     markTerritoryRenderDataDirty();
     updateTerritorySelector();
     updateTerritoryControlVisibility();
     syncCurrentTerritoryEnergyState();
+    updateLocalPlayerProduction();
+    renderPlayerResources();
     state.hasPendingInfrastructureChanges = false;
     state.infrastructureStatusMessage = '';
     captureCommittedInfrastructureState();
@@ -4260,7 +5696,7 @@ export function createGame(container, galaxyOptions = {}) {
         <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:6px 0;">
           ${renderItemNameWithIcon(item, 28)}
           <span style="display:flex;flex-direction:column;align-items:flex-end;gap:1px;">
-            <strong style="font-variant-numeric:tabular-nums;">${formatWholeNumber(items[item.id])}</strong>
+            <strong style="font-variant-numeric:tabular-nums;">${formatWholeNumber(getPlayerTotalItemCount(item.id))}</strong>
             <small style="color:rgba(255,255,255,0.46);font-size:10px;">${formatWholeNumber(getItemStorageSize(item.id))} space</small>
           </span>
         </div>
@@ -4269,7 +5705,7 @@ export function createGame(container, galaxyOptions = {}) {
   }
 
   function renderOwnedItemCount(itemId) {
-    const ownedCount = state.playerState?.items?.[itemId] ?? 0;
+    const ownedCount = getPlayerTotalItemCount(itemId);
     return `<span style="color:rgba(255,255,255,0.38);font-size:11px;font-weight:800;font-variant-numeric:tabular-nums;">${formatWholeNumber(ownedCount)}</span>`;
   }
 
@@ -4707,8 +6143,6 @@ export function createGame(container, galaxyOptions = {}) {
 
   function renderShipDesignerPanel() {
     rightPanel.dataset.panel = 'ship-designer';
-    setShipPanelView('fleet');
-    setShipPanelShipId('');
     renderRightSideMenu();
   }
 
@@ -5806,7 +7240,14 @@ export function createGame(container, galaxyOptions = {}) {
       return;
     }
 
-    await sync.pushState();
+    const saved = await sync.pushState({ includePendingInfrastructure: true });
+    if (!saved) {
+      state.infrastructureStatusMessage = 'Failed to save infrastructure';
+      renderPlayerResources();
+      state.invalidateRender();
+      return;
+    }
+
     state.hasPendingInfrastructureChanges = false;
     state.infrastructureStatusMessage = 'Infrastructure saved';
     captureCommittedInfrastructureState();
@@ -6029,11 +7470,11 @@ export function createGame(container, galaxyOptions = {}) {
     const screenX = event.clientX - rect.left;
     const screenY = event.clientY - rect.top;
 
-    if (renderer.handleCanvasClick(screenX, screenY)) {
+    if (state.moveMission?.active || state.attackMission?.active || state.tradeMission?.active) {
       return;
     }
 
-    if (state.moveMission?.active) {
+    if (renderer.handleCanvasClick(screenX, screenY)) {
       return;
     }
 
@@ -6139,6 +7580,12 @@ export function createGame(container, galaxyOptions = {}) {
   state.onMoveMissionCalculateRoute = calculateMoveMissionRoute;
   state.onMoveMissionCommitMove = commitMoveMission;
   state.onMoveMissionCancel = cancelMoveMission;
+  state.onAttackMissionConfirm = () => {
+    void commitAttackMission();
+  };
+  state.onAttackMissionCancel = cancelAttackMission;
+  state.onTradeMissionCommit = commitTradeMission;
+  state.onTradeMissionCancel = cancelTradeMission;
   state.onMoveMissionOpenFleet = (ship, missionId = null) => {
     if (ship) {
       setHighlightedFleetShip({
@@ -6151,6 +7598,149 @@ export function createGame(container, galaxyOptions = {}) {
     openRightPanelWithHistory('ship-designer');
     state.invalidateRender();
   };
+  state.onTradeRouteOpenFleet = (ship, routeId = null) => {
+    if (ship) {
+      setHighlightedFleetShip({
+        ...ship,
+        position: 'Trading',
+        tradeRouteId: routeId ?? ship.tradeRouteId,
+      });
+    }
+    setShipPanelView('fleet');
+    setShipPanelShipId('');
+    openRightPanelWithHistory('ship-designer');
+    writeDeepLink({ replace: true });
+    renderRightSideMenu({ force: true });
+    state.invalidateRender();
+  };
+  state.onPiracyZoneOpenFleet = (ship) => {
+    if (ship) {
+      setHighlightedFleetShip({
+        ...ship,
+        position: 'Piracy',
+      });
+    }
+    setShipPanelView('fleet');
+    setShipPanelShipId('');
+    openRightPanelWithHistory('ship-designer');
+    writeDeepLink({ replace: true });
+    renderRightSideMenu({ force: true });
+    state.invalidateRender();
+  };
+  state.handleTradeMissionPointerDown = (event) => {
+    const tradeMission = state.tradeMission;
+    if (!tradeMission?.active) {
+      return false;
+    }
+
+    const rect = canvas.getBoundingClientRect();
+    const screenX = event.clientX - rect.left;
+    const screenY = event.clientY - rect.top;
+    const endpoints = [
+      {
+        key: 'origin',
+        point: tradeMission.originMarkerWorld ?? state.starsById.get(tradeMission.originStarId),
+      },
+      {
+        key: 'destination',
+        point: tradeMission.destinationMarkerWorld ?? state.starsById.get(tradeMission.destinationStarId),
+      },
+    ];
+
+    let closestEndpoint = null;
+    let closestDistanceSq = Infinity;
+    for (const endpoint of endpoints) {
+      if (!endpoint.point) {
+        continue;
+      }
+
+      const endpointScreen = {
+        x: (endpoint.point.x - state.camera.x) * state.camera.zoom + rect.width / 2,
+        y: (endpoint.point.y - state.camera.y) * state.camera.zoom + rect.height / 2,
+      };
+      const dx = endpointScreen.x - screenX;
+      const dy = endpointScreen.y - screenY;
+      const distanceSq = dx * dx + dy * dy;
+      if (distanceSq < closestDistanceSq) {
+        closestDistanceSq = distanceSq;
+        closestEndpoint = endpoint.key;
+      }
+    }
+
+    if (!closestEndpoint || closestDistanceSq > 26 * 26) {
+      return false;
+    }
+
+    state.tradeMission = {
+      ...tradeMission,
+      draggingEndpoint: closestEndpoint,
+      message: '',
+    };
+    state.suppressCanvasClick = true;
+    canvas.setPointerCapture(event.pointerId);
+    state.invalidateRender();
+    return true;
+  };
+
+  state.handleTradeMissionPointerMove = (event) => {
+    if (!state.tradeMission?.active || !state.tradeMission.draggingEndpoint) {
+      return false;
+    }
+
+    const rect = canvas.getBoundingClientRect();
+    const screenX = event.clientX - rect.left;
+    const screenY = event.clientY - rect.top;
+    const worldPoint = screenToWorld(state.camera, { width: rect.width, height: rect.height }, screenX, screenY);
+    const markerKey = state.tradeMission.draggingEndpoint === 'origin'
+      ? 'originMarkerWorld'
+      : 'destinationMarkerWorld';
+
+    state.tradeMission = {
+      ...state.tradeMission,
+      [markerKey]: worldPoint,
+      message: '',
+    };
+    state.suppressCanvasClick = true;
+    state.invalidateRender();
+    return true;
+  };
+
+  state.handleTradeMissionPointerUp = (event) => {
+    if (!state.tradeMission?.active || !state.tradeMission.draggingEndpoint) {
+      return false;
+    }
+
+    const endpoint = state.tradeMission.draggingEndpoint;
+    const rect = canvas.getBoundingClientRect();
+    const screenX = event.clientX - rect.left;
+    const screenY = event.clientY - rect.top;
+    const worldPoint = screenToWorld(state.camera, { width: rect.width, height: rect.height }, screenX, screenY);
+    updateTradeMissionEndpointFromWorld(endpoint, worldPoint);
+    state.suppressCanvasClick = true;
+    try {
+      canvas.releasePointerCapture(event.pointerId);
+    } catch {
+      // Pointer capture may already be released by the browser.
+    }
+    return true;
+  };
+
+  state.handleTradeMissionPointerCancel = () => {
+    if (!state.tradeMission?.active || !state.tradeMission.draggingEndpoint) {
+      return false;
+    }
+
+    const originStar = state.starsById.get(state.tradeMission.originStarId);
+    const destinationStar = state.starsById.get(state.tradeMission.destinationStarId);
+    state.tradeMission = applyTradeRoutePlanToMission(
+      state.tradeMission,
+      createTradeRoutePlan(originStar, destinationStar)
+    );
+    state.suppressCanvasClick = true;
+    state.invalidateRender();
+    return true;
+  };
+
   state.handleMoveMissionPointerDown = (event) => {
     const moveMission = state.moveMission;
     if (!moveMission?.active || moveMission.status === 'moving') {
@@ -6286,21 +7876,32 @@ export function createGame(container, galaxyOptions = {}) {
   state.invalidateRender = () => loop.invalidate();
 
   return {
-    async start() {
-      await sync.start();
-      await ensureCurrentPlayerStateLoaded();
-      startLocalResourceTicker();
-      if (state.showPerformanceGraph) {
-        startPerformanceGraphLoop();
-      }
+    start() {
       renderTopResourceBar();
       applyDeepLink();
       renderer.resize();
+      if (state.showPerformanceGraph) {
+        startPerformanceGraphLoop();
+      }
       loop.start();
       loop.invalidate();
       window.addEventListener('resize', renderer.resize);
       window.addEventListener('hashchange', applyDeepLink);
       window.addEventListener('popstate', applyDeepLink);
+
+      void (async () => {
+        try {
+          await sync.start();
+          await ensureCurrentPlayerStateLoaded();
+          startLocalResourceTicker();
+          renderTopResourceBar();
+          applyDeepLink();
+          renderer.resize();
+          loop.invalidate();
+        } catch (error) {
+          console.warn('Failed to finish async startup.', error);
+        }
+      })();
     },
   };
 }

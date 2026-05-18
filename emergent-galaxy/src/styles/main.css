@@ -679,6 +679,7 @@ canvas {
   border-radius: 8px;
   background: rgba(201,116,66,0.1);
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.04), 0 0 0 1px rgba(201,116,66,0.06);
+  animation: fleetGroupBlink 0.95s ease-in-out 0s 2;
 }
 
 .fleet-group__header {
@@ -686,6 +687,14 @@ canvas {
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: start;
   gap: 12px;
+  min-width: 0;
+}
+
+.fleet-group__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
   min-width: 0;
 }
 
@@ -724,6 +733,7 @@ canvas {
   text-decoration: none;
   white-space: nowrap;
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.06);
+  cursor: pointer;
 }
 
 .fleet-mission-link--primary {
@@ -731,6 +741,12 @@ canvas {
   min-height: 34px;
   padding: 0 12px;
   border-radius: 6px;
+}
+
+.fleet-mission-link--danger {
+  border-color: rgba(251,113,133,0.36);
+  background: linear-gradient(180deg, rgba(251,113,133,0.16), rgba(127,29,29,0.12));
+  color: #fecdd3;
 }
 
 .fleet-unit-list {
@@ -1186,6 +1202,32 @@ canvas {
   }
   to {
     transform: translateX(30%);
+  }
+}
+
+@keyframes attackMissionInvalidPulse {
+  0%,
+  100% {
+    border-color: rgba(251, 113, 133, 0.5);
+    box-shadow: 0 0 0 0 rgba(251, 113, 133, 0), 0 0 0 rgba(251, 113, 133, 0);
+  }
+
+  50% {
+    border-color: rgba(251, 113, 133, 1);
+    box-shadow: 0 0 0 2px rgba(251, 113, 133, 0.32), 0 0 22px rgba(251, 113, 133, 0.38);
+  }
+}
+
+@keyframes fleetGroupBlink {
+  0%,
+  100% {
+    border-color: rgba(255,217,194,0.34);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.04), 0 0 0 1px rgba(201,116,66,0.06);
+  }
+
+  50% {
+    border-color: rgba(134,239,172,0.86);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.06), 0 0 0 2px rgba(134,239,172,0.22), 0 0 24px rgba(134,239,172,0.34);
   }
 }
 

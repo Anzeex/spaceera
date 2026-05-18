@@ -1,12 +1,17 @@
+import { calculateStarDevelopment, recalculateStarDerivedStats } from './population.js';
+
 export function captureBaselineState(galaxy) {
   const baselineStars = new Map();
 
   for (const star of galaxy.stars) {
+    const development = star.development ?? calculateStarDevelopment(star);
+
     baselineStars.set(star.id, {
       owner: star.owner,
       faction: star.faction ?? null,
       population: star.population,
       systemDefense: star.systemDefense,
+      development,
       explored: star.explored,
       richness: star.richness,
       danger: star.danger,
@@ -46,6 +51,12 @@ export function serializeGameState(state, baselineState) {
 
     if (star.systemDefense !== baselineStar.systemDefense) {
       starDiff.systemDefense = star.systemDefense;
+    }
+
+    const development = calculateStarDevelopment(star);
+    star.development = development;
+    if (development !== baselineStar.development) {
+      starDiff.development = development;
     }
 
     if (star.explored !== baselineStar.explored) {
@@ -134,6 +145,7 @@ export function applyStoredState(state, storedState) {
     if ('faction' in override) star.faction = override.faction;
     if ('population' in override) star.population = override.population;
     if ('systemDefense' in override) star.systemDefense = override.systemDefense;
+    if ('development' in override) star.development = override.development;
     if ('explored' in override) star.explored = override.explored;
     if ('richness' in override) star.richness = override.richness;
     if ('danger' in override) star.danger = override.danger;
@@ -149,6 +161,8 @@ export function applyStoredState(state, storedState) {
         }
       }
     }
+
+    recalculateStarDerivedStats(star);
   }
 }
 
@@ -175,5 +189,7 @@ export function restoreBaselineState(state, baselineState) {
       planet.population = baselinePlanet.population;
       planet.infrastructure = { ...baselinePlanet.infrastructure };
     }
+
+    star.development = baselineStar.development ?? calculateStarDevelopment(star);
   }
 }
