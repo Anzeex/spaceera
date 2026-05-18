@@ -1781,6 +1781,34 @@ export function createRenderer(state) {
     return null;
   }
 
+  function isClickOnStar(screenX, screenY) {
+    const { camera, galaxy } = state;
+    const width = state.canvas.clientWidth || window.innerWidth;
+    const height = state.canvas.clientHeight || window.innerHeight;
+    const viewport = { width, height };
+    const worldPadding = 40 / camera.zoom;
+    const candidateStars = state.starSpatialIndex
+      ? state.starSpatialIndex.queryRange(
+          camera.x - width / (2 * camera.zoom) - worldPadding,
+          camera.y - height / (2 * camera.zoom) - worldPadding,
+          camera.x + width / (2 * camera.zoom) + worldPadding,
+          camera.y + height / (2 * camera.zoom) + worldPadding
+        )
+      : galaxy.stars;
+
+    for (const star of candidateStars) {
+      const point = worldToScreen(camera, viewport, star.x, star.y);
+      const dx = point.x - screenX;
+      const dy = point.y - screenY;
+      const pickRadius = Math.max(12, star.radius * camera.zoom);
+      if (dx * dx + dy * dy <= pickRadius * pickRadius) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
   function getTradeMissionEndpointPoint(tradeMission, endpoint, star) {
     if (tradeMission.draggingEndpoint === endpoint) {
       return endpoint === 'origin'
@@ -1831,6 +1859,7 @@ export function createRenderer(state) {
     const destinationPoint = worldToScreen(camera, viewport, destinationWorld.x, destinationWorld.y);
     const metrics = tradeMission.metrics ?? {};
     const isValid = Boolean(metrics.valid);
+    const isInspectMode = tradeMission.mode === 'inspect';
     const routeColor = isValid ? '#86efac' : '#fb7185';
     const midPoint = {
       x: (originPoint.x + destinationPoint.x) / 2,
@@ -1850,24 +1879,14 @@ export function createRenderer(state) {
     ctx.stroke();
     ctx.setLineDash([]);
     ctx.shadowBlur = 0;
-    drawTradeMissionEndpoint(
-      ctx,
-      originPoint,
-      'A',
-      '#86efac',
-      tradeMission.draggingEndpoint === 'origin'
-    );
-    drawTradeMissionEndpoint(
-      ctx,
-      destinationPoint,
-      'B',
-      '#67e8f9',
-      tradeMission.draggingEndpoint === 'destination'
-    );
+    drawTradeMissionEndpoint(ctx, originPoint, 'A', '#86efac', !isInspectMode && tradeMission.draggingEndpoint === 'origin');
+    drawTradeMissionEndpoint(ctx, destinationPoint, 'B', '#67e8f9', !isInspectMode && tradeMission.draggingEndpoint === 'destination');
     ctx.restore();
 
     const boxWidth = 326;
-    const boxHeight = tradeMission.message ? 208 : 186;
+    const boxHeight = isInspectMode
+      ? 226
+      : (tradeMission.message ? 208 : 186);
     const routeDx = destinationPoint.x - originPoint.x;
     const routeDy = destinationPoint.y - originPoint.y;
     const routeLength = Math.hypot(routeDx, routeDy);
@@ -1908,12 +1927,18 @@ export function createRenderer(state) {
       width: 78,
       height: 30,
     };
+    const fleetButton = isInspectMode ? {
+      x: boxX + boxWidth - padding - 200,
+      y: buttonY,
+      width: 88,
+      height: 30,
+    } : null;
     const commitButton = {
-      x: boxX + boxWidth - padding - 104,
+      x: boxX + boxWidth - padding - (isInspectMode ? 104 : 104),
       y: buttonY,
       width: 104,
       height: 30,
-      disabled: !isValid || Number(metrics.credits) <= 0,
+      disabled: isInspectMode ? false : !isValid || Number(metrics.credits) <= 0,
     };
 
     ctx.save();
@@ -1946,9 +1971,18 @@ export function createRenderer(state) {
     );
     ctx.fillStyle = 'rgba(232,239,255,0.48)';
     ctx.font = '11px Arial';
-    ctx.fillText('Drag A or B to change systems.', boxX + padding, boxY + padding + 114);
+    ctx.fillText(
+      isInspectMode
+        ? `${tradeMission.ship?.name ?? tradeMission.ship?.type ?? 'Ship'} on route`
+        : 'Drag A or B to change systems.',
+      boxX + padding,
+      boxY + padding + 114
+    );
 
-    if (tradeMission.message) {
+    if (isInspectMode) {
+      ctx.fillStyle = 'rgba(232,239,255,0.68)';
+      ctx.fillText(`Fleet size ${formatNumber(tradeMission.ship?.count ?? 1)}`, boxX + padding, boxY + padding + 136);
+    } else if (tradeMission.message) {
       ctx.fillStyle = tradeMission.message.includes('Earned') ? '#bbf7d0' : '#fca5a5';
       ctx.fillText(tradeMission.message, boxX + padding, boxY + padding + 136);
     }
@@ -1961,19 +1995,30 @@ export function createRenderer(state) {
     ctx.fillStyle = 'rgba(232,239,255,0.72)';
     ctx.font = '700 11px Arial';
     ctx.textAlign = 'center';
-    ctx.fillText('Cancel', cancelButton.x + cancelButton.width / 2, cancelButton.y + 9);
+    ctx.fillText(isInspectMode ? 'Close' : 'Cancel', cancelButton.x + cancelButton.width / 2, cancelButton.y + 9);
 
-    ctx.fillStyle = commitButton.disabled ? 'rgba(255,255,255,0.06)' : 'rgba(134, 239, 172, 0.17)';
-    ctx.strokeStyle = commitButton.disabled ? 'rgba(255,255,255,0.12)' : 'rgba(134, 239, 172, 0.52)';
+    if (fleetButton) {
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.06)';
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.16)';
+      drawInfoBox(ctx, fleetButton.x, fleetButton.y, fleetButton.width, fleetButton.height, 7);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = 'rgba(232,239,255,0.72)';
+      ctx.fillText('Open Fleet', fleetButton.x + fleetButton.width / 2, fleetButton.y + 9);
+    }
+
+    ctx.fillStyle = commitButton.disabled ? 'rgba(255,255,255,0.06)' : (isInspectMode ? 'rgba(251, 113, 133, 0.16)' : 'rgba(134, 239, 172, 0.17)');
+    ctx.strokeStyle = commitButton.disabled ? 'rgba(255,255,255,0.12)' : (isInspectMode ? 'rgba(251, 113, 133, 0.52)' : 'rgba(134, 239, 172, 0.52)');
     drawInfoBox(ctx, commitButton.x, commitButton.y, commitButton.width, commitButton.height, 7);
     ctx.fill();
     ctx.stroke();
-    ctx.fillStyle = commitButton.disabled ? 'rgba(232,239,255,0.34)' : '#bbf7d0';
-    ctx.fillText('Start Trade', commitButton.x + commitButton.width / 2, commitButton.y + 9);
+    ctx.fillStyle = commitButton.disabled ? 'rgba(232,239,255,0.34)' : (isInspectMode ? '#fecdd3' : '#bbf7d0');
+    ctx.fillText(isInspectMode ? 'Cancel Trade' : 'Start Trade', commitButton.x + commitButton.width / 2, commitButton.y + 9);
     ctx.restore();
 
     tradeMissionDialogBounds = {
       cancel: cancelButton,
+      fleet: fleetButton,
       commit: commitButton,
     };
   }
@@ -2564,13 +2609,20 @@ export function createRenderer(state) {
 
   function handleCanvasClick(screenX, screenY) {
     if (tradeMissionDialogBounds) {
-      const { cancel, commit } = tradeMissionDialogBounds;
+      const { cancel, fleet, commit } = tradeMissionDialogBounds;
+      const isInspectMode = state.tradeMission?.mode === 'inspect';
       const inCancel =
         Boolean(cancel) &&
         screenX >= cancel.x &&
         screenX <= cancel.x + cancel.width &&
         screenY >= cancel.y &&
         screenY <= cancel.y + cancel.height;
+      const inFleet =
+        Boolean(fleet) &&
+        screenX >= fleet.x &&
+        screenX <= fleet.x + fleet.width &&
+        screenY >= fleet.y &&
+        screenY <= fleet.y + fleet.height;
       const inCommit =
         Boolean(commit) &&
         screenX >= commit.x &&
@@ -2583,8 +2635,17 @@ export function createRenderer(state) {
         return true;
       }
 
+      if (inFleet) {
+        state.onTradeRouteOpenFleet?.(state.tradeMission?.ship, state.tradeMission?.ship?.tradeRouteId ?? null);
+        return true;
+      }
+
       if (inCommit) {
-        if (!commit.disabled) {
+        if (isInspectMode) {
+          if (state.tradeMission?.ship) {
+            state.onCancelTradeRoute?.(state.tradeMission.ship);
+          }
+        } else if (!commit.disabled) {
           state.onTradeMissionCommit?.();
         }
         return true;
@@ -2670,9 +2731,11 @@ export function createRenderer(state) {
       }
     }
 
-    const clickedTradeRoute = getClickedActiveTradeRoute(screenX, screenY);
+    const clickedTradeRoute = isClickOnStar(screenX, screenY)
+      ? null
+      : getClickedActiveTradeRoute(screenX, screenY);
     if (clickedTradeRoute) {
-      state.onTradeRouteOpenFleet?.(clickedTradeRoute.ship, clickedTradeRoute.routeId);
+      state.onTradeRouteInspect?.(clickedTradeRoute.ship, clickedTradeRoute.routeId);
       return true;
     }
 

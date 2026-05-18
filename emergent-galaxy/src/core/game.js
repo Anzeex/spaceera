@@ -1316,6 +1316,8 @@ export function createGame(container, galaxyOptions = {}) {
     onAttackMissionCancel: null,
     onTradeMissionCommit: null,
     onTradeMissionCancel: null,
+    onCancelTradeRoute: null,
+    onTradeRouteInspect: null,
     onTradeRouteOpenFleet: null,
     onPiracyZoneOpenFleet: null,
     handleTradeMissionPointerDown: null,
@@ -3561,9 +3563,45 @@ export function createGame(container, galaxyOptions = {}) {
   }
 
   function cancelTradeMission() {
+    if (state.tradeMission?.mode === 'inspect') {
+      state.tradeMission = null;
+      state.invalidateRender();
+      return;
+    }
+
     state.tradeMission = null;
     rightPanel.dataset.panel = 'ship-designer';
     setRightPanelOpen(true);
+    state.invalidateRender();
+  }
+
+  function openTradeRouteDetails(ship, routeId = null) {
+    if (!ship || getShipFleetPosition(ship) !== 'Trading') {
+      return;
+    }
+
+    const originStar = state.starsById?.get(ship.tradeOriginStarId);
+    const destinationStar = state.starsById?.get(ship.tradeDestinationStarId);
+    if (!originStar || !destinationStar) {
+      return;
+    }
+
+    state.tradeMission = {
+      id: `inspect-${routeId ?? ship.tradeRouteId ?? ship.id ?? Date.now()}`,
+      active: true,
+      mode: 'inspect',
+      ship: structuredClone(ship),
+      originStarId: originStar.id,
+      destinationStarId: destinationStar.id,
+      originMarkerWorld: { x: originStar.x, y: originStar.y },
+      destinationMarkerWorld: { x: destinationStar.x, y: destinationStar.y },
+      metrics: calculateTradeRouteMetrics(originStar, destinationStar),
+      message: '',
+      draggingEndpoint: null,
+    };
+    state.selection.selectedStarId = originStar.id;
+    state.selectedPlanetId = null;
+    setRightPanelOpen(false);
     state.invalidateRender();
   }
 
@@ -3714,6 +3752,9 @@ export function createGame(container, galaxyOptions = {}) {
       ...state.playerState,
       ships: moveResult.ships,
     };
+    if (state.tradeMission?.mode === 'inspect' && (state.tradeMission.ship?.tradeRouteId ?? null) === (ship.tradeRouteId ?? null)) {
+      state.tradeMission = null;
+    }
     setHighlightedFleetShip(returnedShip);
     setShipPanelView('fleet');
     setShipPanelShipId('');
@@ -7586,6 +7627,7 @@ export function createGame(container, galaxyOptions = {}) {
   state.onAttackMissionCancel = cancelAttackMission;
   state.onTradeMissionCommit = commitTradeMission;
   state.onTradeMissionCancel = cancelTradeMission;
+  state.onCancelTradeRoute = cancelTradeRoute;
   state.onMoveMissionOpenFleet = (ship, missionId = null) => {
     if (ship) {
       setHighlightedFleetShip({
@@ -7613,6 +7655,7 @@ export function createGame(container, galaxyOptions = {}) {
     renderRightSideMenu({ force: true });
     state.invalidateRender();
   };
+  state.onTradeRouteInspect = openTradeRouteDetails;
   state.onPiracyZoneOpenFleet = (ship) => {
     if (ship) {
       setHighlightedFleetShip({
@@ -7629,7 +7672,7 @@ export function createGame(container, galaxyOptions = {}) {
   };
   state.handleTradeMissionPointerDown = (event) => {
     const tradeMission = state.tradeMission;
-    if (!tradeMission?.active) {
+    if (!tradeMission?.active || tradeMission.mode === 'inspect') {
       return false;
     }
 
@@ -7683,7 +7726,7 @@ export function createGame(container, galaxyOptions = {}) {
   };
 
   state.handleTradeMissionPointerMove = (event) => {
-    if (!state.tradeMission?.active || !state.tradeMission.draggingEndpoint) {
+    if (!state.tradeMission?.active || state.tradeMission.mode === 'inspect' || !state.tradeMission.draggingEndpoint) {
       return false;
     }
 
@@ -7706,7 +7749,7 @@ export function createGame(container, galaxyOptions = {}) {
   };
 
   state.handleTradeMissionPointerUp = (event) => {
-    if (!state.tradeMission?.active || !state.tradeMission.draggingEndpoint) {
+    if (!state.tradeMission?.active || state.tradeMission.mode === 'inspect' || !state.tradeMission.draggingEndpoint) {
       return false;
     }
 
@@ -7726,7 +7769,7 @@ export function createGame(container, galaxyOptions = {}) {
   };
 
   state.handleTradeMissionPointerCancel = () => {
-    if (!state.tradeMission?.active || !state.tradeMission.draggingEndpoint) {
+    if (!state.tradeMission?.active || state.tradeMission.mode === 'inspect' || !state.tradeMission.draggingEndpoint) {
       return false;
     }
 

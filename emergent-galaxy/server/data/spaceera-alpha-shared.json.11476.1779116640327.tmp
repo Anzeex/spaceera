@@ -1160,7 +1160,7 @@
           },
           "4837b551-6127-40d4-af9d-66def147f279": {
             "resources": {
-              "Credits": 4805.899999999996,
+              "Credits": 4744.299999999976,
               "Metals": 13.199999999999998,
               "Food": 13.199999999999998,
               "Rare Earth Elements": 13.199999999999998,
@@ -1259,11 +1259,11 @@
       },
       "economy": {
         "resources": {
-          "Credits": 1000148792,
-          "Metals": 208715.9,
-          "Food": 276564.80000000005,
-          "Rare Earth Elements": 220456.80000000002,
-          "Uranium": 212124.50000000003
+          "Credits": 1000134176,
+          "Metals": 201715.9,
+          "Food": 269564.80000000005,
+          "Rare Earth Elements": 219056.80000000002,
+          "Uranium": 211284.50000000003
         },
         "hourlyProduction": {
           "Credits": 262.1,
@@ -1272,9 +1272,9 @@
           "Rare Earth Elements": 25,
           "Uranium": 15
         },
-        "completedHours": 11,
+        "completedHours": 143,
         "resourceUpdateInterval": "minute",
-        "lastResourceUpdate": "2026-05-18T16:00:00.000Z"
+        "lastResourceUpdate": "2026-05-18T15:04:00.000Z"
       },
       "status": {
         "energyOutput": 310,
@@ -1285,7 +1285,7 @@
       },
       "meta": {
         "createdAt": "2026-04-26T14:02:34.244Z",
-        "updatedAt": "2026-05-18T16:00:00.040Z"
+        "updatedAt": "2026-05-18T15:04:00.181Z"
       }
     },
     "anzeed": {
@@ -11480,5 +11480,5 @@
       }
     }
   },
-  "updatedAt": "2026-05-18T16:00:00.173Z"
+  "updatedAt": "2026-05-18T15:04:00.327Z"
 }
