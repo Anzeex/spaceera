@@ -7470,11 +7470,11 @@ export function createGame(container, galaxyOptions = {}) {
     const screenX = event.clientX - rect.left;
     const screenY = event.clientY - rect.top;
 
-    if (state.moveMission?.active || state.attackMission?.active || state.tradeMission?.active) {
+    if (renderer.handleCanvasClick(screenX, screenY)) {
       return;
     }
 
-    if (renderer.handleCanvasClick(screenX, screenY)) {
+    if (state.moveMission?.active || state.attackMission?.active || state.tradeMission?.active) {
       return;
     }
 

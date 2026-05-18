@@ -798,10 +798,27 @@
               "passengerCapacity": 11,
               "stealth": 12
             },
-            "count": 1,
-            "position": "1edd4334-df1b-4672-8a5f-50fd9b93329d",
+            "count": 3,
+            "position": "Trading",
             "modules": [],
-            "runtime": {}
+            "runtime": {},
+            "cargo": {
+              "items": {
+                "colony-kit": 0,
+                "terraforming-kit": 1,
+                "outpost-kit": 0,
+                "mining-kit": 0,
+                "defense-kit": 0,
+                "wormhole-kit": 1
+              }
+            },
+            "tradeRouteId": "trade:4837b551-6127-40d4-af9d-66def147f279|76b225ea-5ad0-4ba7-9a2f-41bf7d0c222c",
+            "tradeOriginStarId": "4837b551-6127-40d4-af9d-66def147f279",
+            "tradeDestinationStarId": "76b225ea-5ad0-4ba7-9a2f-41bf7d0c222c",
+            "tradeOriginName": "Bexus Nebulon",
+            "tradeDestinationName": "Draem Cygnus",
+            "tradeRevenueCredits": 198,
+            "tradeDistanceLightYears": 3081.7277936766955
           },
           {
             "id": "1778326784163-bwyou9",
@@ -817,27 +834,10 @@
               "passengerCapacity": 11,
               "stealth": 12
             },
-            "count": 3,
-            "position": "Trading",
+            "count": 1,
+            "position": "1edd4334-df1b-4672-8a5f-50fd9b93329d",
             "modules": [],
-            "runtime": {},
-            "cargo": {
-              "items": {
-                "colony-kit": 0,
-                "terraforming-kit": 1,
-                "outpost-kit": 0,
-                "mining-kit": 0,
-                "defense-kit": 0,
-                "wormhole-kit": 1
-              }
-            },
-            "tradeRouteId": "trade:4837b551-6127-40d4-af9d-66def147f279|c74e35d1-060a-461e-8f8b-e4c7874d23bd",
-            "tradeOriginStarId": "4837b551-6127-40d4-af9d-66def147f279",
-            "tradeDestinationStarId": "c74e35d1-060a-461e-8f8b-e4c7874d23bd",
-            "tradeOriginName": "Bexus Nebulon",
-            "tradeDestinationName": "Jaxiu Ionis",
-            "tradeRevenueCredits": 365,
-            "tradeDistanceLightYears": 4070.9890895460253
+            "runtime": {}
           }
         ],
         "shipTemplates": [
@@ -1160,7 +1160,7 @@
           },
           "4837b551-6127-40d4-af9d-66def147f279": {
             "resources": {
-              "Credits": 4588.099999999924,
+              "Credits": 4580.399999999921,
               "Metals": 13.199999999999998,
               "Food": 13.199999999999998,
               "Rare Earth Elements": 13.199999999999998,
@@ -1259,11 +1259,11 @@
       },
       "economy": {
         "resources": {
-          "Credits": 1000097114,
-          "Metals": 183965.9,
-          "Food": 251814.80000000002,
-          "Rare Earth Elements": 215506.80000000002,
-          "Uranium": 209154.50000000003
+          "Credits": 1000094922,
+          "Metals": 183090.9,
+          "Food": 250939.80000000002,
+          "Rare Earth Elements": 215331.80000000002,
+          "Uranium": 209049.50000000003
         },
         "hourlyProduction": {
           "Credits": 262.1,
@@ -1274,7 +1274,7 @@
         },
         "completedHours": 1,
         "resourceUpdateInterval": "minute",
-        "lastResourceUpdate": "2026-05-18T12:42:00.000Z"
+        "lastResourceUpdate": "2026-05-18T12:35:00.000Z"
       },
       "status": {
         "energyOutput": 310,
@@ -1285,7 +1285,7 @@
       },
       "meta": {
         "createdAt": "2026-04-26T14:02:34.244Z",
-        "updatedAt": "2026-05-18T12:42:05.328Z"
+        "updatedAt": "2026-05-18T12:35:00.276Z"
       }
     },
     "anzeed": {
@@ -11480,5 +11480,5 @@
       }
     }
   },
-  "updatedAt": "2026-05-18T12:42:05.453Z"
+  "updatedAt": "2026-05-18T12:35:00.399Z"
 }
